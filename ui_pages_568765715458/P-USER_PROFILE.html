@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 我的</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .nav-item {
+            transition: all 0.2s ease;
+            position: relative;
+            color: #B3B3B3;
+        }
+        
+        .nav-item.active {
+            color: #FF6B35;
+        }
+        
+        .user-avatar {
+            background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+        }
+        
+        .profile-card {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+        
+        .profile-card:hover {
+            background: rgba(64, 64, 64, 0.7);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .menu-item {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+        
+        .menu-item:hover {
+            background: rgba(64, 64, 64, 0.7);
+            transform: translateX(4px);
+        }
+        
+        .stats-card {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .theme-transition {
+            transition: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease;
+        }
+        
+        body.light-theme {
+            --bg-dark-100: #F5F5F5;
+            --bg-dark-200: #FFFFFF;
+            --bg-dark-300: #F0F0F0;
+            --text-primary: #1A1A1A;
+            --text-secondary: #525252;
+            --border-color: #E0E0E0;
+        }
+        
+        body.light-theme .profile-card,
+        body.light-theme .menu-item,
+        body.light-theme .stats-card {
+            background: rgba(255, 255, 255, 0.7);
+            border-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        body.light-theme .profile-card:hover,
+        body.light-theme .menu-item:hover {
+            background: rgba(240, 240, 240, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans theme-transition">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-container" class="min-h-screen bg-dark-100 pb-20">
+        <!-- 顶部用户信息区 -->
+        <header id="user-header" class="glass px-6 py-6 border-b border-dark-300 theme-transition">
+            <div id="user-profile-card" class="profile-card rounded-xl p-6 shadow-card">
+                <div class="flex items-center space-x-4">
+                    <div id="user-avatar" class="w-20 h-20 rounded-full user-avatar flex items-center justify-center">
+                        <i class="fas fa-user text-white text-2xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h1 id="user-name" class="text-xl font-bold text-text-primary mb-1">夜行者</h1>
+                        <p id="user-id" class="text-sm text-text-secondary mb-2">UID: 123456789</p>
+                        <div class="flex items-center space-x-4">
+                            <div class="text-center">
+                                <div id="total-works-count" class="text-lg font-semibold text-primary">12</div>
+                                <div class="text-xs text-text-secondary">作品</div>
+                            </div>
+                            <div class="text-center">
+                                <div id="total-words-count" class="text-lg font-semibold text-secondary">45.2K</div>
+                                <div class="text-xs text-text-secondary">总字数</div>
+                            </div>
+                            <div class="text-center">
+                                <div id="ai-usage-count" class="text-lg font-semibold text-tertiary">128</div>
+                                <div class="text-xs text-text-secondary">AI使用</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 统计数据区域 -->
+        <section id="stats-section" class="px-6 py-6">
+            <h2 class="text-lg font-semibold text-text-primary mb-4">创作统计</h2>
+            <div id="stats-grid" class="grid grid-cols-2 gap-4">
+                <!-- 今日创作 -->
+                <div id="today-stats" class="stats-card rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-medium text-text-secondary">今日创作</h3>
+                        <i class="fas fa-calendar-day text-primary"></i>
+                    </div>
+                    <div id="today-words" class="text-2xl font-bold text-text-primary mb-1">1,247</div>
+                    <div id="today-time" class="text-xs text-text-secondary">2小时15分钟</div>
+                </div>
+
+                <!-- 本周创作 -->
+                <div id="week-stats" class="stats-card rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-medium text-text-secondary">本周创作</h3>
+                        <i class="fas fa-calendar-week text-secondary"></i>
+                    </div>
+                    <div id="week-words" class="text-2xl font-bold text-text-primary mb-1">8,563</div>
+                    <div id="week-time" class="text-xs text-text-secondary">15小时30分钟</div>
+                </div>
+
+                <!-- AI功能使用 -->
+                <div id="ai-stats" class="stats-card rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-medium text-text-secondary">AI功能使用</h3>
+                        <i class="fas fa-robot text-tertiary"></i>
+                    </div>
+                    <div id="ai-map-count" class="text-lg font-semibold text-text-primary mb-1">地图生成: 23次</div>
+                    <div id="ai-check-count" class="text-sm text-text-secondary">一致性检查: 45次</div>
+                    <div id="ai-suggest-count" class="text-sm text-text-secondary">智能建议: 60次</div>
+                </div>
+
+                <!-- 辅助数据统计 -->
+                <div id="aux-stats" class="stats-card rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-medium text-text-secondary">辅助数据</h3>
+                        <i class="fas fa-database text-success"></i>
+                    </div>
+                    <div id="characters-count" class="text-lg font-semibold text-text-primary mb-1">人物: 48个</div>
+                    <div id="settings-count" class="text-sm text-text-secondary">设定: 32个</div>
+                    <div id="foreshadowing-count" class="text-sm text-text-secondary">伏笔: 18个</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 功能菜单区域 -->
+        <section id="menu-section" class="px-6 pb-6">
+            <h2 class="text-lg font-semibold text-text-primary mb-4">功能菜单</h2>
+            <div id="menu-list" class="space-y-3">
+                <!-- 设置 -->
+                <div id="menu-settings" class="menu-item rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-cog text-primary"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-text-primary">设置</h3>
+                                <p class="text-sm text-text-secondary">个性化偏好设置</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right text-text-tertiary"></i>
+                    </div>
+                </div>
+
+                <!-- 使用统计 -->
+                <div id="menu-stats-detail" class="menu-item rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
+                                <i class="fas fa-chart-bar text-secondary"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-text-primary">使用统计</h3>
+                                <p class="text-sm text-text-secondary">详细的创作数据</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right text-text-tertiary"></i>
+                    </div>
+                </div>
+
+                <!-- 关于我们 -->
+                <div id="menu-about" class="menu-item rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-tertiary/20 flex items-center justify-center">
+                                <i class="fas fa-info-circle text-tertiary"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-text-primary">关于我们</h3>
+                                <p class="text-sm text-text-secondary">版本信息与帮助</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right text-text-tertiary"></i>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-dark-200/80 backdrop-blur-md border-t border-dark-300/50 flex justify-around items-center h-16 px-2 safe-bottom z-40">
+        <a id="nav-home" href="P-HOME.html" class="nav-item flex flex-col items-center p-2 text-text-secondary">
+            <i class="fas fa-home text-xl mb-1"></i>
+            <span class="text-xs">首页</span>
+        </a>
+        <button id="theme-toggle" class="nav-item flex flex-col items-center p-2">
+            <i class="fas fa-moon text-xl mb-1 transition-transform duration-500"></i>
+            <span class="text-xs">主题</span>
+        </button>
+        <a id="nav-service" href="P-SERVICE.html" class="nav-item flex flex-col items-center p-2 text-text-secondary">
+            <i class="fas fa-tools text-xl mb-1"></i>
+            <span class="text-xs">服务</span>
+        </a>
+        <a id="nav-profile" href="#" class="nav-item active flex flex-col items-center p-2">
+            <i class="fas fa-user text-xl mb-1"></i>
+            <span class="text-xs">我的</span>
+        </a>
+    </nav>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 底部导航栏点击事件
+            document.querySelector('#nav-home').addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = 'P-HOME.html';
+            });
+
+            document.querySelector('#nav-service').addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = 'P-SERVICE.html';
+            });
+
+            document.querySelector('#nav-profile').addEventListener('click', function(e) {
+                e.preventDefault();
+                // 已在个人中心页面，无需操作
+            });
+
+            // 功能菜单点击事件
+            document.querySelector('#menu-settings').addEventListener('click', function() {
+                window.location.href = 'P-SETTINGS.html';
+            });
+
+            document.querySelector('#menu-about').addEventListener('click', function() {
+                window.location.href = 'P-ABOUT_US.html';
+            });
+
+            // 使用统计详情点击事件
+            document.querySelector('#menu-stats-detail').addEventListener('click', function() {
+                // 显示详细统计数据（在当前页面展开或跳转到统计详情页）
+                console.log('查看详细使用统计');
+                // 这里可以展开显示更多详细数据或跳转到专门的统计页面
+            });
+
+            // 主题切换功能
+            const themeToggle = document.querySelector('#theme-toggle');
+            const themeIcon = themeToggle.querySelector('i');
+            let isDarkMode = true;
+            
+            themeToggle.addEventListener('click', function() {
+                isDarkMode = !isDarkMode;
+                
+                if (isDarkMode) {
+                    // 切换到深色模式
+                    document.body.classList.remove('light-theme');
+                    themeIcon.classList.remove('fa-sun');
+                    themeIcon.classList.add('fa-moon');
+                    themeIcon.style.transform = 'rotate(0deg)';
+                } else {
+                    // 切换到浅色模式
+                    document.body.classList.add('light-theme');
+                    themeIcon.classList.remove('fa-moon');
+                    themeIcon.classList.add('fa-sun');
+                    themeIcon.style.transform = 'rotate(180deg)';
+                }
+                
+                // 更新具有主题过渡效果的元素
+                document.querySelectorAll('.theme-transition').forEach(el => {
+                    el.style.transition = 'background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease';
+                });
+            });
+
+            // 模拟加载统计数据
+            function loadStatsData() {
+                // 这里可以从本地存储或API获取真实数据
+                const mockStats = {
+                    todayWords: 1247,
+                    todayTime: "2小时15分钟",
+                    weekWords: 8563,
+                    weekTime: "15小时30分钟",
+                    aiMapCount: 23,
+                    aiCheckCount: 45,
+                    aiSuggestCount: 60,
+                    charactersCount: 48,
+                    settingsCount: 32,
+                    foreshadowingCount: 18
+                };
+
+                // 更新页面数据
+                document.querySelector('#today-words').textContent = mockStats.todayWords.toLocaleString();
+                document.querySelector('#today-time').textContent = mockStats.todayTime;
+                document.querySelector('#week-words').textContent = mockStats.weekWords.toLocaleString();
+                document.querySelector('#week-time').textContent = mockStats.weekTime;
+                document.querySelector('#ai-map-count').textContent = `地图生成: ${mockStats.aiMapCount}次`;
+                document.querySelector('#ai-check-count').textContent = `一致性检查: ${mockStats.aiCheckCount}次`;
+                document.querySelector('#ai-suggest-count').textContent = `智能建议: ${mockStats.aiSuggestCount}次`;
+                document.querySelector('#characters-count').textContent = `人物: ${mockStats.charactersCount}个`;
+                document.querySelector('#settings-count').textContent = `设定: ${mockStats.settingsCount}个`;
+                document.querySelector('#foreshadowing-count').textContent = `伏笔: ${mockStats.foreshadowingCount}个`;
+            }
+
+            // 页面加载时获取统计数据
+            loadStatsData();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 文档编辑</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)',
+                        'toolbar': '0 -2px 10px rgba(0, 0, 0, 0.3)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .editor-content {
+            min-height: calc(100vh - 140px);
+            line-height: 1.8;
+            font-size: 16px;
+            color: #FFFFFF;
+        }
+        
+        .editor-content:focus {
+            outline: none;
+        }
+        
+        .toolbar-button {
+            transition: all 0.2s ease;
+            color: #B3B3B3;
+        }
+        
+        .toolbar-button:hover {
+            color: #FF6B35;
+            transform: translateY(-1px);
+        }
+        
+        .toolbar-button.active {
+            color: #FF6B35;
+        }
+        
+        .highlight-character {
+            background-color: rgba(255, 107, 53, 0.2);
+            color: #FF6B35;
+            padding: 0 2px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .highlight-character:hover {
+            background-color: rgba(255, 107, 53, 0.3);
+        }
+        
+        .highlight-setting {
+            background-color: rgba(78, 205, 196, 0.2);
+            color: #4ECDC4;
+            padding: 0 2px;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .highlight-setting:hover {
+            background-color: rgba(78, 205, 196, 0.3);
+        }
+        
+        .floating-tools {
+            position: absolute;
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 50;
+            transform: scale(0);
+            transform-origin: bottom left;
+            transition: transform 0.2s ease;
+        }
+        
+        .floating-tools.show {
+            transform: scale(1);
+        }
+        
+        .format-dropdown {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 60;
+            display: none;
+        }
+        
+        .format-dropdown.show {
+            display: block;
+        }
+        
+        .auto-save-indicator {
+            transition: all 0.3s ease;
+        }
+        
+        .auto-save-indicator.saving {
+            color: #4ECDC4;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .context-menu {
+            position: absolute;
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 70;
+            min-width: 150px;
+            display: none;
+        }
+        
+        .context-menu.show {
+            display: block;
+        }
+        
+        .context-menu-item {
+            padding: 12px 16px;
+            color: #B3B3B3;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .context-menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .context-menu-item:hover {
+            background-color: rgba(255, 107, 53, 0.1);
+            color: #FF6B35;
+        }
+        
+        .ai-suggestion {
+            background: linear-gradient(135deg, rgba(255, 107, 53, 0.1) 0%, rgba(78, 205, 196, 0.1) 100%);
+            border-left: 3px solid #FF6B35;
+            padding: 12px;
+            margin: 16px 0;
+            border-radius: 4px;
+            animation: slideInUp 0.3s ease;
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .more-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 60;
+            min-width: 180px;
+            display: none;
+        }
+        
+        .more-menu.show {
+            display: block;
+        }
+        
+        .more-menu-item {
+            padding: 12px 16px;
+            color: #B3B3B3;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .more-menu-item:last-child {
+            border-bottom: none;
+        }
+        
+        .more-menu-item:hover {
+            background-color: rgba(255, 107, 53, 0.1);
+            color: #FF6B35;
+        }
+        
+        .more-menu-item.danger:hover {
+            background-color: rgba(253, 121, 168, 0.1);
+            color: #FD79A8;
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 顶部导航栏 -->
+    <header id="editor-header" class="glass px-4 py-3 border-b border-dark-300">
+        <div class="flex items-center justify-between">
+            <!-- 左侧：返回按钮和标题 -->
+            <div class="flex items-center space-x-3 flex-1">
+                <button id="back-btn" class="w-10 h-10 rounded-full bg-dark-300/50 backdrop-blur-md flex items-center justify-center">
+                    <i class="fas fa-arrow-left text-text-secondary"></i>
+                </button>
+                <div class="flex-1">
+                    <input type="text" id="work-title" value="《星辰纪元》" 
+                           class="bg-transparent text-lg font-semibold text-text-primary placeholder-text-tertiary outline-none w-full"
+                           placeholder="无标题作品">
+                    <div class="flex items-center space-x-4 text-xs text-text-secondary mt-1">
+                        <span id="chapter-info">第12章</span>
+                        <span id="word-count">1,247字</span>
+                        <span id="auto-save-indicator" class="auto-save-indicator">
+                            <i class="fas fa-check-circle mr-1"></i>已保存
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧：更多操作按钮 -->
+            <div class="relative">
+                <button id="more-btn" class="w-10 h-10 rounded-full bg-dark-300/50 backdrop-blur-md flex items-center justify-center">
+                    <i class="fas fa-ellipsis-v text-text-secondary"></i>
+                </button>
+                
+                <!-- 更多操作菜单 -->
+                <div id="more-menu" class="more-menu">
+                    <div id="rename-work" class="more-menu-item">
+                        <i class="fas fa-edit mr-2"></i>重命名
+                    </div>
+                    <div id="export-work" class="more-menu-item">
+                        <i class="fas fa-download mr-2"></i>导出
+                    </div>
+                    <div id="share-work" class="more-menu-item">
+                        <i class="fas fa-share mr-2"></i>分享
+                    </div>
+                    <div id="delete-work" class="more-menu-item danger">
+                        <i class="fas fa-trash mr-2"></i>删除
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 文档编辑区域 -->
+    <main id="editor-main" class="relative">
+        <div id="editor-container" class="p-4">
+            <div id="editor-content" class="editor-content bg-transparent outline-none" contenteditable="true">
+                <p>在遥远的<span class="highlight-character" data-type="character" data-id="char1">星辰纪元</span>，人类已经征服了银河系的大部分星域。<span class="highlight-character" data-type="character" data-id="char2">艾瑞克·雷蒙德</span>是星际联盟的一名年轻军官，他刚刚被分配到最前沿的<span class="highlight-setting" data-type="setting" data-id="set1">阿尔法空间站</span>。</p>
+                
+                <p>空间站位于<span class="highlight-setting" data-type="setting" data-id="set2">仙女座星系</span>的边缘地带，这里是人类与未知文明接触的第一道防线。艾瑞克站在巨大的观察窗前，凝视着窗外闪烁的星辰，心中充满了对未来的憧憬和一丝不安。</p>
+                
+                <p>"报告指挥官，我们侦测到一个未知的<span class="highlight-setting" data-type="setting" data-id="set3">能量信号</span>，正在快速接近！"通讯器里传来了<span class="highlight-character" data-type="character" data-id="char3">莉娜·沃克</span>中尉紧张的声音。</p>
+                
+                <p>艾瑞克立刻转身走向指挥中心，他知道，这可能是他职业生涯中最重要的时刻。在<span class="highlight-setting" data-type="setting" data-id="set4">量子引擎</span>的轰鸣声中，阿尔法空间站开始进入战斗状态。</p>
+                
+                <p>就在这时，艾瑞克突然想起了<span class="highlight-character" data-type="character" data-id="char4">他的导师</span>曾经说过的话："在宇宙的浩瀚面前，我们都是渺小的，但人类的勇气可以跨越星辰。"</p>
+                
+                <p>随着<span class="highlight-setting" data-type="setting" data-id="set5">防护罩</span>的启动，整个空间站被一层蓝色的能量场包裹。艾瑞克深吸一口气，准备迎接即将到来的挑战...</p>
+            </div>
+        </div>
+        
+        <!-- AI智能建议 -->
+        <div id="ai-suggestion" class="ai-suggestion mx-4 mb-4">
+            <div class="flex items-start space-x-3">
+                <i class="fas fa-lightbulb text-primary text-lg mt-1"></i>
+                <div class="flex-1">
+                    <h4 class="font-medium text-text-primary mb-1">AI写作建议</h4>
+                    <p class="text-sm text-text-secondary mb-2">考虑在这段描述中加入更多感官细节，比如空间站的震动、警报声的频率，或者艾瑞克的生理反应，这样可以让场景更加生动。</p>
+                    <button id="apply-suggestion" class="text-xs text-primary hover:text-secondary transition-colors">
+                        <i class="fas fa-magic mr-1"></i>应用建议
+                    </button>
+                </div>
+                <button id="close-suggestion" class="text-text-tertiary hover:text-text-secondary">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 悬浮快捷工具 -->
+        <div id="floating-tools" class="floating-tools">
+            <div class="flex space-x-2">
+                <button id="insert-character" class="w-8 h-8 rounded bg-primary/20 text-primary flex items-center justify-center text-xs hover:bg-primary/30 transition-colors">
+                    <i class="fas fa-user"></i>
+                </button>
+                <button id="insert-setting" class="w-8 h-8 rounded bg-secondary/20 text-secondary flex items-center justify-center text-xs hover:bg-secondary/30 transition-colors">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="insert-foreshadowing" class="w-8 h-8 rounded bg-tertiary/20 text-tertiary flex items-center justify-center text-xs hover:bg-tertiary/30 transition-colors">
+                    <i class="fas fa-lightbulb"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- 右键菜单 -->
+        <div id="context-menu" class="context-menu">
+            <div id="context-copy" class="context-menu-item">
+                <i class="fas fa-copy mr-2"></i>复制
+            </div>
+            <div id="context-cut" class="context-menu-item">
+                <i class="fas fa-cut mr-2"></i>剪切
+            </div>
+            <div id="context-paste" class="context-menu-item">
+                <i class="fas fa-paste mr-2"></i>粘贴
+            </div>
+            <div id="context-select-all" class="context-menu-item">
+                <i class="fas fa-check-square mr-2"></i>全选
+            </div>
+            <div class="border-t border-white/10 my-1"></div>
+            <div id="context-insert-character" class="context-menu-item">
+                <i class="fas fa-user-plus mr-2"></i>插入人物
+            </div>
+            <div id="context-insert-setting" class="context-menu-item">
+                <i class="fas fa-plus-circle mr-2"></i>插入设定
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部编辑工具栏 -->
+    <footer id="editor-toolbar" class="fixed bottom-0 left-0 right-0 glass border-t border-dark-300 shadow-toolbar">
+        <div class="flex items-center justify-between p-2">
+            <!-- 左侧：格式工具 -->
+            <div class="flex items-center space-x-1">
+                <!-- 字体大小 -->
+                <div class="relative">
+                    <button id="font-size-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                        <span class="text-sm">16</span>
+                        <i class="fas fa-chevron-down text-xs ml-1"></i>
+                    </button>
+                    <div id="font-size-dropdown" class="format-dropdown">
+                        <div class="space-y-1">
+                            <button class="font-size-option w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary" data-size="12">12</button>
+                            <button class="font-size-option w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary" data-size="14">14</button>
+                            <button class="font-size-option w-full text-left px-3 py-2 text-sm text-primary" data-size="16">16</button>
+                            <button class="font-size-option w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary" data-size="18">18</button>
+                            <button class="font-size-option w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary" data-size="20">20</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 字体颜色 -->
+                <div class="relative">
+                    <button id="font-color-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                        <i class="fas fa-palette"></i>
+                    </button>
+                    <div id="font-color-dropdown" class="format-dropdown">
+                        <div class="grid grid-cols-5 gap-1 p-2">
+                            <button class="color-option w-6 h-6 rounded-full bg-white border border-gray-400" data-color="#FFFFFF"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-primary border border-gray-400" data-color="#FF6B35"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-secondary border border-gray-400" data-color="#4ECDC4"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-tertiary border border-gray-400" data-color="#45B7D1"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-warning border border-gray-400" data-color="#FD79A8"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-success border border-gray-400" data-color="#96CEB4"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-danger border border-gray-400" data-color="#FFEAA7"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-red-500 border border-gray-400" data-color="#FF6B6B"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-green-500 border border-gray-400" data-color="#6BCF7F"></button>
+                            <button class="color-option w-6 h-6 rounded-full bg-blue-500 border border-gray-400" data-color="#5DADE2"></button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 粗体 -->
+                <button id="bold-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-bold"></i>
+                </button>
+                
+                <!-- 斜体 -->
+                <button id="italic-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-italic"></i>
+                </button>
+                
+                <!-- 下划线 -->
+                <button id="underline-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-underline"></i>
+                </button>
+                
+                <!-- 删除线 -->
+                <button id="strikethrough-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-strikethrough"></i>
+                </button>
+            </div>
+            
+            <!-- 右侧：对齐和更多工具 -->
+            <div class="flex items-center space-x-1">
+                <!-- 左对齐 -->
+                <button id="align-left-btn" class="toolbar-button active w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-align-left"></i>
+                </button>
+                
+                <!-- 居中对齐 -->
+                <button id="align-center-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-align-center"></i>
+                </button>
+                
+                <!-- 右对齐 -->
+                <button id="align-right-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-align-right"></i>
+                </button>
+                
+                <!-- 两端对齐 -->
+                <button id="align-justify-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-align-justify"></i>
+                </button>
+                
+                <!-- AI助手 -->
+                <button id="ai-assistant-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-robot"></i>
+                </button>
+                
+                <!-- 字数统计 -->
+                <button id="stats-btn" class="toolbar-button w-10 h-10 rounded flex items-center justify-center">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 解析URL参数
+            function getUrlParams() {
+                const params = {};
+                const queryString = window.location.search.substring(1);
+                const urlParams = new URLSearchParams(queryString);
+                
+                for(const [key, value] of urlParams.entries()) {
+                    params[key] = value;
+                }
+                return params;
+            }
+            
+            // 获取URL参数并加载作品内容
+            const params = getUrlParams();
+            if(params.work_id) {
+                loadWorkContent(params.work_id);
+            }
+            
+            // 模拟加载作品内容
+            function loadWorkContent(workId) {
+                // 在实际应用中，这里会从本地存储或API加载作品内容
+                console.log('加载作品ID:', workId);
+            }
+            
+            // 返回按钮点击事件
+            document.querySelector('#back-btn').addEventListener('click', function() {
+                // 检查是否有未保存的更改
+                if (hasUnsavedChanges()) {
+                    if (confirm('有未保存的更改，确定要离开吗？')) {
+                        window.location.href = 'P-HOME.html';
+                    }
+                } else {
+                    window.location.href = 'P-HOME.html';
+                }
+            });
+            
+            // 检查是否有未保存的更改
+            function hasUnsavedChanges() {
+                // 这里可以添加检查逻辑
+                return false;
+            }
+            
+            // 标题编辑事件
+            document.querySelector('#work-title').addEventListener('blur', function() {
+                const newTitle = this.value.trim();
+                if (newTitle) {
+                    console.log('作品标题已更新:', newTitle);
+                    showAutoSaveIndicator();
+                }
+            });
+            
+            // 更多操作按钮点击事件
+            document.querySelector('#more-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                const menu = document.querySelector('#more-menu');
+                menu.classList.toggle('show');
+            });
+            
+            // 更多操作菜单项点击事件
+            document.querySelector('#rename-work').addEventListener('click', function() {
+                document.querySelector('#work-title').focus();
+                document.querySelector('#more-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#export-work').addEventListener('click', function() {
+                console.log('导出作品');
+                document.querySelector('#more-menu').classList.remove('show');
+                alert('作品导出功能');
+            });
+            
+            document.querySelector('#share-work').addEventListener('click', function() {
+                console.log('分享作品');
+                document.querySelector('#more-menu').classList.remove('show');
+                alert('作品分享功能');
+            });
+            
+            document.querySelector('#delete-work').addEventListener('click', function() {
+                if (confirm('确定要删除这个作品吗？删除后无法恢复。')) {
+                    console.log('删除作品');
+                    window.location.href = 'P-HOME.html';
+                }
+                document.querySelector('#more-menu').classList.remove('show');
+            });
+            
+            // 点击外部关闭更多菜单
+            document.addEventListener('click', function() {
+                document.querySelector('#more-menu').classList.remove('show');
+            });
+            
+            // 编辑器内容变化事件
+            document.querySelector('#editor-content').addEventListener('input', function() {
+                updateWordCount();
+                showAutoSaveIndicator();
+                // 模拟AI专有名词识别
+                highlightProperNouns();
+            });
+            
+            // 更新字数统计
+            function updateWordCount() {
+                const content = document.querySelector('#editor-content').textContent || '';
+                const words = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+                document.querySelector('#word-count').textContent = `${words}字`;
+            }
+            
+            // 显示自动保存指示器
+            function showAutoSaveIndicator() {
+                const indicator = document.querySelector('#auto-save-indicator');
+                indicator.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>保存中...';
+                indicator.classList.add('saving');
+                
+                setTimeout(() => {
+                    indicator.innerHTML = '<i class="fas fa-check-circle mr-1"></i>已保存';
+                    indicator.classList.remove('saving');
+                }, 1000);
+            }
+            
+            // 模拟AI专有名词识别和高亮
+            function highlightProperNouns() {
+                // 这里应该是AI识别逻辑，现在使用模拟数据
+                console.log('AI正在识别专有名词...');
+            }
+            
+            // 高亮文本点击事件
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('highlight-character') || e.target.classList.contains('highlight-setting')) {
+                    showFloatingTools(e);
+                } else {
+                    hideFloatingTools();
+                }
+            });
+            
+            // 显示悬浮工具
+            function showFloatingTools(event) {
+                const tools = document.querySelector('#floating-tools');
+                const rect = event.target.getBoundingClientRect();
+                
+                tools.style.left = `${rect.left + rect.width + 10}px`;
+                tools.style.top = `${rect.top - 10}px`;
+                tools.classList.add('show');
+            }
+            
+            // 隐藏悬浮工具
+            function hideFloatingTools() {
+                document.querySelector('#floating-tools').classList.remove('show');
+            }
+            
+            // 悬浮工具按钮点击事件
+            document.querySelector('#insert-character').addEventListener('click', function() {
+                console.log('插入人物');
+                hideFloatingTools();
+                // 这里可以弹出人物选择器
+            });
+            
+            document.querySelector('#insert-setting').addEventListener('click', function() {
+                console.log('插入设定');
+                hideFloatingTools();
+                // 这里可以弹出设定选择器
+            });
+            
+            document.querySelector('#insert-foreshadowing').addEventListener('click', function() {
+                console.log('插入伏笔');
+                hideFloatingTools();
+                // 这里可以弹出伏笔选择器
+            });
+            
+            // 右键菜单事件
+            document.querySelector('#editor-content').addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                
+                const menu = document.querySelector('#context-menu');
+                menu.style.left = `${e.pageX}px`;
+                menu.style.top = `${e.pageY}px`;
+                menu.classList.add('show');
+            });
+            
+            // 点击外部关闭右键菜单
+            document.addEventListener('click', function() {
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            // 右键菜单项点击事件
+            document.querySelector('#context-copy').addEventListener('click', function() {
+                document.execCommand('copy');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#context-cut').addEventListener('click', function() {
+                document.execCommand('cut');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#context-paste').addEventListener('click', function() {
+                document.execCommand('paste');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#context-select-all').addEventListener('click', function() {
+                document.execCommand('selectAll');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#context-insert-character').addEventListener('click', function() {
+                console.log('插入人物');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            document.querySelector('#context-insert-setting').addEventListener('click', function() {
+                console.log('插入设定');
+                document.querySelector('#context-menu').classList.remove('show');
+            });
+            
+            // 工具栏按钮事件
+            
+            // 字体大小
+            document.querySelector('#font-size-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dropdown = document.querySelector('#font-size-dropdown');
+                dropdown.classList.toggle('show');
+            });
+            
+            document.querySelectorAll('.font-size-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const size = this.getAttribute('data-size');
+                    document.querySelector('#editor-content').style.fontSize = `${size}px`;
+                    document.querySelector('#font-size-btn span').textContent = size;
+                    
+                    // 更新选中状态
+                    document.querySelectorAll('.font-size-option').forEach(opt => {
+                        opt.classList.remove('text-primary');
+                        opt.classList.add('text-text-secondary');
+                    });
+                    this.classList.remove('text-text-secondary');
+                    this.classList.add('text-primary');
+                    
+                    document.querySelector('#font-size-dropdown').classList.remove('show');
+                });
+            });
+            
+            // 字体颜色
+            document.querySelector('#font-color-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                const dropdown = document.querySelector('#font-color-dropdown');
+                dropdown.classList.toggle('show');
+            });
+            
+            document.querySelectorAll('.color-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const color = this.getAttribute('data-color');
+                    document.execCommand('foreColor', false, color);
+                    document.querySelector('#font-color-dropdown').classList.remove('show');
+                });
+            });
+            
+            // 格式按钮
+            document.querySelector('#bold-btn').addEventListener('click', function() {
+                document.execCommand('bold');
+                this.classList.toggle('active');
+            });
+            
+            document.querySelector('#italic-btn').addEventListener('click', function() {
+                document.execCommand('italic');
+                this.classList.toggle('active');
+            });
+            
+            document.querySelector('#underline-btn').addEventListener('click', function() {
+                document.execCommand('underline');
+                this.classList.toggle('active');
+            });
+            
+            document.querySelector('#strikethrough-btn').addEventListener('click', function() {
+                document.execCommand('strikeThrough');
+                this.classList.toggle('active');
+            });
+            
+            // 对齐按钮
+            function setActiveAlignButton(activeBtn) {
+                document.querySelectorAll('[id^="align-"]').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                activeBtn.classList.add('active');
+            }
+            
+            document.querySelector('#align-left-btn').addEventListener('click', function() {
+                document.execCommand('justifyLeft');
+                setActiveAlignButton(this);
+            });
+            
+            document.querySelector('#align-center-btn').addEventListener('click', function() {
+                document.execCommand('justifyCenter');
+                setActiveAlignButton(this);
+            });
+            
+            document.querySelector('#align-right-btn').addEventListener('click', function() {
+                document.execCommand('justifyRight');
+                setActiveAlignButton(this);
+            });
+            
+            document.querySelector('#align-justify-btn').addEventListener('click', function() {
+                document.execCommand('justifyFull');
+                setActiveAlignButton(this);
+            });
+            
+            // AI助手按钮
+            document.querySelector('#ai-assistant-btn').addEventListener('click', function() {
+                console.log('打开AI助手');
+                // 这里可以显示AI助手面板
+            });
+            
+            // 统计按钮
+            document.querySelector('#stats-btn').addEventListener('click', function() {
+                console.log('显示统计信息');
+                // 这里可以显示详细的统计面板
+            });
+            
+            // AI建议相关事件
+            document.querySelector('#apply-suggestion').addEventListener('click', function() {
+                console.log('应用AI建议');
+                // 这里可以应用AI提供的写作建议
+                document.querySelector('#ai-suggestion').style.display = 'none';
+            });
+            
+            document.querySelector('#close-suggestion').addEventListener('click', function() {
+                document.querySelector('#ai-suggestion').style.display = 'none';
+            });
+            
+            // 点击外部关闭下拉菜单
+            document.addEventListener('click', function() {
+                document.querySelector('#font-size-dropdown').classList.remove('show');
+                document.querySelector('#font-color-dropdown').classList.remove('show');
+            });
+            
+            // 初始化字数统计
+            updateWordCount();
+        });
+    </script>
+</body>
+</html>

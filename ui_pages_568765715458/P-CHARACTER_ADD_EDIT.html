@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 人物编辑</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .form-input {
+            background: rgba(64, 64, 64, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #FF6B35;
+            background: rgba(64, 64, 64, 0.7);
+            box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+        }
+        
+        .form-label {
+            color: #B3B3B3;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .status-option {
+            background: rgba(64, 64, 64, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .status-option.selected {
+            background: rgba(255, 107, 53, 0.2);
+            border-color: #FF6B35;
+            color: #FF6B35;
+        }
+        
+        .work-tag {
+            background: rgba(78, 205, 196, 0.2);
+            border: 1px solid #4ECDC4;
+            color: #4ECDC4;
+            transition: all 0.3s ease;
+        }
+        
+        .work-tag.selected {
+            background: rgba(78, 205, 196, 0.4);
+            border-color: #4ECDC4;
+        }
+        
+        .save-button {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8A65 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .save-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+        
+        .save-button:disabled {
+            background: rgba(128, 128, 128, 0.3);
+            cursor: not-allowed;
+        }
+        
+        .back-button {
+            background: rgba(64, 64, 64, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: rgba(64, 64, 64, 0.7);
+        }
+        
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .character-avatar {
+            background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+        }
+        
+        .section-card {
+            background: rgba(45, 45, 45, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-container" class="min-h-screen bg-dark-100">
+        <!-- 顶部导航栏 -->
+        <header id="page-header" class="glass px-4 py-3 border-b border-dark-300">
+            <div class="flex items-center justify-between">
+                <button id="back-button" class="back-button w-10 h-10 rounded-lg flex items-center justify-center text-text-secondary">
+                    <i class="fas fa-arrow-left text-lg"></i>
+                </button>
+                <h1 id="page-title" class="text-lg font-semibold text-text-primary">添加人物</h1>
+                <button id="save-button" class="save-button px-4 py-2 rounded-lg text-white font-medium">
+                    <span id="save-text">保存</span>
+                    <i id="save-spinner" class="fas fa-spinner loading-spinner ml-2 hidden"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 表单内容 -->
+        <div id="form-content" class="p-4 space-y-6">
+            <!-- 基本信息卡片 -->
+            <div id="basic-info-card" class="section-card rounded-xl p-4 space-y-4">
+                <h3 class="text-base font-semibold text-text-primary flex items-center">
+                    <i class="fas fa-user-circle text-secondary mr-2"></i>
+                    基本信息
+                </h3>
+                
+                <!-- 人物头像 -->
+                <div id="avatar-section" class="flex justify-center">
+                    <div id="character-avatar" class="character-avatar w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+
+                <!-- 人物名称 -->
+                <div id="name-section" class="space-y-2">
+                    <label for="character-name" class="form-label block">
+                        人物名称 <span class="text-danger">*</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="character-name" 
+                        name="character-name" 
+                        class="form-input w-full px-4 py-3 rounded-lg text-text-primary placeholder-text-tertiary"
+                        placeholder="请输入人物名称"
+                        required
+                    >
+                </div>
+
+                <!-- 人物状态 -->
+                <div id="status-section" class="space-y-2">
+                    <label class="form-label block">人物状态</label>
+                    <div id="status-options" class="flex flex-wrap gap-3">
+                        <button type="button" id="status-active" class="status-option selected px-4 py-2 rounded-lg text-sm font-medium" data-status="active">
+                            <i class="fas fa-heart text-red-400 mr-1"></i>
+                            活跃
+                        </button>
+                        <button type="button" id="status-deceased" class="status-option px-4 py-2 rounded-lg text-sm font-medium" data-status="deceased">
+                            <i class="fas fa-skull text-gray-400 mr-1"></i>
+                            死亡
+                        </button>
+                        <button type="button" id="status-unknown" class="status-option px-4 py-2 rounded-lg text-sm font-medium" data-status="unknown">
+                            <i class="fas fa-question-circle text-yellow-400 mr-1"></i>
+                            未知
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 人物描述卡片 -->
+            <div id="description-card" class="section-card rounded-xl p-4 space-y-4">
+                <h3 class="text-base font-semibold text-text-primary flex items-center">
+                    <i class="fas fa-edit text-tertiary mr-2"></i>
+                    人物描述
+                </h3>
+                
+                <div id="description-section" class="space-y-2">
+                    <label for="character-description" class="form-label block">
+                        详细描述 <span class="text-text-tertiary text-xs">(可选)</span>
+                    </label>
+                    <textarea 
+                        id="character-description" 
+                        name="character-description" 
+                        rows="6"
+                        class="form-input w-full px-4 py-3 rounded-lg text-text-primary placeholder-text-tertiary resize-none"
+                        placeholder="请输入人物的详细描述，包括性格、背景、外貌等信息..."
+                    ></textarea>
+                </div>
+            </div>
+
+            <!-- 关联作品卡片 -->
+            <div id="related-works-card" class="section-card rounded-xl p-4 space-y-4">
+                <h3 class="text-base font-semibold text-text-primary flex items-center">
+                    <i class="fas fa-link text-success mr-2"></i>
+                    关联作品
+                </h3>
+                
+                <div id="works-section" class="space-y-3">
+                    <p class="text-sm text-text-secondary">选择此人物关联的作品：</p>
+                    <div id="works-list" class="space-y-2">
+                        <!-- 作品标签将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部安全区域 -->
+        <div class="h-8 safe-bottom"></div>
+    </div>
+
+    <!-- 成功提示模态框 -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass rounded-xl p-6 mx-4 max-w-sm w-full">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-white text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-text-primary mb-2">保存成功</h3>
+                <p class="text-text-secondary text-sm mb-6">人物信息已成功保存</p>
+                <button id="success-ok" class="save-button w-full py-3 rounded-lg text-white font-medium">
+                    确定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取URL参数的辅助函数
+            function getUrlParams() {
+                const params = {};
+                const queryString = window.location.search.substring(1);
+                const urlParams = new URLSearchParams(queryString);
+                
+                for(const [key, value] of urlParams.entries()) {
+                    params[key] = value;
+                }
+                return params;
+            }
+
+            // 模拟人物数据
+            const mockCharacters = {
+                "1": {
+                    id: "1",
+                    name: "艾莉亚·星辰",
+                    description: "一位勇敢的年轻法师，拥有操控星辰之力的天赋。性格坚韧，内心善良，总是为了保护弱小而战斗。来自古老的星辰法师家族，背负着家族的期望和秘密。",
+                    status: "active",
+                    relatedWorks: ["work1", "work3"]
+                },
+                "2": {
+                    id: "2", 
+                    name: "雷克斯·钢铁之心",
+                    description: "经验丰富的战士，曾经是王国的皇家卫士。因为一场背叛而失去了一切，现在是一名流浪的佣兵。外表冷酷，内心却有着强烈的正义感。",
+                    status: "active",
+                    relatedWorks: ["work2"]
+                },
+                "3": {
+                    id: "3",
+                    name: "塞拉菲娜·月影",
+                    description: "神秘的刺客，身手敏捷，擅长潜行和暗杀。她的过去是一个谜，没有人知道她的真实身份和目的。",
+                    status: "unknown",
+                    relatedWorks: ["work1", "work2", "work3"]
+                }
+            };
+
+            // 模拟作品数据
+            const mockWorks = [
+                { id: "work1", title: "《星辰纪元》" },
+                { id: "work2", title: "《魔法学院录》" },
+                { id: "work3", title: "《都市异闻录》" },
+                { id: "work4", title: "《未来战争》" }
+            ];
+
+            // 获取URL参数
+            const params = getUrlParams();
+            const characterId = params.character_id;
+            const isEditMode = !!characterId;
+
+            // 更新页面标题
+            const pageTitle = document.querySelector('#page-title');
+            if (isEditMode) {
+                pageTitle.textContent = '编辑人物';
+                loadCharacterData(characterId);
+            } else {
+                pageTitle.textContent = '添加人物';
+                initializeForm();
+            }
+
+            // 加载人物数据（编辑模式）
+            function loadCharacterData(id) {
+                const character = mockCharacters[id];
+                if (character) {
+                    document.querySelector('#character-name').value = character.name;
+                    document.querySelector('#character-description').value = character.description;
+                    
+                    // 设置状态
+                    document.querySelectorAll('.status-option').forEach(option => {
+                        option.classList.remove('selected');
+                        if (option.dataset.status === character.status) {
+                            option.classList.add('selected');
+                        }
+                    });
+
+                    // 设置关联作品
+                    renderWorksList(character.relatedWorks);
+                    
+                    // 更新头像
+                    updateAvatar(character.name);
+                }
+            }
+
+            // 初始化表单（添加模式）
+            function initializeForm() {
+                renderWorksList([]);
+            }
+
+            // 渲染作品列表
+            function renderWorksList(selectedWorks = []) {
+                const worksList = document.querySelector('#works-list');
+                worksList.innerHTML = '';
+
+                mockWorks.forEach(work => {
+                    const isSelected = selectedWorks.includes(work.id);
+                    const workTag = document.createElement('button');
+                    workTag.type = 'button';
+                    workTag.className = `work-tag px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${isSelected ? 'selected' : ''}`;
+                    workTag.dataset.workId = work.id;
+                    workTag.innerHTML = `
+                        <i class="fas fa-book mr-2"></i>
+                        ${work.title}
+                    `;
+                    
+                    workTag.addEventListener('click', function() {
+                        this.classList.toggle('selected');
+                    });
+
+                    worksList.appendChild(workTag);
+                });
+            }
+
+            // 更新头像
+            function updateAvatar(name) {
+                const avatar = document.querySelector('#character-avatar');
+                if (name && name.length > 0) {
+                    const initials = name.charAt(0).toUpperCase();
+                    avatar.innerHTML = `<span>${initials}</span>`;
+                } else {
+                    avatar.innerHTML = '<i class="fas fa-user"></i>';
+                }
+            }
+
+            // 状态选择事件
+            document.querySelectorAll('.status-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.status-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    this.classList.add('selected');
+                });
+            });
+
+            // 人物名称输入事件
+            document.querySelector('#character-name').addEventListener('input', function() {
+                updateAvatar(this.value);
+                validateForm();
+            });
+
+            // 表单验证
+            function validateForm() {
+                const name = document.querySelector('#character-name').value.trim();
+                const saveButton = document.querySelector('#save-button');
+                
+                if (name.length > 0) {
+                    saveButton.disabled = false;
+                    saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                } else {
+                    saveButton.disabled = true;
+                    saveButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+
+            // 保存按钮点击事件
+            document.querySelector('#save-button').addEventListener('click', function() {
+                if (this.disabled) return;
+                
+                const name = document.querySelector('#character-name').value.trim();
+                if (!name) {
+                    alert('请输入人物名称');
+                    return;
+                }
+
+                // 显示加载状态
+                const saveText = document.querySelector('#save-text');
+                const saveSpinner = document.querySelector('#save-spinner');
+                this.disabled = true;
+                saveText.textContent = '保存中...';
+                saveSpinner.classList.remove('hidden');
+
+                // 收集表单数据
+                const formData = {
+                    name: name,
+                    description: document.querySelector('#character-description').value.trim(),
+                    status: document.querySelector('.status-option.selected').dataset.status,
+                    relatedWorks: Array.from(document.querySelectorAll('.work-tag.selected')).map(tag => tag.dataset.workId)
+                };
+
+                // 模拟保存过程
+                setTimeout(() => {
+                    console.log('保存人物数据:', formData);
+                    
+                    // 恢复按钮状态
+                    this.disabled = false;
+                    saveText.textContent = '保存';
+                    saveSpinner.classList.add('hidden');
+                    
+                    // 显示成功提示
+                    showSuccessModal();
+                }, 1000);
+            });
+
+            // 显示成功模态框
+            function showSuccessModal() {
+                const modal = document.querySelector('#success-modal');
+                modal.classList.remove('hidden');
+            }
+
+            // 成功模态框确定按钮
+            document.querySelector('#success-ok').addEventListener('click', function() {
+                window.location.href = 'P-CHARACTER_MANAGE.html';
+            });
+
+            // 返回按钮点击事件
+            document.querySelector('#back-button').addEventListener('click', function() {
+                window.location.href = 'P-CHARACTER_MANAGE.html';
+            });
+
+            // 初始化表单验证
+            validateForm();
+        });
+    </script>
+</body>
+</html>

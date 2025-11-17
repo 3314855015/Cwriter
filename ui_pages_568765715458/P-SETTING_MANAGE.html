@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 设定管理</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .setting-item {
+            transition: all 0.2s ease;
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .setting-item:hover {
+            background-color: rgba(64, 64, 64, 0.7);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .category-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+        
+        .category-magic {
+            background-color: rgba(255, 107, 53, 0.2);
+            color: #FF6B35;
+            border: 1px solid rgba(255, 107, 53, 0.3);
+        }
+        
+        .category-tech {
+            background-color: rgba(78, 205, 196, 0.2);
+            color: #4ECDC4;
+            border: 1px solid rgba(78, 205, 196, 0.3);
+        }
+        
+        .category-location {
+            background-color: rgba(69, 183, 209, 0.2);
+            color: #45B7D1;
+            border: 1px solid rgba(69, 183, 209, 0.3);
+        }
+        
+        .category-organization {
+            background-color: rgba(150, 206, 180, 0.2);
+            color: #96CEB4;
+            border: 1px solid rgba(150, 206, 180, 0.3);
+        }
+        
+        .category-other {
+            background-color: rgba(179, 179, 179, 0.2);
+            color: #B3B3B3;
+            border: 1px solid rgba(179, 179, 179, 0.3);
+        }
+        
+        .empty-state {
+            background: rgba(45, 45, 45, 0.5);
+            backdrop-filter: blur(10px);
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+        }
+        
+        .delete-confirm {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-container" class="min-h-screen bg-dark-100">
+        <!-- 顶部导航栏 -->
+        <header id="page-header" class="glass px-4 py-4 border-b border-dark-300">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <button id="back-btn" class="w-10 h-10 rounded-full bg-dark-300/50 backdrop-blur-md flex items-center justify-center">
+                        <i class="fas fa-arrow-left text-text-secondary"></i>
+                    </button>
+                    <h1 id="page-title" class="text-lg font-semibold text-text-primary">设定管理</h1>
+                </div>
+                <button id="add-setting-btn" class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-card">
+                    <i class="fas fa-plus text-white"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 设定列表区域 -->
+        <section id="settings-section" class="px-4 py-6">
+            <!-- 分类筛选标签 -->
+            <div id="category-tabs" class="flex space-x-2 mb-6 overflow-x-auto pb-2">
+                <button id="tab-all" class="category-tab active flex-shrink-0 px-4 py-2 rounded-full bg-primary text-white text-sm font-medium">
+                    全部
+                </button>
+                <button id="tab-magic" class="category-tab flex-shrink-0 px-4 py-2 rounded-full bg-dark-300 text-text-secondary text-sm font-medium">
+                    魔法
+                </button>
+                <button id="tab-tech" class="category-tab flex-shrink-0 px-4 py-2 rounded-full bg-dark-300 text-text-secondary text-sm font-medium">
+                    科技
+                </button>
+                <button id="tab-location" class="category-tab flex-shrink-0 px-4 py-2 rounded-full bg-dark-300 text-text-secondary text-sm font-medium">
+                    地点
+                </button>
+                <button id="tab-organization" class="category-tab flex-shrink-0 px-4 py-2 rounded-full bg-dark-300 text-text-secondary text-sm font-medium">
+                    组织
+                </button>
+                <button id="tab-other" class="category-tab flex-shrink-0 px-4 py-2 rounded-full bg-dark-300 text-text-secondary text-sm font-medium">
+                    其他
+                </button>
+            </div>
+
+            <!-- 设定列表 -->
+            <div id="settings-list" class="space-y-3">
+                <!-- 设定项1 -->
+                <div id="setting-item-1" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_001" data-category="magic">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-1" class="font-medium text-text-primary">星辰魔法</h4>
+                                <span class="category-badge category-magic">魔法</span>
+                            </div>
+                            <p id="setting-desc-1" class="text-sm text-text-secondary line-clamp-2">通过吸收星辰之力施展的古老魔法体系，拥有操控时间和空间的能力...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联3部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>2小时前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设定项2 -->
+                <div id="setting-item-2" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_002" data-category="tech">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-2" class="font-medium text-text-primary">量子计算机</h4>
+                                <span class="category-badge category-tech">科技</span>
+                            </div>
+                            <p id="setting-desc-2" class="text-sm text-text-secondary line-clamp-2">未来世界的核心计算设备，能够同时处理无限种可能性...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联1部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>1天前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设定项3 -->
+                <div id="setting-item-3" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_003" data-category="location">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-3" class="font-medium text-text-primary">浮空城</h4>
+                                <span class="category-badge category-location">地点</span>
+                            </div>
+                            <p id="setting-desc-3" class="text-sm text-text-secondary line-clamp-2">悬浮在云端的古老城市，拥有先进的反重力技术...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联2部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>3天前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设定项4 -->
+                <div id="setting-item-4" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_004" data-category="organization">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-4" class="font-medium text-text-primary">魔法议会</h4>
+                                <span class="category-badge category-organization">组织</span>
+                            </div>
+                            <p id="setting-desc-4" class="text-sm text-text-secondary line-clamp-2">管理魔法世界秩序的最高权力机构，由九位大魔法师组成...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联4部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>1周前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设定项5 -->
+                <div id="setting-item-5" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_005" data-category="other">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-5" class="font-medium text-text-primary">灵魂契约</h4>
+                                <span class="category-badge category-other">其他</span>
+                            </div>
+                            <p id="setting-desc-5" class="text-sm text-text-secondary line-clamp-2">人与灵体之间建立的神秘契约关系，能够共享力量...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联2部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>2周前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 设定项6 -->
+                <div id="setting-item-6" class="setting-item bg-transparent rounded-lg p-4 cursor-pointer hover:shadow-card transition-shadow" data-setting-id="setting_006" data-category="magic">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <h4 id="setting-term-6" class="font-medium text-text-primary">元素掌控</h4>
+                                <span class="category-badge category-magic">魔法</span>
+                            </div>
+                            <p id="setting-desc-6" class="text-sm text-text-secondary line-clamp-2">操控地、水、火、风四大元素的基础魔法技能...</p>
+                            <div class="flex items-center space-x-4 mt-3 text-xs text-text-tertiary">
+                                <span><i class="fas fa-link mr-1"></i>关联5部作品</span>
+                                <span><i class="fas fa-clock mr-1"></i>3周前</span>
+                            </div>
+                        </div>
+                        <div class="ml-3">
+                            <i class="fas fa-chevron-right text-text-tertiary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 空状态（初始隐藏） -->
+            <div id="empty-state" class="empty-state rounded-lg p-8 text-center hidden">
+                <div class="w-16 h-16 bg-dark-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-cog text-2xl text-text-secondary"></i>
+                </div>
+                <h3 class="text-lg font-medium text-text-primary mb-2">暂无设定</h3>
+                <p class="text-text-secondary mb-6">创建你的第一个设定，开始构建独特的世界观</p>
+                <button id="empty-add-btn" class="px-6 py-3 bg-primary text-white rounded-lg font-medium shadow-card">
+                    <i class="fas fa-plus mr-2"></i>添加设定
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div id="delete-modal" class="fixed inset-0 z-50 hidden">
+        <div class="delete-confirm absolute inset-0 flex items-center justify-center p-4">
+            <div class="bg-dark-200 rounded-lg p-6 w-full max-w-sm">
+                <div class="text-center">
+                    <div class="w-12 h-12 bg-danger/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-trash text-danger text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-text-primary mb-2">删除设定</h3>
+                    <p class="text-text-secondary mb-6">确定要删除这个设定吗？删除后无法恢复。</p>
+                    <div class="flex space-x-3">
+                        <button id="cancel-delete-btn" class="flex-1 py-3 bg-dark-300 text-text-primary rounded-lg font-medium">
+                            取消
+                        </button>
+                        <button id="confirm-delete-btn" class="flex-1 py-3 bg-danger text-dark-100 rounded-lg font-medium">
+                            删除
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let currentDeleteSettingId = null;
+
+            // 返回按钮点击事件
+            document.querySelector('#back-btn').addEventListener('click', function() {
+                window.location.href = 'P-SERVICE.html';
+            });
+
+            // 添加设定按钮点击事件
+            document.querySelector('#add-setting-btn').addEventListener('click', function() {
+                window.location.href = 'P-SETTING_ADD_EDIT.html';
+            });
+
+            // 空状态添加按钮点击事件
+            document.querySelector('#empty-add-btn').addEventListener('click', function() {
+                window.location.href = 'P-SETTING_ADD_EDIT.html';
+            });
+
+            // 设定项点击事件
+            document.querySelectorAll('[id^="setting-item-"]').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    // 如果点击的是删除按钮，不触发编辑
+                    if (e.target.closest('.delete-btn')) {
+                        return;
+                    }
+                    
+                    const settingId = this.getAttribute('data-setting-id');
+                    window.location.href = `P-SETTING_ADD_EDIT.html?setting_id=${settingId}`;
+                });
+
+                // 长按删除功能
+                let pressTimer;
+                
+                item.addEventListener('touchstart', function(e) {
+                    pressTimer = setTimeout(() => {
+                        currentDeleteSettingId = this.getAttribute('data-setting-id');
+                        document.querySelector('#delete-modal').classList.remove('hidden');
+                    }, 800);
+                });
+
+                item.addEventListener('touchend', function() {
+                    clearTimeout(pressTimer);
+                });
+
+                item.addEventListener('touchmove', function() {
+                    clearTimeout(pressTimer);
+                });
+
+                // 鼠标事件（PC端）
+                item.addEventListener('mousedown', function(e) {
+                    pressTimer = setTimeout(() => {
+                        currentDeleteSettingId = this.getAttribute('data-setting-id');
+                        document.querySelector('#delete-modal').classList.remove('hidden');
+                    }, 800);
+                });
+
+                item.addEventListener('mouseup', function() {
+                    clearTimeout(pressTimer);
+                });
+
+                item.addEventListener('mouseleave', function() {
+                    clearTimeout(pressTimer);
+                });
+            });
+
+            // 分类筛选功能
+            const categoryTabs = document.querySelectorAll('.category-tab');
+            const settingItems = document.querySelectorAll('[id^="setting-item-"]');
+
+            categoryTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // 更新标签样式
+                    categoryTabs.forEach(t => {
+                        t.classList.remove('active', 'bg-primary', 'text-white');
+                        t.classList.add('bg-dark-300', 'text-text-secondary');
+                    });
+                    
+                    this.classList.add('active', 'bg-primary', 'text-white');
+                    this.classList.remove('bg-dark-300', 'text-text-secondary');
+
+                    // 筛选设定项
+                    const category = this.id.replace('tab-', '');
+                    let visibleCount = 0;
+
+                    settingItems.forEach(item => {
+                        if (category === 'all' || item.getAttribute('data-category') === category) {
+                            item.style.display = 'block';
+                            visibleCount++;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+
+                    // 显示/隐藏空状态
+                    const emptyState = document.querySelector('#empty-state');
+                    const settingsList = document.querySelector('#settings-list');
+                    
+                    if (visibleCount === 0) {
+                        emptyState.classList.remove('hidden');
+                        settingsList.classList.add('hidden');
+                    } else {
+                        emptyState.classList.add('hidden');
+                        settingsList.classList.remove('hidden');
+                    }
+                });
+            });
+
+            // 删除确认弹窗事件
+            document.querySelector('#cancel-delete-btn').addEventListener('click', function() {
+                document.querySelector('#delete-modal').classList.add('hidden');
+                currentDeleteSettingId = null;
+            });
+
+            document.querySelector('#confirm-delete-btn').addEventListener('click', function() {
+                if (currentDeleteSettingId) {
+                    // 删除设定项
+                    const settingItem = document.querySelector(`[data-setting-id="${currentDeleteSettingId}"]`);
+                    if (settingItem) {
+                        settingItem.remove();
+                        
+                        // 检查当前分类下是否还有设定
+                        const activeTab = document.querySelector('.category-tab.active');
+                        const category = activeTab.id.replace('tab-', '');
+                        const remainingItems = document.querySelectorAll(`[data-category="${category}"]:not([style*="display: none"])`);
+                        
+                        if (remainingItems.length === 0 && category !== 'all') {
+                            document.querySelector('#empty-state').classList.remove('hidden');
+                            document.querySelector('#settings-list').classList.add('hidden');
+                        }
+                    }
+                }
+                
+                document.querySelector('#delete-modal').classList.add('hidden');
+                currentDeleteSettingId = null;
+            });
+
+            // 点击弹窗外部关闭
+            document.querySelector('#delete-modal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.add('hidden');
+                    currentDeleteSettingId = null;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

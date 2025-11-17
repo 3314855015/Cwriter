@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 设置</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .setting-item {
+            transition: all 0.2s ease;
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .setting-item:hover {
+            background-color: rgba(64, 64, 64, 0.7);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 28px;
+            background-color: #404040;
+            border-radius: 14px;
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .toggle-switch.active {
+            background-color: #FF6B35;
+        }
+        
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 24px;
+            height: 24px;
+            background-color: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+        
+        .toggle-switch.active::after {
+            transform: translateX(22px);
+        }
+        
+        .slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #404040;
+            outline: none;
+            transition: background 0.3s ease;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FF6B35;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FF6B35;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .dropdown-select {
+            background: rgba(64, 64, 64, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #FFFFFF;
+        }
+        
+        .dropdown-select:focus {
+            outline: none;
+            border-color: #FF6B35;
+            box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+        }
+        
+        .setting-section {
+            background: rgba(45, 45, 45, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background: rgba(45, 45, 45, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-container" class="min-h-screen bg-dark-100">
+        <!-- 顶部导航栏 -->
+        <header id="page-header" class="glass px-6 py-4 border-b border-dark-300">
+            <div class="flex items-center justify-between">
+                <button id="back-btn" class="w-10 h-10 rounded-full bg-dark-300/50 backdrop-blur-md flex items-center justify-center">
+                    <i class="fas fa-arrow-left text-text-secondary"></i>
+                </button>
+                <h1 id="page-title" class="text-lg font-semibold text-text-primary">设置</h1>
+                <div class="w-10"></div> <!-- 占位元素保持标题居中 -->
+            </div>
+        </header>
+
+        <!-- 设置内容 -->
+        <div id="settings-content" class="px-4 py-6 space-y-6">
+            
+            <!-- 编辑器设置 -->
+            <section id="editor-settings" class="setting-section rounded-xl p-4">
+                <h2 class="text-lg font-medium text-text-primary mb-4 flex items-center">
+                    <i class="fas fa-edit text-primary mr-2"></i>
+                    编辑器设置
+                </h2>
+                
+                <!-- 字体选择 -->
+                <div id="font-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">字体</h3>
+                            <p class="text-sm text-text-secondary">选择编辑器字体</p>
+                        </div>
+                        <select id="font-select" class="dropdown-select rounded-lg px-3 py-2 text-sm">
+                            <option value="system">系统默认</option>
+                            <option value="serif">衬线字体</option>
+                            <option value="sans-serif">无衬线字体</option>
+                            <option value="monospace">等宽字体</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 字号设置 -->
+                <div id="font-size-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">字号</h3>
+                            <p class="text-sm text-text-secondary">调整编辑器字号大小</p>
+                        </div>
+                        <span id="font-size-value" class="text-text-primary font-medium">16</span>
+                    </div>
+                    <input type="range" id="font-size-slider" class="slider" min="12" max="24" value="16" step="1">
+                    <div class="flex justify-between text-xs text-text-tertiary mt-2">
+                        <span>小</span>
+                        <span>大</span>
+                    </div>
+                </div>
+
+                <!-- 行间距设置 -->
+                <div id="line-height-setting" class="setting-item rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">行间距</h3>
+                            <p class="text-sm text-text-secondary">调整文本行间距</p>
+                        </div>
+                        <span id="line-height-value" class="text-text-primary font-medium">1.5</span>
+                    </div>
+                    <input type="range" id="line-height-slider" class="slider" min="1" max="2.5" value="1.5" step="0.1">
+                    <div class="flex justify-between text-xs text-text-tertiary mt-2">
+                        <span>密</span>
+                        <span>疏</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 护眼模式设置 -->
+            <section id="eye-protection-settings" class="setting-section rounded-xl p-4">
+                <h2 class="text-lg font-medium text-text-primary mb-4 flex items-center">
+                    <i class="fas fa-eye text-secondary mr-2"></i>
+                    护眼模式
+                </h2>
+                
+                <!-- 护眼模式开关 -->
+                <div id="eye-protection-toggle-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">护眼模式</h3>
+                            <p class="text-sm text-text-secondary">减少蓝光，保护视力</p>
+                        </div>
+                        <div id="eye-protection-toggle" class="toggle-switch active"></div>
+                    </div>
+                </div>
+
+                <!-- 护眼强度设置 -->
+                <div id="eye-protection-strength-setting" class="setting-item rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">护眼强度</h3>
+                            <p class="text-sm text-text-secondary">调整护眼效果强度</p>
+                        </div>
+                        <span id="eye-strength-value" class="text-text-primary font-medium">中等</span>
+                    </div>
+                    <input type="range" id="eye-strength-slider" class="slider" min="1" max="5" value="3" step="1">
+                    <div class="flex justify-between text-xs text-text-tertiary mt-2">
+                        <span>轻微</span>
+                        <span>适中</span>
+                        <span>强烈</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 自动保存设置 -->
+            <section id="auto-save-settings" class="setting-section rounded-xl p-4">
+                <h2 class="text-lg font-medium text-text-primary mb-4 flex items-center">
+                    <i class="fas fa-save text-tertiary mr-2"></i>
+                    自动保存
+                </h2>
+                
+                <!-- 自动保存开关 -->
+                <div id="auto-save-toggle-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">自动保存</h3>
+                            <p class="text-sm text-text-secondary">实时保存您的创作</p>
+                        </div>
+                        <div id="auto-save-toggle" class="toggle-switch active"></div>
+                    </div>
+                </div>
+
+                <!-- 保存间隔设置 -->
+                <div id="save-interval-setting" class="setting-item rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">保存间隔</h3>
+                            <p class="text-sm text-text-secondary">设置自动保存频率</p>
+                        </div>
+                        <select id="save-interval-select" class="dropdown-select rounded-lg px-3 py-2 text-sm">
+                            <option value="1">1秒</option>
+                            <option value="3">3秒</option>
+                            <option value="5" selected>5秒</option>
+                            <option value="10">10秒</option>
+                            <option value="30">30秒</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- AI功能设置 -->
+            <section id="ai-settings" class="setting-section rounded-xl p-4">
+                <h2 class="text-lg font-medium text-text-primary mb-4 flex items-center">
+                    <i class="fas fa-robot text-warning mr-2"></i>
+                    AI功能
+                </h2>
+                
+                <!-- 专有名词识别 -->
+                <div id="ai-noun-recognition-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">专有名词识别</h3>
+                            <p class="text-sm text-text-secondary">自动识别并高亮人物、设定</p>
+                        </div>
+                        <div id="ai-noun-recognition-toggle" class="toggle-switch active"></div>
+                    </div>
+                </div>
+
+                <!-- 智能建议 -->
+                <div id="ai-suggestions-setting" class="setting-item rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">智能建议</h3>
+                            <p class="text-sm text-text-secondary">提供写作建议和情节参考</p>
+                        </div>
+                        <div id="ai-suggestions-toggle" class="toggle-switch active"></div>
+                    </div>
+                </div>
+
+                <!-- 一致性检查 -->
+                <div id="ai-consistency-setting" class="setting-item rounded-lg p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h3 class="font-medium text-text-primary">一致性检查</h3>
+                            <p class="text-sm text-text-secondary">检查人物状态和伏笔回收</p>
+                        </div>
+                        <div id="ai-consistency-toggle" class="toggle-switch active"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 其他设置 -->
+            <section id="other-settings" class="setting-section rounded-xl p-4">
+                <h2 class="text-lg font-medium text-text-primary mb-4 flex items-center">
+                    <i class="fas fa-cog text-text-secondary mr-2"></i>
+                    其他
+                </h2>
+                
+                <!-- 关于我们 -->
+                <div id="about-us-setting" class="setting-item rounded-lg p-4 mb-3 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-text-secondary mr-3"></i>
+                            <div>
+                                <h3 class="font-medium text-text-primary">关于我们</h3>
+                                <p class="text-sm text-text-secondary">版本信息、隐私政策</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right text-text-tertiary"></i>
+                    </div>
+                </div>
+
+                <!-- 数据备份 -->
+                <div id="data-backup-setting" class="setting-item rounded-lg p-4 mb-3 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-cloud-upload-alt text-text-secondary mr-3"></i>
+                            <div>
+                                <h3 class="font-medium text-text-primary">数据备份</h3>
+                                <p class="text-sm text-text-secondary">导出作品和设置</p>
+                            </div>
+                        </div>
+                        <i class="fas fa-chevron-right text-text-tertiary"></i>
+                    </div>
+                </div>
+
+                <!-- 清除缓存 -->
+                <div id="clear-cache-setting" class="setting-item rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas fa-trash-alt text-text-secondary mr-3"></i>
+                            <div>
+                                <h3 class="font-medium text-text-primary">清除缓存</h3>
+                                <p class="text-sm text-text-secondary">清理临时文件和数据</p>
+                            </div>
+                        </div>
+                        <span id="cache-size" class="text-sm text-text-tertiary">12.5MB</span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0"></div>
+        <div class="relative flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content rounded-xl p-6 w-full max-w-sm">
+                <h3 id="modal-title" class="text-lg font-semibold text-text-primary mb-2"></h3>
+                <p id="modal-message" class="text-text-secondary mb-6"></p>
+                <div class="flex space-x-3">
+                    <button id="modal-cancel" class="flex-1 py-3 px-4 bg-dark-300 rounded-lg text-text-secondary font-medium">
+                        取消
+                    </button>
+                    <button id="modal-confirm" class="flex-1 py-3 px-4 bg-primary rounded-lg text-white font-medium">
+                        确认
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成功提示 -->
+    <div id="success-toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 hidden">
+        <div class="bg-success text-dark-100 px-4 py-2 rounded-lg shadow-lg">
+            <span id="toast-message">设置已保存</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 返回按钮
+            document.querySelector('#back-btn').addEventListener('click', function() {
+                window.location.href = 'P-USER_PROFILE.html';
+            });
+
+            // 关于我们
+            document.querySelector('#about-us-setting').addEventListener('click', function() {
+                window.location.href = 'P-ABOUT_US.html';
+            });
+
+            // 开关切换功能
+            function setupToggle(toggleId, callback) {
+                const toggle = document.querySelector(toggleId);
+                toggle.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    if (callback) {
+                        callback(this.classList.contains('active'));
+                    }
+                    showToast('设置已保存');
+                });
+            }
+
+            // 护眼模式开关
+            setupToggle('#eye-protection-toggle', function(active) {
+                console.log('护眼模式:', active ? '开启' : '关闭');
+            });
+
+            // 自动保存开关
+            setupToggle('#auto-save-toggle', function(active) {
+                console.log('自动保存:', active ? '开启' : '关闭');
+            });
+
+            // AI专有名词识别开关
+            setupToggle('#ai-noun-recognition-toggle', function(active) {
+                console.log('专有名词识别:', active ? '开启' : '关闭');
+            });
+
+            // AI智能建议开关
+            setupToggle('#ai-suggestions-toggle', function(active) {
+                console.log('智能建议:', active ? '开启' : '关闭');
+            });
+
+            // AI一致性检查开关
+            setupToggle('#ai-consistency-toggle', function(active) {
+                console.log('一致性检查:', active ? '开启' : '关闭');
+            });
+
+            // 滑块值更新
+            function setupSlider(sliderId, valueId, callback) {
+                const slider = document.querySelector(sliderId);
+                const valueDisplay = document.querySelector(valueId);
+                
+                slider.addEventListener('input', function() {
+                    valueDisplay.textContent = this.value;
+                    if (callback) {
+                        callback(this.value);
+                    }
+                });
+
+                slider.addEventListener('change', function() {
+                    showToast('设置已保存');
+                });
+            }
+
+            // 字号滑块
+            setupSlider('#font-size-slider', '#font-size-value', function(value) {
+                console.log('字号设置为:', value);
+            });
+
+            // 行间距滑块
+            setupSlider('#line-height-slider', '#line-height-value', function(value) {
+                console.log('行间距设置为:', value);
+            });
+
+            // 护眼强度滑块
+            const eyeStrengthSlider = document.querySelector('#eye-strength-slider');
+            const eyeStrengthValue = document.querySelector('#eye-strength-value');
+            const strengthLabels = ['轻微', '较弱', '中等', '较强', '强烈'];
+
+            eyeStrengthSlider.addEventListener('input', function() {
+                const value = parseInt(this.value);
+                eyeStrengthValue.textContent = strengthLabels[value - 1];
+            });
+
+            eyeStrengthSlider.addEventListener('change', function() {
+                console.log('护眼强度设置为:', strengthLabels[parseInt(this.value) - 1]);
+                showToast('设置已保存');
+            });
+
+            // 下拉选择器
+            function setupSelect(selectId, callback) {
+                const select = document.querySelector(selectId);
+                select.addEventListener('change', function() {
+                    if (callback) {
+                        callback(this.value);
+                    }
+                    showToast('设置已保存');
+                });
+            }
+
+            // 字体选择
+            setupSelect('#font-select', function(value) {
+                console.log('字体设置为:', value);
+            });
+
+            // 保存间隔选择
+            setupSelect('#save-interval-select', function(value) {
+                console.log('保存间隔设置为:', value + '秒');
+            });
+
+            // 数据备份
+            document.querySelector('#data-backup-setting').addEventListener('click', function() {
+                showConfirmModal('数据备份', '确定要导出所有作品和设置吗？', function() {
+                    console.log('开始数据备份');
+                    showToast('备份已开始');
+                });
+            });
+
+            // 清除缓存
+            document.querySelector('#clear-cache-setting').addEventListener('click', function() {
+                showConfirmModal('清除缓存', '确定要清除所有临时文件和缓存数据吗？', function() {
+                    console.log('开始清除缓存');
+                    document.querySelector('#cache-size').textContent = '0MB';
+                    showToast('缓存已清除');
+                });
+            });
+
+            // 显示确认对话框
+            function showConfirmModal(title, message, confirmCallback) {
+                document.querySelector('#modal-title').textContent = title;
+                document.querySelector('#modal-message').textContent = message;
+                document.querySelector('#confirm-modal').classList.remove('hidden');
+
+                const confirmBtn = document.querySelector('#modal-confirm');
+                const cancelBtn = document.querySelector('#modal-cancel');
+                const modal = document.querySelector('#confirm-modal');
+
+                const confirmHandler = function() {
+                    if (confirmCallback) {
+                        confirmCallback();
+                    }
+                    modal.classList.add('hidden');
+                    confirmBtn.removeEventListener('click', confirmHandler);
+                    cancelBtn.removeEventListener('click', cancelHandler);
+                    modal.removeEventListener('click', modalHandler);
+                };
+
+                const cancelHandler = function() {
+                    modal.classList.add('hidden');
+                    confirmBtn.removeEventListener('click', confirmHandler);
+                    cancelBtn.removeEventListener('click', cancelHandler);
+                    modal.removeEventListener('click', modalHandler);
+                };
+
+                const modalHandler = function(e) {
+                    if (e.target === modal) {
+                        cancelHandler();
+                    }
+                };
+
+                confirmBtn.addEventListener('click', confirmHandler);
+                cancelBtn.addEventListener('click', cancelHandler);
+                modal.addEventListener('click', modalHandler);
+            }
+
+            // 显示成功提示
+            function showToast(message) {
+                const toast = document.querySelector('#success-toast');
+                const toastMessage = document.querySelector('#toast-message');
+                
+                toastMessage.textContent = message;
+                toast.classList.remove('hidden');
+                
+                setTimeout(function() {
+                    toast.classList.add('hidden');
+                }, 2000);
+            }
+
+            // 初始化设置值显示
+            eyeStrengthSlider.dispatchEvent(new Event('input'));
+        });
+    </script>
+</body>
+</html>

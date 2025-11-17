@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>墨夜文书 - 伏笔编辑</title>
+    <script src="https://unpkg.byted-static.com/coze/space_ppt_lib/1.0.3-alpha.12/lib/tailwindcss.js"></script>
+    <script src="https://unpkg.byted-static.com/fortawesome/fontawesome-free/6.7.2/js/all.min.js" data-auto-replace-svg="nest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF6B35',
+                        secondary: '#4ECDC4',
+                        tertiary: '#45B7D1',
+                        success: '#96CEB4',
+                        danger: '#FFEAA7',
+                        warning: '#FD79A8',
+                        dark: {
+                            100: '#1A1A1A',
+                            200: '#2D2D2D',
+                            300: '#404040',
+                            400: '#525252',
+                            500: '#737373'
+                        },
+                        text: {
+                            primary: '#FFFFFF',
+                            secondary: '#B3B3B3',
+                            tertiary: '#808080'
+                        }
+                    },
+                    fontFamily: {
+                        'sans': ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 12px rgba(0, 0, 0, 0.3)',
+                        'fab': '0 6px 20px rgba(255, 107, 53, 0.4)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .safe-top {
+            padding-top: env(safe-area-inset-top);
+        }
+        .safe-bottom {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .glass {
+            background: rgba(45, 45, 45, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .form-input {
+            background: rgba(64, 64, 64, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #FF6B35;
+            background: rgba(64, 64, 64, 0.7);
+            box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+        }
+        
+        .form-input::placeholder {
+            color: #808080;
+        }
+        
+        .select-option {
+            background: rgba(64, 64, 64, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .select-option:hover {
+            background: rgba(80, 80, 80, 0.5);
+        }
+        
+        .select-option.selected {
+            background: rgba(255, 107, 53, 0.2);
+            border-color: #FF6B35;
+            color: #FF6B35;
+        }
+        
+        .save-button {
+            background: linear-gradient(135deg, #FF6B35 0%, #FF8A65 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .save-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+        }
+        
+        .save-button:disabled {
+            background: rgba(128, 128, 128, 0.3);
+            cursor: not-allowed;
+        }
+        
+        .back-button {
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: rgba(64, 64, 64, 0.5);
+        }
+        
+        .error-message {
+            color: #FD79A8;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        
+        .success-message {
+            color: #96CEB4;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        
+        .loading-spinner {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-dark-100 text-text-primary font-sans">
+    <!-- 状态栏 -->
+    <div id="status-bar" class="bg-dark-100 text-text-primary text-sm flex justify-between items-center px-4 py-1 safe-top">
+        <div class="flex items-center space-x-1">
+            <span>9:41</span>
+        </div>
+        <div class="flex items-center space-x-1">
+            <i class="fas fa-signal text-xs"></i>
+            <i class="fas fa-wifi text-xs"></i>
+            <i class="fas fa-battery-three-quarters text-xs"></i>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div id="main-container" class="min-h-screen bg-dark-100">
+        <!-- 顶部导航栏 -->
+        <header id="page-header" class="glass px-4 py-3 border-b border-dark-300">
+            <div class="flex items-center justify-between">
+                <button id="back-button" class="back-button w-10 h-10 rounded-full flex items-center justify-center text-text-secondary">
+                    <i class="fas fa-arrow-left text-lg"></i>
+                </button>
+                <h1 id="page-title" class="text-lg font-semibold text-text-primary">添加伏笔</h1>
+                <button id="save-button" class="save-button px-4 py-2 rounded-lg text-white font-medium">
+                    <span id="save-text">保存</span>
+                    <i id="save-loading" class="fas fa-spinner loading-spinner ml-2 hidden"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 表单内容 -->
+        <main id="form-container" class="p-4 space-y-6">
+            <!-- 伏笔描述 -->
+            <div id="description-section" class="space-y-2">
+                <label for="foreshadowing-description" class="block text-sm font-medium text-text-primary">
+                    伏笔描述 <span class="text-danger">*</span>
+                </label>
+                <textarea 
+                    id="foreshadowing-description" 
+                    name="description"
+                    rows="3" 
+                    class="form-input w-full px-4 py-3 rounded-lg text-text-primary placeholder-text-tertiary resize-none"
+                    placeholder="请简要描述这个伏笔..."
+                    required
+                ></textarea>
+                <div id="description-error" class="error-message hidden">请输入伏笔描述</div>
+            </div>
+
+            <!-- 详细说明 -->
+            <div id="details-section" class="space-y-2">
+                <label for="foreshadowing-details" class="block text-sm font-medium text-text-primary">
+                    详细说明
+                </label>
+                <textarea 
+                    id="foreshadowing-details" 
+                    name="details"
+                    rows="4" 
+                    class="form-input w-full px-4 py-3 rounded-lg text-text-primary placeholder-text-tertiary resize-none"
+                    placeholder="请详细描述伏笔的背景、目的和后续发展..."
+                ></textarea>
+            </div>
+
+            <!-- 回收状态 -->
+            <div id="status-section" class="space-y-2">
+                <label class="block text-sm font-medium text-text-primary">
+                    回收状态 <span class="text-danger">*</span>
+                </label>
+                <div id="status-options" class="grid grid-cols-2 gap-3">
+                    <div class="select-option selected p-4 rounded-lg cursor-pointer text-center" data-value="未回收">
+                        <i class="fas fa-clock text-xl mb-2"></i>
+                        <div class="font-medium">未回收</div>
+                        <div class="text-sm text-text-secondary">待后续回收</div>
+                    </div>
+                    <div class="select-option p-4 rounded-lg cursor-pointer text-center" data-value="已回收">
+                        <i class="fas fa-check-circle text-xl mb-2"></i>
+                        <div class="font-medium">已回收</div>
+                        <div class="text-sm text-text-secondary">已在剧情中回收</div>
+                    </div>
+                </div>
+                <input type="hidden" id="foreshadowing-status" name="status" value="未回收" required>
+            </div>
+
+            <!-- 回收章节 -->
+            <div id="chapter-section" class="space-y-2">
+                <label for="recovery-chapter" class="block text-sm font-medium text-text-primary">
+                    回收章节
+                </label>
+                <input 
+                    type="text" 
+                    id="recovery-chapter" 
+                    name="chapter"
+                    class="form-input w-full px-4 py-3 rounded-lg text-text-primary placeholder-text-tertiary"
+                    placeholder="例如：第15章、第三卷等"
+                    disabled
+                >
+                <div class="text-xs text-text-secondary">
+                    仅在"已回收"状态下需要填写
+                </div>
+            </div>
+
+            <!-- 关联作品 -->
+            <div id="works-section" class="space-y-2">
+                <label class="block text-sm font-medium text-text-primary">
+                    关联作品 <span class="text-danger">*</span>
+                </label>
+                <div id="works-list" class="space-y-2">
+                    <div class="select-option p-3 rounded-lg cursor-pointer flex items-center justify-between" data-value="work1">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-book text-primary"></i>
+                            <div>
+                                <div class="font-medium">《星辰纪元》</div>
+                                <div class="text-sm text-text-secondary">科幻小说</div>
+                            </div>
+                        </div>
+                        <i class="fas fa-check text-primary hidden"></i>
+                    </div>
+                    <div class="select-option p-3 rounded-lg cursor-pointer flex items-center justify-between" data-value="work2">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-book text-primary"></i>
+                            <div>
+                                <div class="font-medium">《魔法学院录》</div>
+                                <div class="text-sm text-text-secondary">奇幻小说</div>
+                            </div>
+                        </div>
+                        <i class="fas fa-check text-primary hidden"></i>
+                    </div>
+                    <div class="select-option p-3 rounded-lg cursor-pointer flex items-center justify-between" data-value="work3">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-book text-primary"></i>
+                            <div>
+                                <div class="font-medium">《都市异闻录》</div>
+                                <div class="text-sm text-text-secondary">悬疑小说</div>
+                            </div>
+                        </div>
+                        <i class="fas fa-check text-primary hidden"></i>
+                    </div>
+                </div>
+                <input type="hidden" id="related-works" name="works" value="" required>
+                <div id="works-error" class="error-message hidden">请至少选择一个关联作品</div>
+            </div>
+
+            <!-- 底部间距 -->
+            <div class="h-8"></div>
+        </main>
+    </div>
+
+    <!-- 成功提示模态框 -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass rounded-xl p-6 mx-4 max-w-sm w-full">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-white text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-text-primary mb-2">保存成功</h3>
+                <p class="text-text-secondary mb-6">伏笔信息已成功保存</p>
+                <button id="success-confirm" class="save-button w-full py-3 rounded-lg text-white font-medium">
+                    确定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取URL参数的辅助函数
+            function getUrlParams() {
+                const params = {};
+                const queryString = window.location.search.substring(1);
+                const urlParams = new URLSearchParams(queryString);
+                
+                for(const [key, value] of urlParams.entries()) {
+                    params[key] = value;
+                }
+                return params;
+            }
+
+            // 模拟伏笔数据
+            const mockForeshadowings = {
+                "foreshadowing1": {
+                    description: "主角在第一章发现的神秘项链",
+                    details: "这条项链在后续剧情中将成为开启古代遗迹的钥匙，具有重要的象征意义",
+                    status: "未回收",
+                    chapter: "",
+                    works: ["work1"]
+                },
+                "foreshadowing2": {
+                    description: "魔法师的预言",
+                    details: "在第三章中出现的神秘魔法师预言了主角的命运，这个预言将在故事高潮部分实现",
+                    status: "已回收",
+                    chapter: "第25章",
+                    works: ["work2"]
+                }
+            };
+
+            // 获取URL参数，判断是添加还是编辑模式
+            const params = getUrlParams();
+            const isEditMode = params.foreshadowing_id && mockForeshadowings[params.foreshadowing_id];
+            const pageTitle = document.querySelector('#page-title');
+            const foreshadowingId = params.foreshadowing_id;
+
+            // 设置页面标题
+            if (isEditMode) {
+                pageTitle.textContent = '编辑伏笔';
+                loadForeshadowingData(mockForeshadowings[foreshadowingId]);
+            } else {
+                pageTitle.textContent = '添加伏笔';
+            }
+
+            // 加载伏笔数据到表单
+            function loadForeshadowingData(data) {
+                document.querySelector('#foreshadowing-description').value = data.description;
+                document.querySelector('#foreshadowing-details').value = data.details;
+                setStatusSelection(data.status);
+                document.querySelector('#recovery-chapter').value = data.chapter;
+                setWorksSelection(data.works);
+                
+                // 如果状态是已回收，启用章节输入框
+                if (data.status === '已回收') {
+                    document.querySelector('#recovery-chapter').disabled = false;
+                }
+            }
+
+            // 设置状态选择
+            function setStatusSelection(status) {
+                const options = document.querySelectorAll('#status-options .select-option');
+                options.forEach(option => {
+                    if (option.dataset.value === status) {
+                        option.classList.add('selected');
+                    } else {
+                        option.classList.remove('selected');
+                    }
+                });
+                document.querySelector('#foreshadowing-status').value = status;
+            }
+
+            // 设置作品选择
+            function setWorksSelection(workIds) {
+                const options = document.querySelectorAll('#works-list .select-option');
+                options.forEach(option => {
+                    if (workIds.includes(option.dataset.value)) {
+                        option.classList.add('selected');
+                        option.querySelector('.fa-check').classList.remove('hidden');
+                    }
+                });
+                document.querySelector('#related-works').value = workIds.join(',');
+            }
+
+            // 返回按钮事件
+            document.querySelector('#back-button').addEventListener('click', function() {
+                window.location.href = 'P-FORESHADOWING_MANAGE.html';
+            });
+
+            // 状态选择事件
+            document.querySelectorAll('#status-options .select-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // 移除所有选中状态
+                    document.querySelectorAll('#status-options .select-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    
+                    // 设置当前选中状态
+                    this.classList.add('selected');
+                    const status = this.dataset.value;
+                    document.querySelector('#foreshadowing-status').value = status;
+                    
+                    // 根据状态控制章节输入框
+                    const chapterInput = document.querySelector('#recovery-chapter');
+                    if (status === '已回收') {
+                        chapterInput.disabled = false;
+                        chapterInput.placeholder = "请输入回收章节...";
+                    } else {
+                        chapterInput.disabled = true;
+                        chapterInput.placeholder = "例如：第15章、第三卷等";
+                        chapterInput.value = "";
+                    }
+                });
+            });
+
+            // 作品选择事件（支持多选）
+            document.querySelectorAll('#works-list .select-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const workId = this.dataset.value;
+                    const checkIcon = this.querySelector('.fa-check');
+                    const worksInput = document.querySelector('#related-works');
+                    
+                    // 切换选中状态
+                    if (this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        checkIcon.classList.add('hidden');
+                        
+                        // 从选中列表中移除
+                        const currentWorks = worksInput.value.split(',').filter(w => w && w !== workId);
+                        worksInput.value = currentWorks.join(',');
+                    } else {
+                        this.classList.add('selected');
+                        checkIcon.classList.remove('hidden');
+                        
+                        // 添加到选中列表
+                        const currentWorks = worksInput.value ? worksInput.value.split(',') : [];
+                        if (!currentWorks.includes(workId)) {
+                            currentWorks.push(workId);
+                            worksInput.value = currentWorks.join(',');
+                        }
+                    }
+                });
+            });
+
+            // 表单验证
+            function validateForm() {
+                let isValid = true;
+                
+                // 清除之前的错误信息
+                document.querySelectorAll('.error-message').forEach(el => {
+                    el.classList.add('hidden');
+                });
+                
+                // 验证伏笔描述
+                const description = document.querySelector('#foreshadowing-description').value.trim();
+                if (!description) {
+                    document.querySelector('#description-error').classList.remove('hidden');
+                    isValid = false;
+                }
+                
+                // 验证关联作品
+                const works = document.querySelector('#related-works').value.trim();
+                if (!works) {
+                    document.querySelector('#works-error').classList.remove('hidden');
+                    isValid = false;
+                }
+                
+                // 如果状态是已回收，验证章节
+                const status = document.querySelector('#foreshadowing-status').value;
+                const chapter = document.querySelector('#recovery-chapter').value.trim();
+                if (status === '已回收' && !chapter) {
+                    document.querySelector('#recovery-chapter').classList.add('border-danger');
+                    isValid = false;
+                } else {
+                    document.querySelector('#recovery-chapter').classList.remove('border-danger');
+                }
+                
+                return isValid;
+            }
+
+            // 保存按钮事件
+            document.querySelector('#save-button').addEventListener('click', function() {
+                if (!validateForm()) {
+                    return;
+                }
+                
+                // 显示加载状态
+                const saveText = document.querySelector('#save-text');
+                const saveLoading = document.querySelector('#save-loading');
+                const saveButton = document.querySelector('#save-button');
+                
+                saveButton.disabled = true;
+                saveText.textContent = '保存中...';
+                saveLoading.classList.remove('hidden');
+                
+                // 收集表单数据
+                const formData = {
+                    description: document.querySelector('#foreshadowing-description').value.trim(),
+                    details: document.querySelector('#foreshadowing-details').value.trim(),
+                    status: document.querySelector('#foreshadowing-status').value,
+                    chapter: document.querySelector('#recovery-chapter').value.trim(),
+                    works: document.querySelector('#related-works').value.split(',')
+                };
+                
+                // 模拟保存过程
+                setTimeout(() => {
+                    console.log('保存伏笔数据:', formData);
+                    
+                    // 恢复按钮状态
+                    saveButton.disabled = false;
+                    saveText.textContent = '保存';
+                    saveLoading.classList.add('hidden');
+                    
+                    // 显示成功提示
+                    document.querySelector('#success-modal').classList.remove('hidden');
+                }, 1500);
+            });
+
+            // 成功确认按钮事件
+            document.querySelector('#success-confirm').addEventListener('click', function() {
+                window.location.href = 'P-FORESHADOWING_MANAGE.html';
+            });
+
+            // 实时验证
+            document.querySelector('#foreshadowing-description').addEventListener('input', function() {
+                if (this.value.trim()) {
+                    document.querySelector('#description-error').classList.add('hidden');
+                }
+            });
+
+            document.querySelector('#related-works').addEventListener('input', function() {
+                if (this.value.trim()) {
+                    document.querySelector('#works-error').classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
