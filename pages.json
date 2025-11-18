@@ -56,43 +56,6 @@
 		"navigationBarBackgroundColor": "#F8F8F8",
 		"backgroundColor": "#F8F8F8"
 	},
-	"tabBar": {
-		"color": "#999999",
-		"selectedColor": "#007AFF",
-		"backgroundColor": "#1e1e1e",
-		"borderStyle": "black",
-		"list": [
-			{
-				"pagePath": "pages/index/index",
-				"text": "首页",
-				"iconPath": "static/icons/home.svg",
-				"selectedIconPath": "static/icons/home.svg"
-			},
-			{
-				"pagePath": "pages/index/index",
-				"text": "主题",
-				"iconPath": "static/icons/sun.svg",
-				"selectedIconPath": "static/icons/moon.svg"
-			},
-			{
-				"pagePath": "pages/manage/index",
-				"text": "管理",
-				"iconPath": "static/icons/folder.svg",
-				"selectedIconPath": "static/icons/folder.svg"
-			},
-			{
-				"pagePath": "pages/index/index",
-				"text": "服务",
-				"iconPath": "static/icons/map.svg",
-				"selectedIconPath": "static/icons/map.svg"
-			},
-			{
-				"pagePath": "pages/index/index",
-				"text": "我的",
-				"iconPath": "static/icons/user.svg",
-				"selectedIconPath": "static/icons/user.svg"
-			}
-		]
-	},
+
 	"uniIdRouter": {}
 }

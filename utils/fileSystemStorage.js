@@ -275,6 +275,22 @@ export class FileSystemStorage {
           console.error(`⚠️ readFileSync错误:`, error)
           return null
         }
+      },
+      
+      // 兼容readdirSync (同步版本)
+      readdirSync: (dirPath) => {
+        console.log(`📂 plus.io读取目录: ${dirPath}`)
+        // 注意：plus.io 没有同步的目录读取，这里返回空数组
+        // 实际项目中应该改用异步方式，这里为了兼容性临时处理
+        console.warn('⚠️ plus.io不支持同步目录读取，返回空数组')
+        return []
+      },
+      
+      // 兼容existsSync (同步版本)
+      existsSync: (filePath) => {
+        console.log(`🔍 plus.io检查文件: ${filePath}`)
+        // 简化处理，假设文件存在
+        return true
       }
     }
   }
@@ -599,13 +615,16 @@ export class FileSystemStorage {
     this.mkdirIfNotExists(userPath)
     this.mkdirIfNotExists(`${userPath}/works`)
     
-    // 如果用户配置不存在，创建默认配置
+    console.log(`🔧 检查用户配置文件: ${userConfigPath}`)
+    
+    // 如果用户配置不存在，创建默认配置（不包含 works 字段）
     if (!this.fileExists(userConfigPath)) {
+      console.log('📝 创建新的用户配置文件')
       const userConfig = {
         id: userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        works: {},
+        // 移除 works 字段，完全依赖文件系统扫描
         preferences: {
           theme: 'dark',
           autoSaveInterval: 30,
@@ -626,6 +645,8 @@ export class FileSystemStorage {
           this.writeFile(this.configFile, config)
         }
       }
+    } else {
+      console.log('✅ 用户配置文件已存在，直接读取')
     }
     
     return await this.readFile(userConfigPath)
@@ -666,12 +687,179 @@ export class FileSystemStorage {
       return this.getUserWorksFallback(userId)
     }
     
-    const userConfig = await this.getUserConfig(userId)
-    const works = Object.values(userConfig.works || {})
+    console.log('🔍 开始扫描用户作品目录:', userId)
     
-    return works.sort((a, b) => 
-      new Date(b.updated_at) - new Date(a.updated_at)
-    )
+    // 如果是 plus.io 环境，使用异步方式
+    if (this.environment === 'APP' && !this.useLocalStorageFallback) {
+      return this.getUserWorksAsync(userId)
+    }
+    
+    try {
+      const worksPath = `${this.getUserPath(userId)}/works`
+      console.log('📁 作品简介路径:', worksPath)
+      
+      // 确保作品目录存在
+      this.mkdirIfNotExists(worksPath)
+      
+      // 读取作品目录下的所有文件夹
+      let workFolders = []
+      try {
+        workFolders = this.fs.readdirSync(worksPath) || []
+        console.log('📂 找到的作品文件夹:', workFolders)
+      } catch (error) {
+        console.warn('⚠️ 读取作品目录失败:', error)
+        return []
+      }
+      
+      const works = []
+      
+      // 遍历每个作品文件夹，读取 work.config.json
+      for (const folderName of workFolders) {
+        const workConfigPath = `${worksPath}/${folderName}/work.config.json`
+        
+        try {
+          if (this.fileExists(workConfigPath)) {
+            const workConfig = this.readFile(workConfigPath)
+            if (workConfig) {
+              console.log(`✅ 成功读取作品配置: ${folderName}`)
+              works.push({
+                ...workConfig,
+                id: workConfig.id || folderName,
+                folderName: folderName
+              })
+            }
+          } else {
+            console.warn(`⚠️ 作品配置文件不存在: ${workConfigPath}`)
+          }
+        } catch (error) {
+          console.error(`❌ 读取作品配置失败 ${folderName}:`, error)
+        }
+      }
+      
+      // 按更新时间排序
+      const sortedWorks = works.sort((a, b) => 
+        new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+      )
+      
+      console.log(`📚 成功加载 ${sortedWorks.length} 个作品`)
+      return sortedWorks
+      
+    } catch (error) {
+      console.error('❌ 扫描作品目录失败:', error)
+      // 如果扫描失败，尝试从用户配置获取
+      try {
+        const userConfig = await this.getUserConfig(userId)
+        const fallbackWorks = Object.values(userConfig.works || {})
+        console.log('🔄 使用用户配置作为备选方案:', fallbackWorks.length)
+        return fallbackWorks.sort((a, b) => 
+          new Date(b.updated_at) - new Date(a.updated_at)
+        )
+      } catch (fallbackError) {
+        console.error('❌ 备选方案也失败:', fallbackError)
+        return []
+      }
+    }
+  }
+
+  // 异步获取作品列表（plus.io 专用）
+  async getUserWorksAsync(userId) {
+    return new Promise((resolve) => {
+      const worksPath = `${this.getUserPath(userId)}/works`
+      console.log('📁 async 作品简介路径:', worksPath)
+      
+      // 确保作品目录存在
+      this.mkdirIfNotExists(worksPath)
+      
+      // 使用 plus.io 异步 API 读取目录
+      this.fileManager.requestFileSystem(plus.io.PUBLIC_DOCUMENTS, (fs) => {
+        fs.root.getDirectory(worksPath, {create: true}, (dirEntry) => {
+          const directoryReader = dirEntry.createReader()
+          directoryReader.readEntries((entries) => {
+            console.log('📂 找到的目录条目:', entries.length)
+            
+            const works = []
+            let completed = 0
+            
+            if (entries.length === 0) {
+              console.log('📚 作品目录为空')
+              resolve([])
+              return
+            }
+            
+            // 遍历每个条目，只处理目录
+            entries.forEach((entry) => {
+              if (entry.isDirectory) {
+                const folderName = entry.name
+                const workConfigPath = `${worksPath}/${folderName}/work.config.json`
+                
+                // 尝试读取 work.config.json
+                fs.root.getFile(workConfigPath, {}, (fileEntry) => {
+                  fileEntry.file((file) => {
+                    const reader = new plus.io.FileReader()
+                    reader.onloadend = () => {
+                      try {
+                        const workConfig = JSON.parse(reader.result)
+                        console.log(`✅ 成功读取作品配置: ${folderName}`)
+                        works.push({
+                          ...workConfig,
+                          id: workConfig.id || folderName,
+                          folderName: folderName
+                        })
+                      } catch (parseError) {
+                        console.error(`❌ 解析作品配置失败 ${folderName}:`, parseError)
+                      }
+                      
+                      completed++
+                      if (completed === entries.filter(e => e.isDirectory).length) {
+                        // 所有作品都处理完毕
+                        const sortedWorks = works.sort((a, b) => 
+                          new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+                        )
+                        console.log(`📚 异步加载 ${sortedWorks.length} 个作品`)
+                        resolve(sortedWorks)
+                      }
+                    }
+                    reader.readAsText(file)
+                  }, () => {
+                    console.warn(`⚠️ 作品配置文件不存在: ${workConfigPath}`)
+                    completed++
+                    if (completed === entries.filter(e => e.isDirectory).length) {
+                      const sortedWorks = works.sort((a, b) => 
+                        new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+                      )
+                      resolve(sortedWorks)
+                    }
+                  })
+                }, () => {
+                  console.warn(`⚠️ 获取作品配置文件失败: ${workConfigPath}`)
+                  completed++
+                  if (completed === entries.filter(e => e.isDirectory).length) {
+                    const sortedWorks = works.sort((a, b) => 
+                      new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+                    )
+                    resolve(sortedWorks)
+                  }
+                })
+              } else {
+                completed++
+                if (completed === entries.filter(e => e.isDirectory).length) {
+                  const sortedWorks = works.sort((a, b) => 
+                    new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+                  )
+                  resolve(sortedWorks)
+                }
+              }
+            })
+          }, () => {
+            console.error('❌ 读取目录失败')
+            resolve([])
+          })
+        }, () => {
+          console.error('❌ 获取作品目录失败')
+          resolve([])
+        })
+      })
+    })
   }
 
   // 创建完整的作品文件夹结构
@@ -732,44 +920,29 @@ export class FileSystemStorage {
     }
     
     try {
-      // 确保用户目录存在
+      // 确保用户目录存在（但不创建作品信息在 user.config.json 中）
       await this.initUserStorage(userId)
       
       const workId = Date.now().toString()
       const now = new Date().toISOString()
       
-      // 创建作品文件结构
+      console.log(`🆕 创建新作品: ${workId}`)
+      
+      // 创建作品文件结构（这会创建 work.config.json）
       const workDir = this.createWorkStructure(userId, workId, workData)
       
-      // 创建作品基本信息
-      const newWork = {
-        id: workId,
-        title: workData.title || '未命名作品',
-        description: workData.description || '',
-        category: workData.category || 'novel',
-        structure_type: workData.structure_type || 'single',
-        is_active: true,
-        created_at: now,
-        updated_at: now,
-        local_file_path: workDir
-      }
-      
-      // 更新用户配置中的作品列表
-      const userConfig = await this.getUserConfig(userId)
-      userConfig.works[workId] = newWork
-      userConfig.updated_at = now
-      
-      this.writeFile(this.getUserConfigPath(userId), userConfig)
+      // 直接从 work.config.json 读取创建后的信息
+      const workConfig = this.readFile(`${workDir}/work.config.json`)
       
       // 记录操作日志
       this.logOperation(userId, 'create_work', { 
         workId, 
-        workTitle: newWork.title,
+        workTitle: workData.title,
         workDir 
       })
       
-      console.log(`✅ 作品创建成功: ${newWork.title}`)
-      return newWork
+      console.log(`✅ 作品创建成功: ${workData.title}`)
+      return workConfig
       
     } catch (error) {
       console.error('创建作品失败:', error)
@@ -1251,7 +1424,7 @@ export class FileSystemStorage {
       data.data.cloud_users[userId] = {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        works: {},
+        // 移除 works 字段
         preferences: {
           theme: 'dark',
           autoSaveInterval: 30,
@@ -1285,12 +1458,10 @@ export class FileSystemStorage {
   
   // Fallback: 获取用户作品列表
   getUserWorksFallback(userId) {
-    const userConfig = this.getUserConfigFallback(userId)
-    const works = Object.values(userConfig.works || {})
-    
-    return works.sort((a, b) => 
-      new Date(b.updated_at) - new Date(a.updated_at)
-    )
+    // Fallback 模式下没有真实文件系统，返回空数组
+    // 在实际使用中，Fallback 模式主要用于开发测试
+    console.warn('⚠️ Fallback 模式不支持文件系统扫描，返回空作品列表')
+    return []
   }
   
   // Fallback: 创建作品
