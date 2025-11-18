@@ -87,19 +87,60 @@ export class OfflineAuthService {
     }
   }
 
-  // 检查登录状态
-  static async checkAuthStatus() {
-    try {
-      const user = uni.getStorageSync(CURRENT_USER_KEY)
-      return { 
-        isAuthenticated: !!user, 
-        session: user ? { user } : null 
+// 检查登录状态
+static async checkAuthStatus() {
+  try {
+    const user = uni.getStorageSync(CURRENT_USER_KEY)
+    
+    // 如果没有用户，创建默认用户（离线模式）
+    if (!user) {
+      const defaultUser = {
+        id: 'default_user',
+        username: '离线用户',
+        email: '',
+        created_at: new Date().toISOString()
       }
-    } catch (error) {
-      console.error('检查认证状态失败:', error)
-      return { isAuthenticated: false, session: null }
+      
+      // 保存默认用户到本地存储
+      uni.setStorageSync(CURRENT_USER_KEY, defaultUser)
+      
+      // 添加到用户列表
+      let users = uni.getStorageSync(LOCAL_STORAGE_KEY) || []
+      if (!users.find(u => u.id === 'default_user')) {
+        users.push({
+          ...defaultUser,
+          password: '' // 空密码
+        })
+        uni.setStorageSync(LOCAL_STORAGE_KEY, users)
+      }
+      
+      return { 
+        isAuthenticated: true, 
+        session: { user: defaultUser } 
+      }
+    }
+    
+    return { 
+      isAuthenticated: !!user, 
+      session: user ? { user } : null 
+    }
+  } catch (error) {
+    console.error('检查认证状态失败:', error)
+    
+    // 出错时返回默认用户
+    const defaultUser = {
+      id: 'default_user',
+      username: '离线用户',
+      email: '',
+      created_at: new Date().toISOString()
+    }
+    
+    return { 
+      isAuthenticated: true, 
+      session: { user: defaultUser } 
     }
   }
+}
 }
 
 // 数据操作相关方法 - 本地存储版本
