@@ -7,14 +7,14 @@ export default {
 	},
 	onLaunch: async function() {
 		console.log('App Launch')
-		// 初始化认证状态检查 - 暂时注释掉Supabase检查
-		// await this.checkAuthStatus()
-		// 直接跳转到登录页面
-		uni.redirectTo({
-			url: '/pages/auth/login'
-		})
 		// 初始化主题
 		this.initTheme()
+		// 初始化默认用户（离线模式）
+		this.initDefaultUser()
+		// 直接跳转到首页
+		uni.switchTab({
+			url: '/pages/index/index'
+		})
 	},
 	onShow: function() {
 		console.log('App Show')
@@ -23,27 +23,31 @@ export default {
 		console.log('App Hide')
 	},
 	methods: {
-		async checkAuthStatus() {
+		initDefaultUser() {
 			try {
-				const { isAuthenticated, session } = await AuthService.checkAuthStatus()
-				this.$scope.globalData.isAuthenticated = isAuthenticated
-				this.$scope.globalData.user = session?.user || null
+				// 创建默认用户
+				const defaultUser = {
+					id: 'default_user',
+					username: '离线用户',
+					email: ''
+				}
+				getApp().globalData.user = defaultUser
+				getApp().globalData.isAuthenticated = true
 				
-				// 根据认证状态跳转页面
-				if (isAuthenticated) {
-					uni.switchTab({
-						url: '/pages/index/index'
-					})
-				} else {
-					uni.redirectTo({
-						url: '/pages/auth/login'
-					})
+				// 初始化用户存储（使用uni-app方式）
+				try {
+					const userData = {
+						id: defaultUser.id,
+						username: defaultUser.username,
+						createdAt: new Date().toISOString()
+					}
+					uni.setStorageSync('user_profile', userData)
+					uni.setStorageSync('current_user_id', defaultUser.id)
+				} catch (storageError) {
+					console.error('初始化用户存储失败:', storageError)
 				}
 			} catch (error) {
-				console.error('检查认证状态失败:', error)
-				uni.redirectTo({
-					url: '/pages/auth/login'
-				})
+				console.error('初始化默认用户失败:', error)
 			}
 		},
 		initTheme() {
@@ -51,7 +55,7 @@ export default {
 			try {
 				const theme = uni.getStorageSync('theme')
 				if (theme) {
-					this.$scope.globalData.theme = theme
+					getApp().globalData.theme = theme
 				}
 			} catch (error) {
 				console.error('获取主题设置失败:', error)
