@@ -108,42 +108,16 @@
     </view>
 
     <!-- 底部导航栏 -->
-    <view class="bottom-nav">
-      <view class="nav-item active">
-        <view class="nav-icon">
-          <image class="nav-icon-img" src="/static/icons/home.svg" mode="aspectFit"></image>
-        </view>
-        <text class="nav-text">首页</text>
-      </view>
-      <view class="nav-item" @tap="toggleTheme">
-        <view class="nav-icon">
-          <image class="nav-icon-img" :src="isDarkMode ? '/static/icons/moon.svg' : '/static/icons/sun.svg'" mode="aspectFit"></image>
-        </view>
-        <text class="nav-text">主题</text>
-      </view>
-      <view class="nav-item" @tap="switchNav('manage')">
-        <view class="nav-icon">
-          <image class="nav-icon-img" src="/static/icons/folder.svg" mode="aspectFit"></image>
-        </view>
-        <text class="nav-text">管理</text>
-      </view>
-      <view class="nav-item" @tap="switchNav('service')">
-        <view class="nav-icon">
-          <image class="nav-icon-img" src="/static/icons/map.svg" mode="aspectFit"></image>
-        </view>
-        <text class="nav-text">服务</text>
-      </view>
-      <view class="nav-item" @tap="switchNav('profile')">
-        <view class="nav-icon">
-          <image class="nav-icon-img" src="/static/icons/user.svg" mode="aspectFit"></image>
-        </view>
-        <text class="nav-text">我的</text>
-      </view>
-    </view>
+    <BottomNav 
+      :active-nav="'home'"
+      :is-dark-mode="isDarkMode"
+      @switch-nav="handleNavSwitch"
+      @toggle-theme="toggleTheme"
+    />
 
     <!-- 创建作品弹窗 -->
     <CreateWorkModal 
-      v-if="currentUser"
+      v-if="currentUser && currentUser.id"
       :visible="showCreateWorkModal" 
       @update:visible="showCreateWorkModal = $event"
       @created="handleWorkCreated"
@@ -152,6 +126,7 @@
 
     <!-- 文件管理弹窗 -->
     <FileManagerModal 
+      v-if="currentUser && currentUser.id"
       :visible="showFileManagerModal" 
       @update:visible="showFileManagerModal = $event"
       :userId="currentUser.id"
@@ -163,6 +138,7 @@
 import { ref, onMounted, computed } from 'vue'
 import CreateWorkModal from '@/components/CreateWorkModal.vue'
 import FileManagerModal from '@/components/FileManagerModal.vue'
+import BottomNav from '@/components/BottomNav.vue'
 import FileSystemStorage from '@/utils/fileSystemStorage.js'
 import { OfflineAuthService } from '@/utils/offlineAuth.js'
 
@@ -259,18 +235,8 @@ const switchTab = (tabId) => {
   activeTab.value = tabId
 }
 
-const switchNav = (navType) => {
-  if (navType === 'manage') {
-    uni.switchTab({
-      url: '/pages/manage/index'
-    })
-  } else if (navType === 'service') {
-    // 服务页面功能（暂时显示提示）
-    uni.showToast({
-      title: '服务功能开发中',
-      icon: 'none'
-    })
-  } else if (navType === 'profile') {
+const handleNavSwitch = (navType) => {
+  if (navType === 'profile') {
     goToProfile()
   }
 }
@@ -346,37 +312,34 @@ const initPage = async () => {
   }
   
   try {
-    // 获取当前用户
-    const authResult = await OfflineAuthService.checkAuthStatus()
-    console.log('🔐 认证结果:', authResult)
-    
-    if (authResult.isAuthenticated && authResult.session?.user) {
-      currentUser.value = authResult.session.user
-      console.log('✅ 已登录用户:', currentUser.value)
-    } else {
-      // 如果没有用户，创建默认用户（离线模式）
-      currentUser.value = {
-        id: 'default_user',
-        username: '离线用户',
-        email: ''
-      }
-      console.log('🔧 使用默认用户:', currentUser.value)
-      
-      // 初始化用户存储 - 修复：使用 fileStorage 实例而不是类名
-      console.log('🗂️ 初始化用户存储...')
-      await fileStorage.initUserStorage(currentUser.value.id)  // 修复这里！
+    // 直接使用 default_user，不需要认证检查
+    currentUser.value = {
+      id: 'default_user',
+      username: '离线用户',
+      email: ''
     }
+    console.log('🔧 使用默认用户:', currentUser.value)
     
-    // 加载用户数据
+    // 初始化用户存储
+    console.log('🗂️ 初始化用户存储...')
+    await fileStorage.initUserStorage(currentUser.value.id)
+    
+    // 加载用户数据（扫描 works 目录）
     await loadUserData()
     
     // 输出存储路径调试信息
     fileStorage.logStoragePaths(currentUser.value.id)
+    
+    // 调试：直接测试作品扫描
+    console.log('🔍 调试：直接测试作品扫描...')
+    const testWorks = await fileStorage.getUserWorks(currentUser.value.id)
+    console.log('🎯 测试扫描结果:', testWorks)
+    
   } catch (error) {
     console.error('❌ 初始化页面失败:', error)
     console.error('错误堆栈:', error.stack)
     
-    // 失败时使用默认用户
+    // 失败时仍使用默认用户
     currentUser.value = {
       id: 'default_user',
       username: '离线用户',
@@ -386,8 +349,7 @@ const initPage = async () => {
     console.log('🔄 回退到默认用户:', currentUser.value)
     
     try {
-      // 修复：使用 fileStorage 实例而不是类名
-      await fileStorage.initUserStorage(currentUser.value.id)  // 修复这里！
+      await fileStorage.initUserStorage(currentUser.value.id)
       await loadUserData()
     } catch (fallbackError) {
       console.error('❌ 回退方案也失败:', fallbackError)
@@ -400,36 +362,60 @@ const loadUserData = async () => {
   if (!currentUser.value) return
   
   try {
-    // 加载作品列表
-    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
-    works.value = userWorks.map(work => ({
-      id: work.id,
-      title: work.title,
-      modifiedTime: formatTime(work.updated_at),
-      chapter: work.structure_type === 'chapterized' ? '第1章' : '整体作品',
-      wordCount: work.content?.manuscript?.word_count || 0,
-      type: 'recent'
-    }))
+    console.log('📚 开始加载用户作品数据...')
     
-    // 更新统计数据 - 添加错误处理
+    // 加载作品列表（现在会扫描 works 目录下的所有 work.config.json）
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
+    console.log('🔍 获取到的原始作品数据:', userWorks)
+    
+    works.value = userWorks.map(work => {
+      // 计算字数：从 content.manuscript.word_count 获取，如果没有则从标题和描述估算
+      let wordCount = 0
+      if (work.content?.manuscript?.word_count) {
+        wordCount = work.content.manuscript.word_count
+      } else if (work.content?.manuscript?.content) {
+        // 如果有内容，计算实际字数
+        wordCount = work.content.manuscript.content.replace(/\s/g, '').length
+      } else {
+        // 估算字数：标题 + 描述
+        wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+      }
+      
+      return {
+        id: work.id,
+        title: work.title || '未命名作品',
+        modifiedTime: formatTime(work.updated_at || work.created_at),
+        chapter: work.structure_type === 'chapterized' ? '分章节作品' : '整体作品',
+        wordCount: wordCount,
+        type: 'recent',
+        description: work.description || '',
+        folderName: work.folderName || work.id
+      }
+    })
+    
+    console.log('✅ 转换后的作品列表:', works.value)
+    
+    // 更新统计数据
     try {
       const stats = fileStorage.getStorageStats(currentUser.value.id)
       statsData.value = {
-        totalWorks: stats?.totalWorks || 0,
-        totalCharacters: stats?.totalCharacters || 0,
+        totalWorks: works.value.length,
+        totalCharacters: works.value.reduce((sum, work) => sum + work.wordCount, 0),
         totalMaps: stats?.totalMaps || 0
       }
+      console.log('📊 统计数据:', statsData.value)
     } catch (statsError) {
-      console.error('获取统计数据失败:', statsError)
+      console.error('获取统计数据失败，使用本地统计:', statsError)
       statsData.value = {
-        totalWorks: 0,
-        totalCharacters: 0,
+        totalWorks: works.value.length,
+        totalCharacters: works.value.reduce((sum, work) => sum + work.wordCount, 0),
         totalMaps: 0
       }
     }
   } catch (error) {
-    console.error('加载用户数据失败:', error)
-    // 如果加载失败，至少设置默认的统计数据
+    console.error('❌ 加载用户数据失败:', error)
+    // 如果加载失败，清空作品列表并设置默认统计
+    works.value = []
     statsData.value = {
       totalWorks: 0,
       totalCharacters: 0,
@@ -474,20 +460,34 @@ const handleWorkCreated = (newWork) => {
 
 // 格式化时间显示
 const formatTime = (timestamp) => {
-  const now = new Date()
-  const time = new Date(timestamp)
-  const diff = now.getTime() - time.getTime()
+  if (!timestamp) return '未知时间'
   
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  
-  if (minutes < 1) return '刚刚修改'
-  if (minutes < 60) return `${minutes}分钟前修改`
-  if (hours < 24) return `${hours}小时前修改`
-  if (days < 7) return `${days}天前修改`
-  
-  return time.toLocaleDateString() + '修改'
+  try {
+    const now = new Date()
+    const time = new Date(timestamp)
+    
+    // 检查时间是否有效
+    if (isNaN(time.getTime())) {
+      console.warn('⚠️ 无效的时间戳:', timestamp)
+      return '未知时间'
+    }
+    
+    const diff = now.getTime() - time.getTime()
+    
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+    
+    if (minutes < 1) return '刚刚修改'
+    if (minutes < 60) return `${minutes}分钟前修改`
+    if (hours < 24) return `${hours}小时前修改`
+    if (days < 7) return `${days}天前修改`
+    
+    return time.toLocaleDateString() + '修改'
+  } catch (error) {
+    console.error('⚠️ 时间格式化错误:', error, timestamp)
+    return '未知时间'
+  }
 }
 
 const openWork = (workId) => {
@@ -974,77 +974,5 @@ const getIconPath = (iconClass) => {
   font-size: 20px;
 }
 
-/* 底部导航栏 */
-.bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--nav-bg, rgba(45, 45, 45, 0.95));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid rgba(64, 64, 64, 0.3);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 72px;
-  padding-bottom: env(safe-area-inset-bottom);
-  z-index: 998;
-}
 
-.nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
-  color: #B3B3B3;
-  flex: 1;
-  min-height: 56px;
-  position: relative;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 10px;
-  margin: 0 2px;
-}
-
-.nav-item:active {
-  background: rgba(255, 107, 53, 0.1);
-  transform: scale(0.95);
-}
-
-.nav-item.active {
-  color: #FF6B35;
-}
-
-.nav-icon {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 1px;
-  height: 24px;
-}
-
-.nav-icon-img {
-  width: 20px;
-  height: 20px;
-  transition: all 0.3s ease;
-}
-
-.nav-item.active .nav-icon-img {
-  transform: translateY(-1px);
-}
-
-.nav-text {
-  font-size: 10px;
-  line-height: 1;
-  font-weight: 500;
-  margin-top: 2px;
-  transition: all 0.3s ease;
-}
-
-.nav-item.active .nav-text {
-  font-weight: 600;
-  color: #FF6B35;
-}
 </style>
