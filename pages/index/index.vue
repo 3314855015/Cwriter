@@ -20,7 +20,7 @@
           </view>
         </view>
         <view class="user-details">
-          <text class="user-name">夜行者</text>
+          <text class="user-name">游客</text>
           <text class="user-status">继续你的创作之旅</text>
         </view>
       </view>
@@ -32,15 +32,15 @@
     <!-- 数据统计卡片 -->
     <view class="stats-card">
       <view class="stats-item">
-        <text class="stats-number stats-primary">12</text>
+        <text class="stats-number stats-primary">{{ statsData.totalWorks }}</text>
         <text class="stats-label">总作品</text>
       </view>
       <view class="stats-item">
-        <text class="stats-number stats-secondary">48</text>
-        <text class="stats-label">人物</text>
+        <text class="stats-number stats-secondary">{{ statsData.totalCharacters }}</text>
+        <text class="stats-label">总字数</text>
       </view>
       <view class="stats-item">
-        <text class="stats-number stats-tertiary">7</text>
+        <text class="stats-number stats-tertiary">{{ statsData.totalMaps }}</text>
         <text class="stats-label">地图</text>
       </view>
     </view>
@@ -109,7 +109,7 @@
 
     <!-- 底部导航栏 -->
     <view class="bottom-nav">
-      <view class="nav-item active" @tap="switchNav('home')">
+      <view class="nav-item active">
         <view class="nav-icon">
           <image class="nav-icon-img" src="/static/icons/home.svg" mode="aspectFit"></image>
         </view>
@@ -121,9 +121,15 @@
         </view>
         <text class="nav-text">主题</text>
       </view>
+      <view class="nav-item" @tap="switchNav('manage')">
+        <view class="nav-icon">
+          <image class="nav-icon-img" src="/static/icons/folder.svg" mode="aspectFit"></image>
+        </view>
+        <text class="nav-text">管理</text>
+      </view>
       <view class="nav-item" @tap="switchNav('service')">
         <view class="nav-icon">
-          <image class="nav-icon-img" src="/static/icons/th-large.svg" mode="aspectFit"></image>
+          <image class="nav-icon-img" src="/static/icons/map.svg" mode="aspectFit"></image>
         </view>
         <text class="nav-text">服务</text>
       </view>
@@ -134,11 +140,34 @@
         <text class="nav-text">我的</text>
       </view>
     </view>
+
+    <!-- 创建作品弹窗 -->
+    <CreateWorkModal 
+      v-if="currentUser"
+      :visible="showCreateWorkModal" 
+      @update:visible="showCreateWorkModal = $event"
+      @created="handleWorkCreated"
+      :userId="currentUser.id"
+    />
+
+    <!-- 文件管理弹窗 -->
+    <FileManagerModal 
+      :visible="showFileManagerModal" 
+      @update:visible="showFileManagerModal = $event"
+      :userId="currentUser.id"
+    />
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import CreateWorkModal from '@/components/CreateWorkModal.vue'
+import FileManagerModal from '@/components/FileManagerModal.vue'
+import FileSystemStorage from '@/utils/fileSystemStorage.js'
+import { OfflineAuthService } from '@/utils/offlineAuth.js'
+
+// 使用导入的实例（已经是实例，不需要 new）
+const fileStorage = FileSystemStorage
 
 // 响应式数据
 const currentTime = ref('')
@@ -146,6 +175,14 @@ const activeTab = ref('recent')
 const isMenuOpen = ref(false)
 const isDarkMode = ref(true)
 const activeNav = ref('home')
+const showCreateWorkModal = ref(false)
+const showFileManagerModal = ref(false)
+const currentUser = ref(null)
+const statsData = ref({
+  totalWorks: 0,
+  totalCharacters: 0,
+  totalMaps: 0
+})
 
 // 标签数据
 const tabs = ref([
@@ -207,6 +244,7 @@ const filteredWorks = computed(() => {
 
 // 生命周期
 onMounted(() => {
+  initPage()
   updateTime()
   setInterval(updateTime, 60000) // 每分钟更新一次时间
 })
@@ -222,10 +260,16 @@ const switchTab = (tabId) => {
 }
 
 const switchNav = (navType) => {
-  activeNav.value = navType
-  
-  if (navType === 'service') {
-    goToService()
+  if (navType === 'manage') {
+    uni.switchTab({
+      url: '/pages/manage/index'
+    })
+  } else if (navType === 'service') {
+    // 服务页面功能（暂时显示提示）
+    uni.showToast({
+      title: '服务功能开发中',
+      icon: 'none'
+    })
   } else if (navType === 'profile') {
     goToProfile()
   }
@@ -253,7 +297,7 @@ const handleMenuAction = (action) => {
   // 根据不同的菜单项执行不同的操作
   switch (action) {
     case 'createNewWork':
-      console.log('创建新作品')
+      createNewWork()
       break
     case 'createNewCharacter':
       console.log('创建新人物')
@@ -269,6 +313,181 @@ const handleMenuAction = (action) => {
       break
   }
   isMenuOpen.value = false
+}
+// 初始化页面
+const initPage = async () => {
+  // 环境检测
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    console.log('🌍 运行平台:', systemInfo.uniPlatform)
+    
+    if (systemInfo.uniPlatform === 'app') {
+      // App环境使用plus.io
+      if (typeof plus !== 'undefined' && plus.io) {
+        console.log('✅ App环境文件系统API可用 (plus.io)')
+      } else {
+        console.log('⚠️ App环境但plus.io不可用，使用localStorage降级方案')
+      }
+    } else if (systemInfo.uniPlatform === 'mp-weixin') {
+      // 小程序环境使用uni.getFileSystemManager
+      if (typeof uni.getFileSystemManager === 'function') {
+        console.log('✅ 小程序环境文件系统API可用 (uni.getFileSystemManager)')
+      } else {
+        console.log('⚠️ 小程序环境但文件系统API不可用，使用localStorage降级方案')
+      }
+    } else if (systemInfo.uniPlatform === 'h5') {
+      // H5环境使用localStorage
+      console.log('✅ H5环境使用localStorage方案')
+    } else {
+      console.log('⚠️ 未知环境，使用localStorage降级方案')
+    }
+  } catch (e) {
+    console.error('获取系统信息失败:', e)
+  }
+  
+  try {
+    // 获取当前用户
+    const authResult = await OfflineAuthService.checkAuthStatus()
+    console.log('🔐 认证结果:', authResult)
+    
+    if (authResult.isAuthenticated && authResult.session?.user) {
+      currentUser.value = authResult.session.user
+      console.log('✅ 已登录用户:', currentUser.value)
+    } else {
+      // 如果没有用户，创建默认用户（离线模式）
+      currentUser.value = {
+        id: 'default_user',
+        username: '离线用户',
+        email: ''
+      }
+      console.log('🔧 使用默认用户:', currentUser.value)
+      
+      // 初始化用户存储 - 修复：使用 fileStorage 实例而不是类名
+      console.log('🗂️ 初始化用户存储...')
+      await fileStorage.initUserStorage(currentUser.value.id)  // 修复这里！
+    }
+    
+    // 加载用户数据
+    await loadUserData()
+    
+    // 输出存储路径调试信息
+    fileStorage.logStoragePaths(currentUser.value.id)
+  } catch (error) {
+    console.error('❌ 初始化页面失败:', error)
+    console.error('错误堆栈:', error.stack)
+    
+    // 失败时使用默认用户
+    currentUser.value = {
+      id: 'default_user',
+      username: '离线用户',
+      email: ''
+    }
+    
+    console.log('🔄 回退到默认用户:', currentUser.value)
+    
+    try {
+      // 修复：使用 fileStorage 实例而不是类名
+      await fileStorage.initUserStorage(currentUser.value.id)  // 修复这里！
+      await loadUserData()
+    } catch (fallbackError) {
+      console.error('❌ 回退方案也失败:', fallbackError)
+    }
+  }
+}
+
+// 加载用户数据
+const loadUserData = async () => {
+  if (!currentUser.value) return
+  
+  try {
+    // 加载作品列表
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
+    works.value = userWorks.map(work => ({
+      id: work.id,
+      title: work.title,
+      modifiedTime: formatTime(work.updated_at),
+      chapter: work.structure_type === 'chapterized' ? '第1章' : '整体作品',
+      wordCount: work.content?.manuscript?.word_count || 0,
+      type: 'recent'
+    }))
+    
+    // 更新统计数据 - 添加错误处理
+    try {
+      const stats = fileStorage.getStorageStats(currentUser.value.id)
+      statsData.value = {
+        totalWorks: stats?.totalWorks || 0,
+        totalCharacters: stats?.totalCharacters || 0,
+        totalMaps: stats?.totalMaps || 0
+      }
+    } catch (statsError) {
+      console.error('获取统计数据失败:', statsError)
+      statsData.value = {
+        totalWorks: 0,
+        totalCharacters: 0,
+        totalMaps: 0
+      }
+    }
+  } catch (error) {
+    console.error('加载用户数据失败:', error)
+    // 如果加载失败，至少设置默认的统计数据
+    statsData.value = {
+      totalWorks: 0,
+      totalCharacters: 0,
+      totalMaps: 0
+    }
+  }
+}
+
+// 创建新作品
+const createNewWork = () => {
+  showCreateWorkModal.value = true
+}
+
+// 处理作品创建成功
+const handleWorkCreated = (newWork) => {
+  // 添加到作品列表
+  const formattedWork = {
+    id: newWork.id,
+    title: newWork.title,
+    modifiedTime: formatTime(newWork.updated_at),
+    chapter: newWork.structure_type === 'chapterized' ? '第1章' : '整体作品',
+    wordCount: newWork.content?.manuscript?.word_count || 0,
+    type: 'recent'
+  }
+  
+  works.value.unshift(formattedWork)
+  
+  // 更新统计数据 - 添加错误处理
+  if (currentUser.value) {
+    try {
+      const stats = fileStorage.getStorageStats(currentUser.value.id)
+      statsData.value = {
+        totalWorks: stats?.totalWorks || 0,
+        totalCharacters: stats?.totalCharacters || 0,
+        totalMaps: stats?.totalMaps || 0
+      }
+    } catch (statsError) {
+      console.error('获取统计数据失败:', statsError)
+    }
+  }
+}
+
+// 格式化时间显示
+const formatTime = (timestamp) => {
+  const now = new Date()
+  const time = new Date(timestamp)
+  const diff = now.getTime() - time.getTime()
+  
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+  
+  if (minutes < 1) return '刚刚修改'
+  if (minutes < 60) return `${minutes}分钟前修改`
+  if (hours < 24) return `${hours}小时前修改`
+  if (days < 7) return `${days}天前修改`
+  
+  return time.toLocaleDateString() + '修改'
 }
 
 const openWork = (workId) => {
