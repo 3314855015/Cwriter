@@ -79,3 +79,8 @@ config/private.*
 # 临时文件
 temp/
 tmp/
+utils/storageDebug.js
+test/test-storage.js
+test/simple-test.html
+pages/test-api/test-api.vue
+pages/storage-test/index.vue
