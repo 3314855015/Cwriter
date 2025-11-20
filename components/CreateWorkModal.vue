@@ -89,26 +89,18 @@ onMounted(() => {
     if (systemInfo.uniPlatform === 'app') {
       // App环境使用plus.io
       if (typeof plus !== 'undefined' && plus.io) {
-        console.log('✅ [CreateWorkModal] App环境文件系统API可用 (plus.io)')
       } else {
-        console.log('⚠️ [CreateWorkModal] App环境但plus.io不可用，使用localStorage降级方案')
       }
     } else if (systemInfo.uniPlatform === 'mp-weixin') {
       // 小程序环境使用uni.getFileSystemManager
       if (typeof uni.getFileSystemManager === 'function') {
-        console.log('✅ [CreateWorkModal] 小程序环境文件系统API可用 (uni.getFileSystemManager)')
       } else {
-        console.log('⚠️ [CreateWorkModal] 小程序环境但文件系统API不可用，使用localStorage降级方案')
+
       }
     } else if (systemInfo.uniPlatform === 'h5') {
-      // H5环境使用localStorage
-      console.log('✅ [CreateWorkModal] H5环境使用localStorage方案')
     } else {
-      console.log('⚠️ [CreateWorkModal] 未知环境，使用localStorage降级方案')
     }
   } catch (e) {
-    console.error('[CreateWorkModal] 获取系统信息失败:', e)
-    console.log('⚠️ [CreateWorkModal] 系统信息获取失败，使用localStorage降级方案')
   }
 })
 
@@ -155,11 +147,6 @@ const isFormValid = computed(() => {
 // 监听标题变化，实时验证
 watch(() => workData.value.title, (newTitle) => {
   showTitleError.value = newTitle.trim().length === 0
-})
-
-// 监听结构类型变化，实时验证
-watch(() => workData.value.structure_type, (newStructure) => {
-  showStructureError.value = !newStructure
 })
 
 // 监听结构类型变化，实时验证
@@ -221,7 +208,7 @@ const confirmCreate = async () => {
       structure_type: workData.value.structure_type
     })
     
-    console.log('✅ 作品创建成功:', newWork)
+     
 
     // 显示成功提示
     uni.showToast({
