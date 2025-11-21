@@ -114,12 +114,13 @@
 import { ref, nextTick, watch } from "vue";
 import { onLoad, onUnload } from "@dcloudio/uni-app";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
+import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
 
 const fileStorage = FileSystemStorage;
 
 // 响应式数据
 const currentTime = ref("");
-const isDarkMode = ref(true);
+const isDarkMode = ref(getIsDarkMode());
 const isSaving = ref(false);
 const workInfo = ref({ title: "加载中..." });
 const chapterInfo = ref({ title: "加载中...", is_completed: false });
@@ -270,7 +271,7 @@ const saveChapterEdit = async () => {
       updated_at: new Date().toISOString(),
     };
 
-    fileStorage.writeFile(chapterPath, updatedChapter);
+    await fileStorage.writeFile(chapterPath, updatedChapter);
     
     // 更新显示数据
     chapterInfo.value = updatedChapter;
@@ -446,6 +447,14 @@ onLoad(async (options) => {
   }
 
   workId.value = options.workId;
+  // 初始化主题
+  isDarkMode.value = themeManager.isDarkMode()
+  
+  // 监听主题变更事件
+  uni.$on('theme-changed', (themeData) => {
+    isDarkMode.value = themeData.isDark
+  })
+
   chapterId.value = options.chapterId;
   userId.value = options.userId || "default_user";
 
@@ -536,7 +545,7 @@ const saveChapter = async () => {
       updated_at: new Date().toISOString(),
     };
 
-    fileStorage.writeFile(chapterPath, updatedChapter);
+    await fileStorage.writeFile(chapterPath, updatedChapter);
     chapterInfo.value = updatedChapter;
 
     // 更新章节列表中的信息
@@ -588,7 +597,7 @@ const updateChaptersList = async (updatedChapter) => {
         updated_at: updatedChapter.updated_at,
       };
 
-      fileStorage.writeFile(chaptersPath, chaptersList);
+      await fileStorage.writeFile(chaptersPath, chaptersList);
     }
   } catch (error) {
     console.error("❌ 更新章节列表失败:", error);
@@ -608,7 +617,7 @@ const autoSave = async () => {
       updated_at: new Date().toISOString(),
     };
 
-    fileStorage.writeFile(chapterPath, updatedChapter);
+    await fileStorage.writeFile(chapterPath, updatedChapter);
     chapterInfo.value = updatedChapter;
 
     // 更新章节列表
@@ -815,6 +824,9 @@ const goBack = () => {
   color: #e0e0e0;
   position: relative;
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 .light-theme {
@@ -842,13 +854,17 @@ const goBack = () => {
   flex: 1;
   padding: 20px;
   cursor: pointer;
-  padding-right: 40px; /* 添加右边距防止内容陷入屏幕 */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
 }
 
 .edit-container {
   flex: 1;
   padding: 20px;
-  padding-right: 40px; /* 添加右边距防止内容陷入屏幕 */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -879,6 +895,12 @@ const goBack = () => {
   max-width: 800px;
   margin: 0 auto;
   line-height: 1.8;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 10px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .content-text {
@@ -886,7 +908,11 @@ const goBack = () => {
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
   text-align: justify;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* 顶部工具栏 */
@@ -1053,6 +1079,10 @@ const goBack = () => {
   padding: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding-bottom: 8px;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .light-theme .edit-title-input {
@@ -1071,6 +1101,11 @@ const goBack = () => {
   resize: none;
   font-family: inherit;
   padding: 0;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .edit-content-input::placeholder {
@@ -1093,6 +1128,8 @@ const goBack = () => {
   
   .content-container {
     padding: 44px 16px 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
   }
   
   .chapter-title {
@@ -1101,10 +1138,14 @@ const goBack = () => {
   
   .content-text {
     font-size: 15px;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   
   .edit-container {
     padding: 16px;
+    padding-right: 16px;
+    box-sizing: border-box;
   }
   
   .top-toolbar {
