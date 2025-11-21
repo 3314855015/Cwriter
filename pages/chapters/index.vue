@@ -86,12 +86,13 @@ import { ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import BottomNav from '@/components/BottomNav.vue'
 import FileSystemStorage from '@/utils/fileSystemStorage.js'
+import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js'
 
 const fileStorage = FileSystemStorage
 
 // 响应式数据
 const currentTime = ref('')
-const isDarkMode = ref(true)
+const isDarkMode = ref(getIsDarkMode())
 const isEditMode = ref(false)
 const workInfo = ref({ title: '加载中...' })
 const chapters = ref([])
@@ -120,6 +121,14 @@ const stopClock = () => {
 }
 
 onLoad((options) => {
+  // 初始化主题
+  isDarkMode.value = themeManager.isDarkMode()
+  
+  // 监听主题变更事件
+  uni.$on('theme-changed', (themeData) => {
+    isDarkMode.value = themeData.isDark
+  })
+  
   if (!options || !options.workId) {
     console.error('❌ 章节页面缺少必要参数 workId')
     uni.showToast({
@@ -219,7 +228,7 @@ const createChapter = async (title) => {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value)
     const chapterPath = `${workPath}/chapters/${chapterId}.json`
     
-    fileStorage.writeFile(chapterPath, newChapter)
+    await fileStorage.writeFile(chapterPath, newChapter)
     
      
     
@@ -262,7 +271,7 @@ const removeChapter = async (chapter) => {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value)
     const chapterPath = `${workPath}/chapters/${chapter.id}.json`
     
-    fileStorage.deleteFile(chapterPath)
+    await fileStorage.deleteFile(chapterPath)
     
     // 保存章节列表
     await saveChaptersList()
@@ -288,7 +297,7 @@ const saveChaptersList = async () => {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value)
     const chaptersPath = `${workPath}/chapters/chapters.json`
     
-    fileStorage.writeFile(chaptersPath, chapters.value)
+    await fileStorage.writeFile(chaptersPath, chapters.value)
     
     // 更新作品信息（章节数量和最后修改时间）
     try {
@@ -346,7 +355,8 @@ const goBack = () => {
 }
 
 const toggleTheme = () => {
-  isDarkMode.value = !isDarkMode.value
+  const newTheme = themeManager.toggleTheme()
+  isDarkMode.value = themeManager.isDarkMode()
 }
 
 const handleNavSwitch = (navType) => {
