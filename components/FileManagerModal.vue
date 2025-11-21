@@ -3,58 +3,71 @@
     <view class="modal-container" @tap.stop>
       <!-- 弹窗头部 -->
       <view class="modal-header">
-        <text class="modal-title">作品管理</text>
+        <text class="modal-title">{{ currentWork ? currentWork.title : '作品列表' }}</text>
         <button class="close-btn" @tap="closeModal">
           <text class="close-text">×</text>
         </button>
       </view>
 
-      <!-- 当前路径导航 -->
-      <view class="breadcrumb">
-        <text class="breadcrumb-item" @tap="navigateToRoot">作品管理</text>
-        <text class="breadcrumb-separator" v-if="currentPath.length > 0">></text>
-        <text class="breadcrumb-item" v-for="(item, index) in currentPath" :key="index">
-          {{ item.name }}
-        </text>
-      </view>
-
       <!-- 内容区域 -->
       <view class="modal-content">
-        <!-- 作品根目录 -->
-        <view v-if="currentPath.length === 0" class="works-grid">
-          <view 
-            v-for="work in worksList" 
-            :key="work.id" 
-            class="folder-item"
-            @tap="enterWork(work)"
-          >
-            <view class="folder-icon">
-              <image class="folder-img" src="/static/icons/folder-open.svg" mode="aspectFit"></image>
+        <!-- 作品列表状态 -->
+        <transition name="fade-slide">
+          <view v-if="!currentWork" key="works-list" class="works-container">
+            <!-- 作品网格 -->
+            <view class="works-grid">
+              <!-- 作品列表 -->
+              <view 
+                v-for="work in worksList" 
+                :key="work.id" 
+                class="work-item"
+                @tap="enterWork(work)"
+              >
+                <view class="work-content">
+                  <text class="work-title">{{ work.title }}</text>
+                  <text class="work-delete" @tap.stop="deleteWorkItem(work)">×</text>
+                </view>
+              </view>
+              
+              <!-- 空状态 -->
+              <view v-if="worksList.length === 0" class="empty-state">
+                <view class="empty-icon">📚</view>
+                <text class="empty-text">暂无作品</text>
+                <text class="empty-subtitle">创建你的第一个作品开始写作</text>
+              </view>
             </view>
-            <text class="folder-name">{{ work.title }}</text>
-            <text class="folder-info">{{ formatWorkInfo(work) }}</text>
           </view>
-        </view>
 
-        <!-- 作品内部结构 -->
-        <view v-else class="structure-grid">
-          <view 
-            v-for="item in structureItems" 
-            :key="item.id" 
-            class="structure-item"
-            @tap="enterStructure(item)"
-          >
-            <view class="structure-icon">
-              <image 
-                class="structure-img" 
-                :src="getItemIcon(item)" 
-                mode="aspectFit"
-              ></image>
+          <!-- 作品管理状态 -->
+          <view v-else key="work-management" class="work-management-container">
+            <!-- 返回按钮 -->
+            <view class="back-section">
+              <view class="back-button" @tap="navigateToRoot">
+                <text class="back-arrow">←</text>
+                <text class="back-text">返回作品列表</text>
+              </view>
             </view>
-            <text class="structure-name">{{ getDisplayName(item) }}</text>
-            <text class="structure-info">{{ getItemInfo(item) }}</text>
+            
+            <!-- 作品管理悬浮单元格 -->
+            <view class="work-management-grid">
+              <view class="management-cell" @tap="openChapterManagement">
+                <text class="cell-title">章节管理</text>
+              </view>
+              <view class="management-cell" @tap="openCharacterManagement">
+                <text class="cell-title">人物管理</text>
+              </view>
+              <view class="management-cell" @tap="openDraftManagement">
+                <text class="cell-title">草稿管理</text>
+              </view>
+              <view class="management-cell" @tap="openGlossaryManagement">
+                <text class="cell-title">术语管理</text>
+              </view>
+              <view class="management-cell" @tap="openMapManagement">
+                <text class="cell-title">地图管理</text>
+              </view>
+            </view>
           </view>
-        </view>
+        </transition>
       </view>
 
       <!-- 操作按钮区域 -->
@@ -130,54 +143,120 @@ watch(() => props.visible, (newVal) => {
 // 加载作品列表
 const loadWorksList = async () => {
   try {
-    const works = await fileStorage.getUserWorks(props.userId)
-    worksList.value = works
+    // 确保userId有效，如果无效则使用默认用户
+    const effectiveUserId = props.userId || 'default_user'
+    
+    if (props.userId !== effectiveUserId) {
+      console.warn('⚠️ userId为空或无效，使用默认用户:', {
+        original: props.userId,
+        effective: effectiveUserId
+      })
+    }
+    
+    // 首先初始化用户存储
+    await fileStorage.initUserStorage(effectiveUserId)
+    
+    // 调试：输出存储路径信息
+    fileStorage.logStoragePaths(effectiveUserId)
+    
+    // 加载作品列表（扫描 works 目录下的所有 work.config.json）
+    const userWorks = await fileStorage.getUserWorks(effectiveUserId)
+    
+    console.log('📚 加载到的作品数据:', userWorks)
+    
+    // 使用 Promise.all 来并行处理所有作品的字数计算
+    const worksPromises = userWorks.map(async (work) => {
+      // 计算字数：尝试从文档文件获取，如果没有则从标题和描述估算
+      let wordCount = 0
+      try {
+        // 尝试读取文档内容来计算字数
+        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`
+        const manuscript = await fileStorage.readFile(manuscriptPath)
+        if (manuscript && manuscript.word_count) {
+          wordCount = manuscript.word_count
+        } else if (manuscript && manuscript.content) {
+          wordCount = manuscript.content.replace(/\s/g, '').length
+        } else {
+          // 估算字数：标题 + 描述
+          wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+        }
+      } catch (error) {
+        // 如果读取失败，使用估算字数
+        wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+      }
+      
+      return {
+        id: work.id,
+        title: work.title || '未命名作品',
+        description: work.description || '',
+        word_count: wordCount,
+        created_at: work.created_at,
+        updated_at: work.updated_at,
+        structure_type: work.structure_type,
+        file_structure: work.file_structure,
+        local_file_path: work.local_file_path,
+        folderName: work.folderName,
+        content: work.content, // 保留原始内容数据
+        is_active: work.is_active
+      }
+    })
+    
+    // 等待所有作品数据处理完成
+    worksList.value = await Promise.all(worksPromises)
+    
+    console.log('✅ 作品列表加载完成，共', worksList.value.length, '个作品')
+    
   } catch (error) {
-    console.error('加载作品列表失败:', error)
+    console.error('❌ 加载作品列表失败:', error)
+    console.error('错误详情:', error.stack)
     uni.showToast({
       title: '加载失败',
       icon: 'error'
     })
+    
+    // 失败时设置为空数组
+    worksList.value = []
   }
 }
 
 // 格式化作品信息
 const formatWorkInfo = (work) => {
-  const wordCount = work.content?.manuscript?.word_count || 0
-  const updatedTime = new Date(work.updated_at)
+  // 使用已计算好的字数
+  const wordCount = work.word_count || 0
+  const updatedTime = new Date(work.updated_at || work.created_at)
   const timeAgo = getTimeAgo(updatedTime)
   
-  if (timeAgo.includes('天')) {
-    return `${wordCount}字 · ${timeAgo}`
-  } else {
-    return `${wordCount}字 · ${timeAgo}`
-  }
+  return `${wordCount}字 · ${timeAgo}`
 }
 
 // 时间差计算
 const getTimeAgo = (date) => {
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
+  if (!date) return '未知时间'
   
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-  return date.toLocaleDateString()
+  try {
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+    
+    if (minutes < 1) return '刚刚'
+    if (minutes < 60) return `${minutes}分钟前`
+    if (hours < 24) return `${hours}小时前`
+    if (days < 7) return `${days}天前`
+    return date.toLocaleDateString()
+  } catch (error) {
+    console.warn('时间格式化失败:', error)
+    return '未知时间'
+  }
 }
 
 // 进入作品
 const enterWork = (work) => {
+  console.log('📂 进入作品:', work)
   currentWork.value = work
-  currentPath.value = [{
-    id: work.id,
-    name: work.title,
-    type: 'work'
-  }]
+  // 不再设置currentPath，直接显示作品管理悬浮单元格
 }
 
 // 导航到根目录
@@ -298,14 +377,97 @@ const showImportOptions = () => {
   })
 }
 
+// 删除单个作品
+const deleteWorkItem = async (work) => {
+  const confirmed = await showConfirmDialog('确认删除', `确定要删除作品"${work.title || '未命名作品'}"吗？
+
+此操作将永久删除作品及其所有内容，包括章节、人物设定、世界观等。
+
+此操作不可恢复！`)
+  if (confirmed) {
+    try {
+      // 确保userId有效，如果无效则使用默认用户
+      const effectiveUserId = props.userId || 'default_user'
+      
+      console.log('🗑️ 开始删除作品:', work.id, work.title)
+      
+      await fileStorage.deleteWork(effectiveUserId, work.id)
+      
+      console.log('✅ 作品删除成功，重新加载列表')
+      
+      await loadWorksList()
+      
+      uni.showToast({
+        title: '作品删除成功',
+        icon: 'success'
+      })
+    } catch (error) {
+      console.error('❌ 删除作品失败:', error)
+      console.error('错误详情:', error.stack)
+      uni.showToast({
+        title: '删除失败，请重试',
+        icon: 'error'
+      })
+    }
+  }
+}
+
+// 作品管理功能处理
+const openChapterManagement = () => {
+  uni.showToast({
+    title: '章节管理功能开发中',
+    icon: 'none'
+  })
+}
+
+const openCharacterManagement = () => {
+  uni.showToast({
+    title: '人物管理功能开发中',
+    icon: 'none'
+  })
+}
+
+const openDraftManagement = () => {
+  uni.showToast({
+    title: '草稿管理功能开发中',
+    icon: 'none'
+  })
+}
+
+const openGlossaryManagement = () => {
+  uni.showToast({
+    title: '术语管理功能开发中',
+    icon: 'none'
+  })
+}
+
+const openMapManagement = () => {
+  uni.showToast({
+    title: '地图管理功能开发中',
+    icon: 'none'
+  })
+}
+
 // 删除当前项目
 const deleteCurrentItem = async () => {
   if (currentPath.value.length === 0) {
     // 删除整个作品
-    const confirmed = await showConfirmDialog('确认删除', `确定要删除作品"${currentWork.value.title}"吗？此操作不可恢复！`)
+    const confirmed = await showConfirmDialog('确认删除', `确定要删除作品"${currentWork.value?.title || '未命名作品'}"吗？
+
+此操作将永久删除作品及其所有内容，包括章节、人物设定、世界观等。
+
+此操作不可恢复！`)
     if (confirmed) {
       try {
-        await fileStorage.deleteWork(props.userId, currentWork.value.id)
+        // 确保userId有效，如果无效则使用默认用户
+        const effectiveUserId = props.userId || 'default_user'
+        
+        console.log('🗑️ 开始删除作品:', currentWork.value?.id, currentWork.value?.title)
+        
+        await fileStorage.deleteWork(effectiveUserId, currentWork.value.id)
+        
+        console.log('✅ 作品删除成功，重新加载列表')
+        
         await loadWorksList()
         navigateToRoot()
         
@@ -314,9 +476,10 @@ const deleteCurrentItem = async () => {
           icon: 'success'
         })
       } catch (error) {
-        console.error('删除作品失败:', error)
+        console.error('❌ 删除作品失败:', error)
+        console.error('错误详情:', error.stack)
         uni.showToast({
-          title: '删除失败',
+          title: '删除失败，请重试',
           icon: 'error'
         })
       }
@@ -358,6 +521,12 @@ const handleItemCreated = (newItem) => {
 const closeModal = () => {
   emit('update:visible', false)
   navigateToRoot()
+}
+
+// 返回作品列表
+const navigateToRoot = () => {
+  currentWork.value = null
+  currentPath.value = []
 }
 </script>
 
@@ -444,14 +613,130 @@ const closeModal = () => {
 .modal-content {
   flex: 1;
   padding: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.works-container {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.work-management-container {
+  height: 100%;
   overflow-y: auto;
 }
 
 .works-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
   padding: 8px 0;
+  min-height: 200px;
+}
+
+/* 返回区域样式 */
+.back-section {
+  margin-bottom: 20px;
+  padding: 12px 0;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 107, 53, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: fit-content;
+}
+
+.back-button:active {
+  background: rgba(255, 107, 53, 0.2);
+  transform: translateY(1px);
+}
+
+.back-arrow {
+  font-size: 16px;
+  color: #FF6B35;
+  font-weight: bold;
+}
+
+.back-text {
+  font-size: 14px;
+  color: #FF6B35;
+  font-weight: 500;
+}
+
+/* 亮色主题下的返回按钮 */
+:global(.light-theme) .back-button {
+  background: rgba(255, 107, 53, 0.05);
+  border-color: rgba(255, 107, 53, 0.2);
+}
+
+:global(.light-theme) .back-button:active {
+  background: rgba(255, 107, 53, 0.1);
+}
+
+/* 切换动画 */
+.fade-slide-enter-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-leave-active {
+  transition: all 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* 空状态样式 */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: #FFFFFF;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.empty-subtitle {
+  font-size: 14px;
+  color: #B3B3B3;
+  line-height: 1.4;
+}
+
+/* 亮色主题下的空状态 */
+:global(.light-theme) .empty-text {
+  color: #333333;
+}
+
+:global(.light-theme) .empty-subtitle {
+  color: #666666;
 }
 
 .structure-grid {
@@ -461,7 +746,121 @@ const closeModal = () => {
   padding: 8px 0;
 }
 
-.folder-item, .structure-item {
+/* 作品单元样式 */
+.work-item {
+  background: #404040;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s ease;
+  border: 1px solid #555555;
+  position: relative;
+  cursor: pointer;
+}
+
+.work-item:active {
+  background: #555555;
+  transform: translateY(1px);
+}
+
+.work-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.work-title {
+  font-size: 16px;
+  color: #FFFFFF;
+  font-weight: 500;
+  flex: 1;
+}
+
+.work-delete {
+  font-size: 20px;
+  color: #FF6B35;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.work-delete:hover {
+  opacity: 1;
+  background: rgba(255, 107, 53, 0.2);
+}
+
+/* 作品管理悬浮单元格样式 */
+.work-management-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  padding: 20px 0;
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 300px;
+  align-content: center;
+}
+
+.management-cell {
+  background: #404040;
+  border-radius: 12px;
+  padding: 24px 16px;
+  text-align: center;
+  border: 1px solid #555555;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.management-cell:active {
+  background: #555555;
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.cell-title {
+  font-size: 15px;
+  color: #FFFFFF;
+  font-weight: 500;
+}
+
+/* 亮色主题下的作品管理单元格 */
+:global(.light-theme) .work-item {
+  background: #F5F5F5;
+  border-color: #E0E0E0;
+}
+
+:global(.light-theme) .work-item:active {
+  background: #E8E8E8;
+}
+
+:global(.light-theme) .work-title {
+  color: #333333;
+}
+
+:global(.light-theme) .management-cell {
+  background: #F5F5F5;
+  border-color: #E0E0E0;
+}
+
+:global(.light-theme) .management-cell:active {
+  background: #E8E8E8;
+}
+
+:global(.light-theme) .cell-title {
+  color: #333333;
+}
+
+/* 结构项目样式（保留原有的） */
+.structure-item {
   background: #404040;
   border-radius: 8px;
   padding: 16px;
@@ -473,12 +872,12 @@ const closeModal = () => {
   border: 1px solid #555555;
 }
 
-.folder-item:active, .structure-item:active {
+.structure-item:active {
   background: #555555;
   transform: translateY(1px);
 }
 
-.folder-icon, .structure-icon {
+.structure-icon {
   width: 48px;
   height: 48px;
   margin-bottom: 12px;
@@ -487,19 +886,19 @@ const closeModal = () => {
   justify-content: center;
 }
 
-.folder-img, .structure-img {
+.structure-img {
   width: 40px;
   height: 40px;
 }
 
-.folder-name, .structure-name {
+.structure-name {
   font-size: 14px;
   color: #FFFFFF;
   font-weight: 500;
   margin-bottom: 4px;
 }
 
-.folder-info, .structure-info {
+.structure-info {
   font-size: 12px;
   color: #B3B3B3;
   line-height: 1.3;
