@@ -8,6 +8,27 @@
 			}
 		},
 		{
+			"path": "pages/editor/index",
+			"style": {
+				"navigationBarTitleText": "文档编辑",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/editor/chapter",
+			"style": {
+				"navigationBarTitleText": "章节编辑",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/chapters/index",
+			"style": {
+				"navigationBarTitleText": "章节管理",
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/manage/index",
 			"style": {
 				"navigationBarTitleText": "文件管理",
@@ -34,21 +55,8 @@
 				"navigationBarTitleText": "登录",
 				"navigationStyle": "custom"
 			}
-		},
-		{
-			"path": "pages/storage-test/index",
-			"style": {
-				"navigationBarTitleText": "存储测试",
-				"navigationStyle": "default"
-			}
-		},
-		{
-			"path": "pages/test-api/test-api",
-			"style": {
-				"navigationBarTitleText": "API测试",
-				"navigationStyle": "default"
-			}
 		}
+
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
