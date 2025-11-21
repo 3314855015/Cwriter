@@ -79,8 +79,15 @@ config/private.*
 # 临时文件
 temp/
 tmp/
-utils/storageDebug.js
 test/test-storage.js
 test/simple-test.html
 pages/test-api/test-api.vue
 pages/storage-test/index.vue
+z_n8n-mvp/ai-map-generator.html
+z_n8n-mvp/map-generator-mvp-d3.html
+z_n8n-mvp/map-generator-mvp.html
+z_n8n-mvp/n8n-code-formatted.js
+z_n8n-mvp/n8n-setup-guide.md
+z_n8n-mvp/test-ai-map.html
+z_n8n-mvp/n8n-workflow-config.json
+z_n8n-mvp/ai-enhanced-functions.js
