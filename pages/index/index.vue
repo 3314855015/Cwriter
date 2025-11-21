@@ -141,6 +141,7 @@ import FileManagerModal from '@/components/FileManagerModal.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import FileSystemStorage from '@/utils/fileSystemStorage.js'
 import { OfflineAuthService } from '@/utils/offlineAuth.js'
+import themeManager, { isDarkMode as getIsDarkMode, getCurrentTheme } from '@/utils/themeManager.js'
 
 // 使用导入的实例（已经是实例，不需要 new）
 const fileStorage = FileSystemStorage
@@ -149,7 +150,7 @@ const fileStorage = FileSystemStorage
 const currentTime = ref('')
 const activeTab = ref('recent')
 const isMenuOpen = ref(false)
-const isDarkMode = ref(true)
+const isDarkMode = ref(getIsDarkMode())
 const activeNav = ref('home')
 const showCreateWorkModal = ref(false)
 const showFileManagerModal = ref(false)
@@ -215,7 +216,20 @@ const works = ref([
 
 // 计算属性：根据当前标签筛选作品
 const filteredWorks = computed(() => {
-  return works.value.filter(work => work.type === activeTab.value)
+  if (activeTab.value === 'recent') {
+    // 最近标签：显示所有作品
+    return works.value
+  } else if (activeTab.value === 'local') {
+    // 本机标签：显示所有作品（因为都是本地存储）
+    return works.value
+  } else if (activeTab.value === 'favorite') {
+    // 收藏标签：显示标记为收藏的作品
+    return works.value.filter(work => work.is_favorite === true)
+  } else if (activeTab.value === 'map') {
+    // 地图标签：显示有地图的作品
+    return works.value.filter(work => work.map_count > 0)
+  }
+  return works.value
 })
 
 // 生命周期
@@ -223,6 +237,11 @@ onMounted(() => {
   initPage()
   updateTime()
   setInterval(updateTime, 60000) // 每分钟更新一次时间
+  
+  // 监听主题变更事件
+  uni.$on('theme-changed', (themeData) => {
+    isDarkMode.value = themeData.isDark
+  })
 })
 
 // 方法
@@ -246,17 +265,9 @@ const toggleMenu = () => {
 }
 
 const toggleTheme = () => {
-  isDarkMode.value = !isDarkMode.value
+  const newTheme = themeManager.toggleTheme()
+  isDarkMode.value = themeManager.isDarkMode()
   activeNav.value = 'theme'
-  
-  // 切换主题逻辑 - 使用UniApp的样式系统
-  if (isDarkMode.value) {
-    // 切换到暗色主题
-    uni.setStorageSync('theme', 'dark')
-  } else {
-    // 切换到亮色主题
-    uni.setStorageSync('theme', 'light')
-  }
 }
 
 const handleMenuAction = (action) => {
@@ -266,46 +277,52 @@ const handleMenuAction = (action) => {
       createNewWork()
       break
     case 'createNewCharacter':
-      console.log('创建新人物')
+       
       break
     case 'createNewSetting':
-      console.log('创建新设定')
+       
       break
     case 'createNewForeshadowing':
-      console.log('创建新伏笔')
+       
       break
     case 'createNewMap':
-      console.log('创建新地图')
+       
       break
   }
   isMenuOpen.value = false
 }
 // 初始化页面
 const initPage = async () => {
+  // 初始化主题
+  isDarkMode.value = themeManager.isDarkMode()
+  
+  // 检查是否需要自动切换主题
+  themeManager.applyAutoSwitch()
+  
   // 环境检测
   try {
     const systemInfo = uni.getSystemInfoSync()
-    console.log('🌍 运行平台:', systemInfo.uniPlatform)
+    
     
     if (systemInfo.uniPlatform === 'app') {
       // App环境使用plus.io
       if (typeof plus !== 'undefined' && plus.io) {
-        console.log('✅ App环境文件系统API可用 (plus.io)')
+         
       } else {
-        console.log('⚠️ App环境但plus.io不可用，使用localStorage降级方案')
+         
       }
     } else if (systemInfo.uniPlatform === 'mp-weixin') {
       // 小程序环境使用uni.getFileSystemManager
       if (typeof uni.getFileSystemManager === 'function') {
-        console.log('✅ 小程序环境文件系统API可用 (uni.getFileSystemManager)')
+         
       } else {
-        console.log('⚠️ 小程序环境但文件系统API不可用，使用localStorage降级方案')
+         
       }
     } else if (systemInfo.uniPlatform === 'h5') {
       // H5环境使用localStorage
-      console.log('✅ H5环境使用localStorage方案')
+       
     } else {
-      console.log('⚠️ 未知环境，使用localStorage降级方案')
+      
     }
   } catch (e) {
     console.error('获取系统信息失败:', e)
@@ -318,10 +335,10 @@ const initPage = async () => {
       username: '离线用户',
       email: ''
     }
-    console.log('🔧 使用默认用户:', currentUser.value)
+     
     
     // 初始化用户存储
-    console.log('🗂️ 初始化用户存储...')
+     
     await fileStorage.initUserStorage(currentUser.value.id)
     
     // 加载用户数据（扫描 works 目录）
@@ -331,9 +348,9 @@ const initPage = async () => {
     fileStorage.logStoragePaths(currentUser.value.id)
     
     // 调试：直接测试作品扫描
-    console.log('🔍 调试：直接测试作品扫描...')
+     
     const testWorks = await fileStorage.getUserWorks(currentUser.value.id)
-    console.log('🎯 测试扫描结果:', testWorks)
+     
     
   } catch (error) {
     console.error('❌ 初始化页面失败:', error)
@@ -346,7 +363,7 @@ const initPage = async () => {
       email: ''
     }
     
-    console.log('🔄 回退到默认用户:', currentUser.value)
+     
     
     try {
       await fileStorage.initUserStorage(currentUser.value.id)
@@ -362,22 +379,30 @@ const loadUserData = async () => {
   if (!currentUser.value) return
   
   try {
-    console.log('📚 开始加载用户作品数据...')
+     
     
     // 加载作品列表（现在会扫描 works 目录下的所有 work.config.json）
     const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
-    console.log('🔍 获取到的原始作品数据:', userWorks)
+     
     
-    works.value = userWorks.map(work => {
-      // 计算字数：从 content.manuscript.word_count 获取，如果没有则从标题和描述估算
+    // 使用 Promise.all 来并行处理所有作品的字数计算
+    const worksPromises = userWorks.map(async (work) => {
+      // 计算字数：尝试从文档文件获取，如果没有则从标题和描述估算
       let wordCount = 0
-      if (work.content?.manuscript?.word_count) {
-        wordCount = work.content.manuscript.word_count
-      } else if (work.content?.manuscript?.content) {
-        // 如果有内容，计算实际字数
-        wordCount = work.content.manuscript.content.replace(/\s/g, '').length
-      } else {
-        // 估算字数：标题 + 描述
+      try {
+        // 尝试读取文档内容来计算字数
+        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`
+        const manuscript = await fileStorage.readFile(manuscriptPath)
+        if (manuscript && manuscript.word_count) {
+          wordCount = manuscript.word_count
+        } else if (manuscript && manuscript.content) {
+          wordCount = manuscript.content.replace(/\s/g, '').length
+        } else {
+          // 估算字数：标题 + 描述
+          wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+        }
+      } catch (error) {
+        // 如果读取失败，使用估算字数
         wordCount = (work.title?.length || 0) + (work.description?.length || 0)
       }
       
@@ -387,13 +412,22 @@ const loadUserData = async () => {
         modifiedTime: formatTime(work.updated_at || work.created_at),
         chapter: work.structure_type === 'chapterized' ? '分章节作品' : '整体作品',
         wordCount: wordCount,
-        type: 'recent',
+        structure_type: work.structure_type, // 确保保留结构类型
         description: work.description || '',
-        folderName: work.folderName || work.id
+        category: work.category || 'novel',
+        created_at: work.created_at,
+        updated_at: work.updated_at,
+        is_active: work.is_active,
+        file_structure: work.file_structure,
+        local_file_path: work.local_file_path,
+        folderName: work.folderName
       }
     })
     
-    console.log('✅ 转换后的作品列表:', works.value)
+    // 等待所有作品数据处理完成
+    works.value = await Promise.all(worksPromises)
+    
+     
     
     // 更新统计数据
     try {
@@ -403,7 +437,7 @@ const loadUserData = async () => {
         totalCharacters: works.value.reduce((sum, work) => sum + work.wordCount, 0),
         totalMaps: stats?.totalMaps || 0
       }
-      console.log('📊 统计数据:', statsData.value)
+       
     } catch (statsError) {
       console.error('获取统计数据失败，使用本地统计:', statsError)
       statsData.value = {
@@ -491,20 +525,48 @@ const formatTime = (timestamp) => {
 }
 
 const openWork = (workId) => {
-  console.log('打开作品:', workId)
-  // 这里可以跳转到作品编辑页面
+  // 找到对应的作品信息
+  const work = works.value.find(w => w.id === workId)
+  if (!work) {
+    console.error('❌ 作品不存在:', workId)
+    uni.showToast({
+      title: '作品不存在',
+      icon: 'error'
+    })
+    return
+  }
+  
+   
+  
+  // 根据作品类型跳转到不同页面
+  if (work.structure_type === 'single') {
+    // 整体作品 - 跳转到文档编辑页面
+    uni.navigateTo({
+      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`
+    })
+  } else if (work.structure_type === 'chapterized') {
+    // 分章节作品 - 跳转到章节列表页面
+    uni.navigateTo({
+      url: `/pages/chapters/index?workId=${workId}&userId=${currentUser.value.id}`
+    })
+  } else {
+    // 未知类型，默认跳转到文档编辑
+    uni.navigateTo({
+      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`
+    })
+  }
 }
 
 const goToProfile = () => {
-  console.log('跳转到个人资料')
+   
 }
 
 const goToService = () => {
-  console.log('跳转到服务页面')
+   
 }
 
 const showNotifications = () => {
-  console.log('显示通知')
+   
 }
 
 // 图标路径映射函数
