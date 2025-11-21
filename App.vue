@@ -6,7 +6,7 @@ export default {
 		theme: 'dark' // 默认主题
 	},
 	onLaunch: async function() {
-		console.log('App Launch')
+		 
 		// 初始化主题
 		this.initTheme()
 		// 初始化默认用户（离线模式）
@@ -17,10 +17,10 @@ export default {
 		})
 	},
 	onShow: function() {
-		console.log('App Show')
+		 
 	},
 	onHide: function() {
-		console.log('App Hide')
+		 
 	},
 	methods: {
 		initDefaultUser() {
@@ -51,7 +51,8 @@ export default {
 			}
 		},
 		initTheme() {
-			// 从本地存储获取主题设置
+			// 主题初始化现在由主题管理器处理
+			// 这里保留作为后备方案
 			try {
 				const theme = uni.getStorageSync('theme')
 				if (theme) {
