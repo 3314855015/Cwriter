@@ -368,7 +368,6 @@ export class FileSystemStorage {
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             preferences: {
-              theme: "dark",
               autoSaveInterval: 30,
               lastLogin: new Date().toISOString(),
             },
@@ -569,7 +568,15 @@ export class FileSystemStorage {
                   .then(resolve)
                   .catch(() => resolve(null));
               } else {
-                console.error(`获取文件失败: ${filePath}`, error);
+                // 检查是否是路径包含undefined的错误
+                if (filePath.includes('undefined/')) {
+                  console.error('❌ 路径包含undefined，检查userId和workId是否正确传递', {
+                    filePath,
+                    error
+                  });
+                } else {
+                  console.error(`获取文件失败: ${filePath}`, error);
+                }
                 resolve(null);
               }
             }
@@ -693,6 +700,12 @@ export class FileSystemStorage {
 
   // 获取用户文件路径
   getUserPath(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserPath: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     if (this.useLocalStorageFallback) {
       return `mock_path/users/${userId}`; // H5 环境下的模拟路径
     }
@@ -703,7 +716,7 @@ export class FileSystemStorage {
   getWorkPath(userId, workId) {
     if (!userId || !workId) {
       console.error("❌ getWorkPath: 缺少必要参数", { userId, workId });
-      throw new Error("getWorkPath: userId 和 workId 不能为空");
+      return null; // 返回null而不是抛出错误，让调用方处理
     }
 
     if (this.useLocalStorageFallback) {
@@ -727,7 +740,6 @@ export class FileSystemStorage {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       preferences: {
-        theme: "dark",
         autoSaveInterval: 30,
         lastLogin: new Date().toISOString(),
       },
@@ -744,6 +756,12 @@ export class FileSystemStorage {
 
   // 初始化用户存储空间
   async initUserStorage(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ initUserStorage: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     if (this.useLocalStorageFallback) {
       return this.initUserStorageFallback(userId);
     }
@@ -778,6 +796,12 @@ export class FileSystemStorage {
 
   // 获取用户配置
   async getUserConfig(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserConfig: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     if (this.useLocalStorageFallback) {
       return this.getUserConfigFallback(userId);
     }
@@ -807,6 +831,12 @@ export class FileSystemStorage {
 
   // 获取用户作品列表
   async getUserWorks(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserWorks: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     if (this.useLocalStorageFallback) {
       return this.getUserWorksFallback(userId);
     }
@@ -936,6 +966,12 @@ export class FileSystemStorage {
 
   // 异步获取作品列表（plus.io 专用）
   async getUserWorksAsync(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserWorksAsync: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     return new Promise((resolve) => {
       const worksPath = `${this.getUserPath(userId)}/works`;
 
@@ -1319,6 +1355,12 @@ export class FileSystemStorage {
 
   // 删除作品
   deleteWork(userId, workId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ deleteWork: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     try {
       const userConfig = this.getUserConfig(userId);
 
@@ -1366,6 +1408,9 @@ export class FileSystemStorage {
     }
 
     const workDir = this.getWorkPath(userId, workId);
+    if (!workDir) {
+      throw new Error("无法获取作品路径：用户ID或作品ID无效");
+    }
     const workConfigPath = `${workDir}/work.config.json`;
 
     // 读取作品配置
@@ -1932,6 +1977,12 @@ export class FileSystemStorage {
 
   // Fallback: 创建用户存储空间
   initUserStorageFallback(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ initUserStorageFallback: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     const data = this.getFallbackData();
 
     if (!data.data.users[userId]) {
@@ -1940,7 +1991,6 @@ export class FileSystemStorage {
         updated_at: new Date().toISOString(),
         // 移除 works 字段
         preferences: {
-          theme: "dark",
           autoSaveInterval: 30,
           lastLogin: new Date().toISOString(),
         },
@@ -1960,6 +2010,12 @@ export class FileSystemStorage {
 
   // Fallback: 获取用户配置
   getUserConfigFallback(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserConfigFallback: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     const data = this.getFallbackData();
     let userConfig = data.data.users[userId];
 
@@ -1972,6 +2028,12 @@ export class FileSystemStorage {
 
   // Fallback: 获取用户作品列表
   getUserWorksFallback(userId) {
+    // 检查userId的有效性，防止undefined或null
+    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+      console.warn("⚠️ getUserWorksFallback: 无效的userId，使用default_user", { userId });
+      userId = 'default_user';
+    }
+    
     // Fallback 模式下没有真实文件系统，返回空数组
     // 在实际使用中，Fallback 模式主要用于开发测试
     console.warn("⚠️ Fallback 模式不支持文件系统扫描，返回空作品列表");

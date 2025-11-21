@@ -35,7 +35,6 @@ export class UserStorage {
       storage.users[userId] = {
         works: {},
         preferences: {
-          theme: 'dark',
           autoSaveInterval: 30,
           lastLogin: new Date().toISOString()
         }
@@ -314,14 +313,6 @@ export class UserStorage {
       }
       
       uni.setStorageSync(USER_STORAGE_KEY, storage)
-      
-      // 调试信息
-      console.log(`操作日志记录成功: ${operation}`, {
-        userId,
-        operation,
-        data
-      })
-      
     } catch (error) {
       console.error('记录操作日志失败:', error)
       // 日志记录失败不应该影响主流程，继续执行

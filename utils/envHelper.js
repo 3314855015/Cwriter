@@ -34,22 +34,22 @@ export class EnvironmentHelper {
   static showEnvironmentInfo() {
     const info = this.getStorageType()
     
-    console.log('🌍 =====================================')
-    console.log('🌍 运行环境信息')
-    console.log('🌍 =====================================')
-    console.log(`📱 环境: ${info.environment}`)
-    console.log(`💾 存储: ${info.storageType}`)
-    console.log(`📝 描述: ${info.description}`)
+     
+     
+     
+     
+     
+     
     
     if (info.environment === 'H5') {
-      console.log('⚠️  H5 环境: 使用 localStorage fallback')
-      console.log('⚠️  真机测试请使用 "运行到手机或模拟器"')
+       
+       
     } else if (info.environment === 'APP') {
-      console.log('✅  App 环境: 使用真实文件系统')
-      console.log('✅  支持大容量存储和原生 API')
+       
+       
     }
     
-    console.log('🌍 =====================================')
+     
     
     return info
   }
@@ -80,7 +80,7 @@ export class EnvironmentHelper {
       const perf = performance.timing
       if (perf) {
         const loadTime = perf.loadEventEnd - perf.navigationStart
-        console.log(`⚡ 页面加载时间: ${loadTime}ms`)
+         
       }
     }
     
@@ -88,16 +88,7 @@ export class EnvironmentHelper {
     if (typeof uni !== 'undefined') {
       try {
         const systemInfo = uni.getSystemInfoSync()
-        console.log('📱 设备信息:', {
-          platform: systemInfo.platform,
-          system: systemInfo.system,
-          model: systemInfo.model,
-          pixelRatio: systemInfo.pixelRatio,
-          screenWidth: systemInfo.screenWidth,
-          screenHeight: systemInfo.screenHeight
-        })
       } catch (error) {
-        console.log('⚠️  无法获取设备信息')
       }
     }
   }
