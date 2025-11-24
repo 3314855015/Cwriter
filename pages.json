@@ -35,20 +35,7 @@
 				"navigationStyle": "custom"
 			}
 		},
-		{
-			"path": "pages/manage/work-detail",
-			"style": {
-				"navigationBarTitleText": "作品管理",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/manage/folder-content",
-			"style": {
-				"navigationBarTitleText": "文件夹内容",
-				"navigationStyle": "custom"
-			}
-		},
+
 		{
 			"path": "pages/auth/login",
 			"style": {
