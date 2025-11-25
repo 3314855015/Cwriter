@@ -539,6 +539,7 @@ const handleNavSwitch = (navType) => {
   font-weight: 500;
   color: #ffffff;
   display: block;
+  line-height: 1.5;
 }
 
 .light-theme .chapter-title {

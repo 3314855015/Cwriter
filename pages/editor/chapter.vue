@@ -57,7 +57,7 @@
         </view>
         
         <view class="chapter-content">
-          <text class="content-text">{{ chapterContent || '暂无内容...' }}</text>
+          <view class="content-text">{{ formattedContent || '暂无内容...' }}</view>
         </view>
       </scroll-view>
 
@@ -68,7 +68,9 @@
                    scroll-y="true" 
                    @scroll="handleContentScroll" 
                    @scrolltoupper="onScrollToUpper"
-                   :style="{ height: '100vh' }">
+                   :style="{ height: '100vh' }"
+                   :scroll-top="scrollTop"
+                   ref="editScrollViewRef">
         <view class="edit-title-section">
           <input
             ref="titleRef"
@@ -80,14 +82,17 @@
           />
         </view>
         
-        <view class="edit-content-section">
+        <view class="edit-content-section" :style="{ 'padding-bottom': (keyboardHeight + 300) + 'px' }">
           <textarea
             ref="contentRef"
             class="edit-content-input"
             v-model="editContent"
             placeholder="开始写作这一章..."
             :auto-height="true"
+            :maxlength="-1"
             @input="onEditInput"
+            @focus="onInputFocus"
+            @blur="onInputBlur"
           />
         </view>
       </scroll-view>
@@ -111,7 +116,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, computed } from "vue";
 import { onLoad, onUnload } from "@dcloudio/uni-app";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
@@ -147,9 +152,34 @@ const hasChanges = ref(false);
 // 编辑器引用
 const titleRef = ref(null);
 const contentRef = ref(null);
+const editScrollViewRef = ref(null);
+const editorRef = ref(null);
+
+// 键盘高度控制
+const keyboardHeight = ref(0);
+
+// 滚动控制
+const scrollTop = ref(0);
+
+// 撤销重做栈
+const undoStack = ref([]);
+const redoStack = ref([]);
+
+// 编辑器状态控制
+const isEditorFocused = ref(false);
+const showQuickMenu = ref(false);
+const isFullscreen = ref(false);
+const isScrolled = ref(false);
+const isToolbarHidden = ref(false);
+
+// 计算属性
+const formattedContent = computed(() => {
+  return formatContentIndent(chapterContent.value);
+});
 
 let clockTimer = null;
 let hideToolbarTimer = null;
+let autoSaveTimer = null;
 
 // 滚动监听
 const handleContentScroll = (e) => {
@@ -251,8 +281,99 @@ const onEditInput = () => {
   const contentChanged = editContent.value !== originalContent.value;
   hasChanges.value = titleChanged || contentChanged;
   
+  // 检测是否需要添加缩进（在新段落开始时）
+  const currentContent = editContent.value;
+  const lines = currentContent.split('\n');
+  
+  // 为新段落添加缩进
+  const formattedLines = lines.map((line, index) => {
+    const trimmedLine = line.trim();
+    // 如果当前行不为空且没有缩进，添加缩进
+    if (trimmedLine && !trimmedLine.startsWith('　　') && !trimmedLine.startsWith('  ') && index > 0) {
+      // 检查前一行是否以换行符结束（确保是新段落）
+      const prevLine = lines[index - 1] || '';
+      if (prevLine.trim() !== '') {
+        return '　　' + trimmedLine;
+      }
+    }
+    return line;
+  });
+  
+  // 检查是否需要更新内容（避免循环触发）
+  const formattedContent = formattedLines.join('\n');
+  if (formattedContent !== currentContent) {
+    editContent.value = formattedContent;
+  }
+  
   // 更新字数
   wordCount.value = editContent.value.length;
+};
+
+const onBlur = (e) => {
+  // 在失去焦点时确保所有段落都有正确的缩进
+  const currentContent = editContent.value;
+  const formattedContent = formatContentIndent(currentContent);
+  
+  if (formattedContent !== currentContent) {
+    editContent.value = formattedContent;
+  }
+};
+
+const onInputFocus = (e) => {
+  // 监听键盘高度变化
+  uni.onKeyboardHeightChange((res) => {
+    keyboardHeight.value = res.height || 0;
+    
+    // 键盘弹出时，主要通过大量的padding-bottom来推高内容到屏幕上部
+    // 同时也进行适度的光标滚动作为补充
+    if (res.height > 0) {
+      setTimeout(() => {
+        scrollToCursor();
+      }, 300);
+    }
+  });
+};
+
+const onInputBlur = (e) => {
+  // 失去焦点时重置键盘高度
+  keyboardHeight.value = 0;
+  uni.offKeyboardHeightChange();
+  
+  // 确保所有段落都有正确的缩进
+  const currentContent = editContent.value;
+  const formattedContent = formatContentIndent(currentContent);
+  
+  if (formattedContent !== currentContent) {
+    editContent.value = formattedContent;
+  }
+};
+
+// 滚动到光标位置
+const scrollToCursor = () => {
+  if (!contentRef.value) return;
+  
+  // 使用 uni.createSelectorQuery 获取编辑器位置
+  const query = uni.createSelectorQuery();
+  query.select('.edit-content-input').boundingClientRect();
+  query.selectViewport().scrollOffset();
+  query.exec((res) => {
+    if (res && res[0] && res[1]) {
+      const inputRect = res[0];
+      const viewport = res[1];
+      const keyboardH = keyboardHeight.value;
+      
+      // 计算编辑器底部位置
+      const inputBottom = inputRect.bottom;
+      const viewportHeight = uni.getSystemInfoSync().windowHeight;
+      const availableHeight = viewportHeight - keyboardH;
+      
+      // 如果编辑器底部被键盘遮挡，滚动视图
+      if (inputBottom > availableHeight) {
+        const scrollDistance = inputBottom - availableHeight + 50; // 额外50px的边距，确保完全可见
+        scrollTop.value = viewport.scrollTop + scrollDistance;
+      }
+    }
+  });
 };
 
 const saveChapterEdit = async () => {
@@ -795,6 +916,23 @@ const formatTime = (timestamp) => {
   }
 };
 
+const formatContentIndent = (content) => {
+  if (!content) return content;
+  
+  // 将文本按换行符分割成段落
+  const lines = content.split('\n');
+  const formattedLines = lines.map(line => {
+    const trimmedLine = line.trim();
+    // 如果行不为空，添加缩进（使用两个中文字符宽度）
+    if (trimmedLine && !trimmedLine.startsWith('　　') && !trimmedLine.startsWith('  ')) {
+      return '　　' + trimmedLine; // 使用两个全角空格（中文字符宽度）
+    }
+    return line;
+  });
+  
+  return formattedLines.join('\n');
+};
+
 const goBack = () => {
   // 检查是否有未保存的更改
   if (chapterContent.value.trim() && !lastSaveTime.value) {
@@ -852,7 +990,7 @@ const goBack = () => {
 /* 内容区域 */
 .content-container {
   flex: 1;
-  padding: 20px;
+  padding: 30px;
   cursor: pointer;
   box-sizing: border-box;
   width: 100%;
@@ -861,13 +999,13 @@ const goBack = () => {
 
 .edit-container {
   flex: 1;
-  padding: 20px;
+  padding: 30px;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 40px;
 }
 
 .chapter-header {
@@ -882,6 +1020,8 @@ const goBack = () => {
   display: block;
   margin-bottom: 8px;
   line-height: 1.3;
+  font-family: 'SimSun', '宋体', serif;
+  /* 宋体三号字，约16pt */
 }
 
 .chapter-meta {
@@ -904,7 +1044,7 @@ const goBack = () => {
 }
 
 .content-text {
-  font-size: 16px;
+  font-size: 18px;
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -913,7 +1053,13 @@ const goBack = () => {
   text-align: justify;
   width: 100%;
   box-sizing: border-box;
+  line-height: 1.8;
+  display: block;
+  font-family: 'SimSun', '宋体', serif;
+  /* 宋体四号字，约14pt，行高1.8使一行约20字 */
 }
+
+/* 移除CSS缩进，改用JavaScript处理 */
 
 /* 顶部工具栏 */
 .top-toolbar {
@@ -1070,42 +1216,48 @@ const goBack = () => {
 /* 编辑输入样式 */
 .edit-title-input {
   width: 100%;
+  height: 50px;
   background: transparent;
   border: none;
   color: inherit;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   outline: none;
-  padding: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 8px;
+  padding: 10px 0;
+  text-align: center;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
+  margin-bottom: 10px;
   box-sizing: border-box;
   word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
+  font-family: 'SimSun', '宋体', serif;
+  /* 编辑器标题：宋体三号字，高度50px避免文字遮挡 */
 }
 
 .light-theme .edit-title-input {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+  font-family: 'SimSun', '宋体', serif;
 }
 
 .edit-content-input {
   width: 100%;
-  min-height: 300px;
+  min-height: 400px;
   background: transparent;
   border: none;
   color: inherit;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.8;
   outline: none;
   resize: none;
-  font-family: inherit;
+  font-family: 'SimSun', '宋体', serif;
   padding: 0;
   box-sizing: border-box;
   word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
   white-space: pre-wrap;
+  /* 编辑器内容：宋体四号字，行高1.8使一行约20字，使用JavaScript处理缩进 */
 }
 
 .edit-content-input::placeholder {
@@ -1114,6 +1266,10 @@ const goBack = () => {
 
 .light-theme .edit-content-input::placeholder {
   color: rgba(0, 0, 0, 0.4);
+}
+
+.light-theme .edit-content-input {
+  font-family: 'SimSun', '宋体', serif;
 }
 
 /* 响应式设计 */
@@ -1127,8 +1283,8 @@ const goBack = () => {
   }
   
   .content-container {
-    padding: 44px 16px 16px;
-    padding-right: 16px;
+    padding: 44px 20px 20px;
+    padding-right: 20px;
     box-sizing: border-box;
   }
   
@@ -1137,15 +1293,20 @@ const goBack = () => {
   }
   
   .content-text {
-    font-size: 15px;
+    font-size: 16px;
     overflow-wrap: break-word;
     word-break: break-word;
+    line-height: 1.8;
+    display: block;
+    font-family: 'SimSun', '宋体', serif;
+    /* 移动端：宋体四号字较小字号，行高1.8 */
   }
   
   .edit-container {
-    padding: 16px;
-    padding-right: 16px;
+    padding: 20px;
+    padding-right: 20px;
     box-sizing: border-box;
+    gap: 30px;
   }
   
   .top-toolbar {
@@ -1180,12 +1341,21 @@ const goBack = () => {
   }
   
   .edit-title-input {
-    font-size: 18px;
+    font-size: 20px;
+    text-align: center;
+    font-family: 'SimSun', '宋体', serif;
+    height: 40px;
+    padding: 8px 0;
+    /* 移动端标题高度40px，避免文字遮挡 */
   }
   
   .edit-content-input {
-    font-size: 15px;
-    min-height: 200px;
+    font-size: 16px;
+    min-height: 300px;
+    line-height: 1.8;
+    font-family: 'SimSun', '宋体', serif;
+    padding: 0;
+    /* 移动端编辑器：使用JavaScript处理缩进 */
   }
 }
 
