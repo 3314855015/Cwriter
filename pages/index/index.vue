@@ -5,9 +5,21 @@
     <view class="status-bar">
       <text class="status-time">{{ currentTime }}</text>
       <view class="status-icons">
-        <image class="status-icon" src="/static/icons/signal.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/wifi.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/battery.svg" mode="aspectFit"></image>
+        <image
+          class="status-icon"
+          src="/static/icons/signal.svg"
+          mode="aspectFit"
+        ></image>
+        <image
+          class="status-icon"
+          src="/static/icons/wifi.svg"
+          mode="aspectFit"
+        ></image>
+        <image
+          class="status-icon"
+          src="/static/icons/battery.svg"
+          mode="aspectFit"
+        ></image>
       </view>
     </view>
 
@@ -16,7 +28,11 @@
       <view class="user-info" @tap="goToProfile">
         <view class="avatar-container">
           <view class="user-avatar">
-            <image class="avatar-icon" src="/static/icons/user.svg" mode="aspectFit"></image>
+            <image
+              class="avatar-icon"
+              src="/static/icons/user.svg"
+              mode="aspectFit"
+            ></image>
           </view>
         </view>
         <view class="user-details">
@@ -25,22 +41,32 @@
         </view>
       </view>
       <button class="notification-btn" @tap="showNotifications">
-        <image class="notification-icon" src="/static/icons/bell.svg" mode="aspectFit"></image>
+        <image
+          class="notification-icon"
+          src="/static/icons/bell.svg"
+          mode="aspectFit"
+        ></image>
       </button>
     </view>
 
     <!-- 数据统计卡片 -->
     <view class="stats-card">
       <view class="stats-item">
-        <text class="stats-number stats-primary">{{ statsData.totalWorks }}</text>
+        <text class="stats-number stats-primary">{{
+          statsData.totalWorks
+        }}</text>
         <text class="stats-label">总作品</text>
       </view>
       <view class="stats-item">
-        <text class="stats-number stats-secondary">{{ statsData.totalCharacters }}</text>
+        <text class="stats-number stats-secondary">{{
+          statsData.totalCharacters
+        }}</text>
         <text class="stats-label">总字数</text>
       </view>
       <view class="stats-item">
-        <text class="stats-number stats-tertiary">{{ statsData.totalMaps }}</text>
+        <text class="stats-number stats-tertiary">{{
+          statsData.totalMaps
+        }}</text>
         <text class="stats-label">地图</text>
       </view>
     </view>
@@ -49,15 +75,18 @@
     <view class="tabs-container">
       <scroll-view class="tabs-scroll" scroll-x="true" show-scrollbar="false">
         <view class="tabs">
-          <view 
-            v-for="tab in tabs" 
-            :key="tab.id" 
-            class="tab-item" 
+          <view
+            v-for="tab in tabs"
+            :key="tab.id"
+            class="tab-item"
             :class="{ active: activeTab === tab.id }"
             @tap="switchTab(tab.id)"
           >
             <text class="tab-text">{{ tab.name }}</text>
-            <view class="tab-indicator" :class="{ active: activeTab === tab.id }"></view>
+            <view
+              class="tab-indicator"
+              :class="{ active: activeTab === tab.id }"
+            ></view>
           </view>
         </view>
       </scroll-view>
@@ -66,9 +95,9 @@
     <!-- 作品列表 -->
     <scroll-view class="works-list" scroll-y="true">
       <view class="work-items">
-        <view 
-          v-for="work in filteredWorks" 
-          :key="work.id" 
+        <view
+          v-for="work in filteredWorks"
+          :key="work.id"
           class="work-item"
           @tap="openWork(work.id)"
         >
@@ -80,7 +109,11 @@
             <view class="work-info">
               <text class="work-chapter">{{ work.chapter }}</text>
               <view class="work-meta">
-                <image class="work-icon" src="/static/icons/file.svg" mode="aspectFit"></image>
+                <image
+                  class="work-icon"
+                  src="/static/icons/file.svg"
+                  mode="aspectFit"
+                ></image>
                 <text class="work-words">{{ work.wordCount }}字</text>
               </view>
             </view>
@@ -92,23 +125,35 @@
     <!-- 悬浮创建按钮 -->
     <view class="fab-container">
       <view class="fab-menu" :class="{ show: isMenuOpen }">
-        <button 
-          v-for="menuItem in menuItems" 
-          :key="menuItem.id" 
+        <button
+          v-for="menuItem in menuItems"
+          :key="menuItem.id"
           class="fab-menu-item"
+          :style="getMenuItemStyle(menuItem)"
           @tap="handleMenuAction(menuItem.action)"
         >
-          <image class="fab-icon" :src="getIconPath(menuItem.icon)" mode="aspectFit"></image>
+          <image
+            class="fab-icon"
+            :src="getIconPath(menuItem.icon)"
+            mode="aspectFit"
+          ></image>
+          <text class="fab-menu-label">{{ menuItem.label }}</text>
         </button>
       </view>
-      
+
       <button class="fab-main" @tap="toggleMenu">
-        <image class="fab-main-icon" :src="isMenuOpen ? '/static/icons/times.svg' : '/static/icons/plus.svg'" mode="aspectFit"></image>
+        <image
+          class="fab-main-icon"
+          :src="
+            isMenuOpen ? '/static/icons/times.svg' : '/static/icons/plus.svg'
+          "
+          mode="aspectFit"
+        ></image>
       </button>
     </view>
 
     <!-- 底部导航栏 -->
-    <BottomNav 
+    <BottomNav
       :active-nav="'home'"
       :is-dark-mode="isDarkMode"
       @switch-nav="handleNavSwitch"
@@ -116,352 +161,382 @@
     />
 
     <!-- 创建作品弹窗 -->
-    <CreateWorkModal 
+    <CreateWorkModal
       v-if="currentUser && currentUser.id"
-      :visible="showCreateWorkModal" 
+      :visible="showCreateWorkModal"
       @update:visible="showCreateWorkModal = $event"
       @created="handleWorkCreated"
-      :userId="currentUser.id"
-    />
-
-    <!-- 文件管理弹窗 -->
-    <FileManagerModal 
-      v-if="currentUser && currentUser.id"
-      :visible="showFileManagerModal" 
-      @update:visible="showFileManagerModal = $event"
       :userId="currentUser.id"
     />
   </view>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import CreateWorkModal from '@/components/CreateWorkModal.vue'
-import FileManagerModal from '@/components/FileManagerModal.vue'
-import BottomNav from '@/components/BottomNav.vue'
-import FileSystemStorage from '@/utils/fileSystemStorage.js'
-import { OfflineAuthService } from '@/utils/offlineAuth.js'
-import themeManager, { isDarkMode as getIsDarkMode, getCurrentTheme } from '@/utils/themeManager.js'
+import { ref, onMounted, computed } from "vue";
+import CreateWorkModal from "@/components/CreateWorkModal.vue";
+
+import BottomNav from "@/components/BottomNav.vue";
+import FileSystemStorage from "@/utils/fileSystemStorage.js";
+import { OfflineAuthService } from "@/utils/offlineAuth.js";
+import themeManager, {
+  isDarkMode as getIsDarkMode,
+  getCurrentTheme,
+} from "@/utils/themeManager.js";
 
 // 使用导入的实例（已经是实例，不需要 new）
-const fileStorage = FileSystemStorage
+const fileStorage = FileSystemStorage;
 
 // 响应式数据
-const currentTime = ref('')
-const activeTab = ref('recent')
-const isMenuOpen = ref(false)
-const isDarkMode = ref(getIsDarkMode())
-const activeNav = ref('home')
-const showCreateWorkModal = ref(false)
-const showFileManagerModal = ref(false)
-const currentUser = ref(null)
+const currentTime = ref("");
+const activeTab = ref("recent");
+const isMenuOpen = ref(false);
+const isDarkMode = ref(getIsDarkMode());
+const activeNav = ref("home");
+const showCreateWorkModal = ref(false);
+
+const currentUser = ref(null);
 const statsData = ref({
   totalWorks: 0,
   totalCharacters: 0,
-  totalMaps: 0
-})
+  totalMaps: 0,
+});
 
 // 标签数据
 const tabs = ref([
-  { id: 'recent', name: '最近' },
-  { id: 'favorite', name: '收藏' },
-  { id: 'local', name: '本机' },
-  { id: 'map', name: '地图' }
-])
+  { id: "recent", name: "最近" },
+  { id: "favorite", name: "收藏" },
+  { id: "local", name: "本机" },
+  { id: "map", name: "地图" },
+]);
 
 // 菜单项数据
 const menuItems = ref([
-  { id: 'work', icon: 'icon-file-alt', action: 'createNewWork' },
-  { id: 'character', icon: 'icon-user-plus', action: 'createNewCharacter' },
-  { id: 'setting', icon: 'icon-cog', action: 'createNewSetting' },
-  { id: 'foreshadowing', icon: 'icon-lightbulb', action: 'createNewForeshadowing' },
-  { id: 'map', icon: 'icon-map-marked-alt', action: 'createNewMap' }
-])
+  {
+    id: "work",
+    icon: "icon-file-alt",
+    action: "createNewWork",
+    label: "作品",
+    gradient: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)",
+  },
+  {
+    id: "character",
+    icon: "icon-user-plus",
+    action: "createNewCharacter",
+    label: "人物",
+    gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+  },
+  {
+    id: "setting",
+    icon: "icon-cog",
+    action: "createNewSetting",
+    label: "设定",
+    gradient: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
+  },
+  {
+    id: "foreshadowing",
+    icon: "icon-lightbulb",
+    action: "createNewForeshadowing",
+    label: "伏笔",
+    gradient: "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)",
+  },
+  {
+    id: "map",
+    icon: "icon-map-marked-alt",
+    action: "createNewMap",
+    label: "地图",
+    gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  },
+]);
 
 // 作品数据
 const works = ref([
   {
-    id: 'work_001',
-    title: '《1》',
-    modifiedTime: '2小时前修改',
-    chapter: '第12章',
-    wordCount: '1,247',
-    type: 'recent'
+    id: "work_001",
+    title: "《1》",
+    modifiedTime: "2小时前修改",
+    chapter: "第12章",
+    wordCount: "1,247",
+    type: "recent",
   },
   {
-    id: 'work_002',
-    title: '《2》',
-    modifiedTime: '昨天修改',
-    chapter: '第8章',
-    wordCount: '856',
-    type: 'recent'
+    id: "work_002",
+    title: "《2》",
+    modifiedTime: "昨天修改",
+    chapter: "第8章",
+    wordCount: "856",
+    type: "recent",
   },
   {
-    id: 'work_003',
-    title: '《3》',
-    modifiedTime: '3天前修改',
-    chapter: '第3章',
-    wordCount: '2,103',
-    type: 'recent'
+    id: "work_003",
+    title: "《3》",
+    modifiedTime: "3天前修改",
+    chapter: "第3章",
+    wordCount: "2,103",
+    type: "recent",
   },
   {
-    id: 'work_004',
-    title: '《4》',
-    modifiedTime: '1周前修改',
-    chapter: '第15章',
-    wordCount: '3,456',
-    type: 'recent'
-  }
-])
+    id: "work_004",
+    title: "《4》",
+    modifiedTime: "1周前修改",
+    chapter: "第15章",
+    wordCount: "3,456",
+    type: "recent",
+  },
+]);
 
 // 计算属性：根据当前标签筛选作品
 const filteredWorks = computed(() => {
-  if (activeTab.value === 'recent') {
+  if (activeTab.value === "recent") {
     // 最近标签：显示所有作品
-    return works.value
-  } else if (activeTab.value === 'local') {
+    return works.value;
+  } else if (activeTab.value === "local") {
     // 本机标签：显示所有作品（因为都是本地存储）
-    return works.value
-  } else if (activeTab.value === 'favorite') {
+    return works.value;
+  } else if (activeTab.value === "favorite") {
     // 收藏标签：显示标记为收藏的作品
-    return works.value.filter(work => work.is_favorite === true)
-  } else if (activeTab.value === 'map') {
+    return works.value.filter((work) => work.is_favorite === true);
+  } else if (activeTab.value === "map") {
     // 地图标签：显示有地图的作品
-    return works.value.filter(work => work.map_count > 0)
+    return works.value.filter((work) => work.map_count > 0);
   }
-  return works.value
-})
+  return works.value;
+});
 
 // 生命周期
 onMounted(() => {
-  initPage()
-  updateTime()
-  setInterval(updateTime, 60000) // 每分钟更新一次时间
-  
+  initPage();
+  updateTime();
+  setInterval(updateTime, 60000); // 每分钟更新一次时间
+
   // 监听主题变更事件
-  uni.$on('theme-changed', (themeData) => {
-    isDarkMode.value = themeData.isDark
-  })
-})
+  uni.$on("theme-changed", (themeData) => {
+    isDarkMode.value = themeData.isDark;
+  });
+});
 
 // 方法
 const updateTime = () => {
-  const now = new Date()
-  currentTime.value = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
-}
+  const now = new Date();
+  currentTime.value = `${now.getHours()}:${now
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+};
 
 const switchTab = (tabId) => {
-  activeTab.value = tabId
-}
+  activeTab.value = tabId;
+};
 
 const handleNavSwitch = (navType) => {
-  if (navType === 'profile') {
-    goToProfile()
+  if (navType === "profile") {
+    goToProfile();
   }
-}
+};
 
 const toggleMenu = () => {
-  isMenuOpen.value = !isMenuOpen.value
-}
+  isMenuOpen.value = !isMenuOpen.value;
+};
 
 const toggleTheme = () => {
-  const newTheme = themeManager.toggleTheme()
-  isDarkMode.value = themeManager.isDarkMode()
-  activeNav.value = 'theme'
-}
+  const newTheme = themeManager.toggleTheme();
+  isDarkMode.value = themeManager.isDarkMode();
+  activeNav.value = "theme";
+};
+
+const getMenuItemStyle = (menuItem) => {
+  return {
+    background: menuItem.gradient,
+    color: "#fff",
+    border: isDarkMode.value
+      ? "1px solid rgba(255,255,255,0.2)"
+      : "1px solid rgba(0,0,0,0.05)",
+  };
+};
 
 const handleMenuAction = (action) => {
-  // 根据不同的菜单项执行不同的操作
   switch (action) {
-    case 'createNewWork':
-      createNewWork()
-      break
-    case 'createNewCharacter':
-       
-      break
-    case 'createNewSetting':
-       
-      break
-    case 'createNewForeshadowing':
-       
-      break
-    case 'createNewMap':
-       
-      break
+    case "createNewWork":
+      createNewWork();
+      break;
+    case "createNewCharacter":
+      openCreationPage("character");
+      break;
+    case "createNewSetting":
+      openCreationPage("setting");
+      break;
+    case "createNewForeshadowing":
+      openCreationPage("foreshadowing");
+      break;
+    case "createNewMap":
+      openCreationPage("map");
+      break;
+    default:
+      openCreationPage();
+      break;
   }
-  isMenuOpen.value = false
-}
+  isMenuOpen.value = false;
+};
 // 初始化页面
 const initPage = async () => {
   // 初始化主题
-  isDarkMode.value = themeManager.isDarkMode()
-  
+  isDarkMode.value = themeManager.isDarkMode();
+
   // 检查是否需要自动切换主题
-  themeManager.applyAutoSwitch()
-  
+  themeManager.applyAutoSwitch();
+
   // 环境检测
   try {
-    const systemInfo = uni.getSystemInfoSync()
-    
-    
-    if (systemInfo.uniPlatform === 'app') {
+    const systemInfo = uni.getSystemInfoSync();
+
+    if (systemInfo.uniPlatform === "app") {
       // App环境使用plus.io
-      if (typeof plus !== 'undefined' && plus.io) {
-         
+      if (typeof plus !== "undefined" && plus.io) {
       } else {
-         
       }
-    } else if (systemInfo.uniPlatform === 'mp-weixin') {
+    } else if (systemInfo.uniPlatform === "mp-weixin") {
       // 小程序环境使用uni.getFileSystemManager
-      if (typeof uni.getFileSystemManager === 'function') {
-         
+      if (typeof uni.getFileSystemManager === "function") {
       } else {
-         
       }
-    } else if (systemInfo.uniPlatform === 'h5') {
+    } else if (systemInfo.uniPlatform === "h5") {
       // H5环境使用localStorage
-       
     } else {
-      
     }
   } catch (e) {
-    console.error('获取系统信息失败:', e)
+    console.error("获取系统信息失败:", e);
   }
-  
+
   try {
     // 直接使用 default_user，不需要认证检查
     currentUser.value = {
-      id: 'default_user',
-      username: '离线用户',
-      email: ''
-    }
-     
-    
+      id: "default_user",
+      username: "离线用户",
+      email: "",
+    };
+
     // 初始化用户存储
-     
-    await fileStorage.initUserStorage(currentUser.value.id)
-    
+
+    await fileStorage.initUserStorage(currentUser.value.id);
+
     // 加载用户数据（扫描 works 目录）
-    await loadUserData()
-    
+    await loadUserData();
+
     // 输出存储路径调试信息
-    fileStorage.logStoragePaths(currentUser.value.id)
-    
+    fileStorage.logStoragePaths(currentUser.value.id);
+
     // 调试：直接测试作品扫描
-     
-    const testWorks = await fileStorage.getUserWorks(currentUser.value.id)
-     
-    
+
+    const testWorks = await fileStorage.getUserWorks(currentUser.value.id);
   } catch (error) {
-    console.error('❌ 初始化页面失败:', error)
-    console.error('错误堆栈:', error.stack)
-    
+    console.error("❌ 初始化页面失败:", error);
+    console.error("错误堆栈:", error.stack);
+
     // 失败时仍使用默认用户
     currentUser.value = {
-      id: 'default_user',
-      username: '离线用户',
-      email: ''
-    }
-    
-     
-    
+      id: "default_user",
+      username: "离线用户",
+      email: "",
+    };
+
     try {
-      await fileStorage.initUserStorage(currentUser.value.id)
-      await loadUserData()
+      await fileStorage.initUserStorage(currentUser.value.id);
+      await loadUserData();
     } catch (fallbackError) {
-      console.error('❌ 回退方案也失败:', fallbackError)
+      console.error("❌ 回退方案也失败:", fallbackError);
     }
   }
-}
+};
 
 // 加载用户数据
 const loadUserData = async () => {
-  if (!currentUser.value) return
-  
+  if (!currentUser.value) return;
+
   try {
-     
-    
     // 加载作品列表（现在会扫描 works 目录下的所有 work.config.json）
-    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
-     
-    
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id);
+
     // 使用 Promise.all 来并行处理所有作品的字数计算
     const worksPromises = userWorks.map(async (work) => {
       // 计算字数：尝试从文档文件获取，如果没有则从标题和描述估算
-      let wordCount = 0
+      let wordCount = 0;
       try {
         // 尝试读取文档内容来计算字数
-        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`
-        const manuscript = await fileStorage.readFile(manuscriptPath)
+        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`;
+        const manuscript = await fileStorage.readFile(manuscriptPath);
         if (manuscript && manuscript.word_count) {
-          wordCount = manuscript.word_count
+          wordCount = manuscript.word_count;
         } else if (manuscript && manuscript.content) {
-          wordCount = manuscript.content.replace(/\s/g, '').length
+          wordCount = manuscript.content.replace(/\s/g, "").length;
         } else {
           // 估算字数：标题 + 描述
-          wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+          wordCount =
+            (work.title?.length || 0) + (work.description?.length || 0);
         }
       } catch (error) {
         // 如果读取失败，使用估算字数
-        wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+        wordCount = (work.title?.length || 0) + (work.description?.length || 0);
       }
-      
+
       return {
         id: work.id,
-        title: work.title || '未命名作品',
+        title: work.title || "未命名作品",
         modifiedTime: formatTime(work.updated_at || work.created_at),
-        chapter: work.structure_type === 'chapterized' ? '分章节作品' : '整体作品',
+        chapter:
+          work.structure_type === "chapterized" ? "分章节作品" : "整体作品",
         wordCount: wordCount,
         structure_type: work.structure_type, // 确保保留结构类型
-        description: work.description || '',
-        category: work.category || 'novel',
+        description: work.description || "",
+        category: work.category || "novel",
         created_at: work.created_at,
         updated_at: work.updated_at,
         is_active: work.is_active,
         file_structure: work.file_structure,
         local_file_path: work.local_file_path,
-        folderName: work.folderName
-      }
-    })
-    
+        folderName: work.folderName,
+      };
+    });
+
     // 等待所有作品数据处理完成
-    works.value = await Promise.all(worksPromises)
-    
-     
-    
+    works.value = await Promise.all(worksPromises);
+
     // 更新统计数据
     try {
-      const stats = fileStorage.getStorageStats(currentUser.value.id)
+      const stats = fileStorage.getStorageStats(currentUser.value.id);
       statsData.value = {
         totalWorks: works.value.length,
-        totalCharacters: works.value.reduce((sum, work) => sum + work.wordCount, 0),
-        totalMaps: stats?.totalMaps || 0
-      }
-       
+        totalCharacters: works.value.reduce(
+          (sum, work) => sum + work.wordCount,
+          0
+        ),
+        totalMaps: stats?.totalMaps || 0,
+      };
     } catch (statsError) {
-      console.error('获取统计数据失败，使用本地统计:', statsError)
+      console.error("获取统计数据失败，使用本地统计:", statsError);
       statsData.value = {
         totalWorks: works.value.length,
-        totalCharacters: works.value.reduce((sum, work) => sum + work.wordCount, 0),
-        totalMaps: 0
-      }
+        totalCharacters: works.value.reduce(
+          (sum, work) => sum + work.wordCount,
+          0
+        ),
+        totalMaps: 0,
+      };
     }
   } catch (error) {
-    console.error('❌ 加载用户数据失败:', error)
+    console.error("❌ 加载用户数据失败:", error);
     // 如果加载失败，清空作品列表并设置默认统计
-    works.value = []
+    works.value = [];
     statsData.value = {
       totalWorks: 0,
       totalCharacters: 0,
-      totalMaps: 0
-    }
+      totalMaps: 0,
+    };
   }
-}
+};
 
 // 创建新作品
 const createNewWork = () => {
-  showCreateWorkModal.value = true
-}
+  showCreateWorkModal.value = true;
+};
 
 // 处理作品创建成功
 const handleWorkCreated = (newWork) => {
@@ -470,124 +545,127 @@ const handleWorkCreated = (newWork) => {
     id: newWork.id,
     title: newWork.title,
     modifiedTime: formatTime(newWork.updated_at),
-    chapter: newWork.structure_type === 'chapterized' ? '第1章' : '整体作品',
+    chapter: newWork.structure_type === "chapterized" ? "第1章" : "整体作品",
     wordCount: newWork.content?.manuscript?.word_count || 0,
-    type: 'recent'
-  }
-  
-  works.value.unshift(formattedWork)
-  
+    type: "recent",
+  };
+
+  works.value.unshift(formattedWork);
+
   // 更新统计数据 - 添加错误处理
   if (currentUser.value) {
     try {
-      const stats = fileStorage.getStorageStats(currentUser.value.id)
+      const stats = fileStorage.getStorageStats(currentUser.value.id);
       statsData.value = {
         totalWorks: stats?.totalWorks || 0,
         totalCharacters: stats?.totalCharacters || 0,
-        totalMaps: stats?.totalMaps || 0
-      }
+        totalMaps: stats?.totalMaps || 0,
+      };
     } catch (statsError) {
-      console.error('获取统计数据失败:', statsError)
+      console.error("获取统计数据失败:", statsError);
     }
   }
-}
+};
 
 // 格式化时间显示
 const formatTime = (timestamp) => {
-  if (!timestamp) return '未知时间'
-  
+  if (!timestamp) return "未知时间";
+
   try {
-    const now = new Date()
-    const time = new Date(timestamp)
-    
+    const now = new Date();
+    const time = new Date(timestamp);
+
     // 检查时间是否有效
     if (isNaN(time.getTime())) {
-      console.warn('⚠️ 无效的时间戳:', timestamp)
-      return '未知时间'
+      console.warn("⚠️ 无效的时间戳:", timestamp);
+      return "未知时间";
     }
-    
-    const diff = now.getTime() - time.getTime()
-    
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
-    
-    if (minutes < 1) return '刚刚修改'
-    if (minutes < 60) return `${minutes}分钟前修改`
-    if (hours < 24) return `${hours}小时前修改`
-    if (days < 7) return `${days}天前修改`
-    
-    return time.toLocaleDateString() + '修改'
+
+    const diff = now.getTime() - time.getTime();
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "刚刚修改";
+    if (minutes < 60) return `${minutes}分钟前修改`;
+    if (hours < 24) return `${hours}小时前修改`;
+    if (days < 7) return `${days}天前修改`;
+
+    return time.toLocaleDateString() + "修改";
   } catch (error) {
-    console.error('⚠️ 时间格式化错误:', error, timestamp)
-    return '未知时间'
+    console.error("⚠️ 时间格式化错误:", error, timestamp);
+    return "未知时间";
   }
-}
+};
 
 const openWork = (workId) => {
   // 找到对应的作品信息
-  const work = works.value.find(w => w.id === workId)
+  const work = works.value.find((w) => w.id === workId);
   if (!work) {
-    console.error('❌ 作品不存在:', workId)
+    console.error("❌ 作品不存在:", workId);
     uni.showToast({
-      title: '作品不存在',
-      icon: 'error'
-    })
-    return
+      title: "作品不存在",
+      icon: "error",
+    });
+    return;
   }
-  
-   
-  
+
   // 根据作品类型跳转到不同页面
-  if (work.structure_type === 'single') {
+  if (work.structure_type === "single") {
     // 整体作品 - 跳转到文档编辑页面
     uni.navigateTo({
-      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`
-    })
-  } else if (work.structure_type === 'chapterized') {
+      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`,
+    });
+  } else if (work.structure_type === "chapterized") {
     // 分章节作品 - 跳转到章节列表页面
     uni.navigateTo({
-      url: `/pages/chapters/index?workId=${workId}&userId=${currentUser.value.id}`
-    })
+      url: `/pages/chapters/index?workId=${workId}&userId=${currentUser.value.id}`,
+    });
   } else {
     // 未知类型，默认跳转到文档编辑
     uni.navigateTo({
-      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`
-    })
+      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`,
+    });
   }
-}
+};
 
-const goToProfile = () => {
-   
-}
+const openCreationPage = (type) => {
+  const userId = currentUser.value?.id || "default_user";
+  const query = [`userId=${userId}`];
+  if (type) {
+    query.push(`type=${type}`);
+  }
 
-const goToService = () => {
-   
-}
+  uni.navigateTo({
+    url: `/pages/create/index?${query.join("&")}`,
+  });
+};
 
-const showNotifications = () => {
-   
-}
+const goToProfile = () => {};
+
+const goToService = () => {};
+
+const showNotifications = () => {};
 
 // 图标路径映射函数
 const getIconPath = (iconClass) => {
   const iconMap = {
-    'icon-file-alt': '/static/icons/file.svg',
-    'icon-user-plus': '/static/icons/user.svg',
-    'icon-cog': '/static/icons/cog.svg',
-    'icon-lightbulb': '/static/icons/lightbulb.svg',
-    'icon-map-marked-alt': '/static/icons/map.svg'
-  }
-  return iconMap[iconClass] || '/static/icons/file.svg'
-}
-
+    "icon-file-alt": "/static/icons/file.svg",
+    "icon-user-plus": "/static/icons/user.svg",
+    "icon-cog": "/static/icons/cog.svg",
+    "icon-lightbulb": "/static/icons/lightbulb.svg",
+    "icon-map-marked-alt": "/static/icons/map.svg",
+  };
+  return iconMap[iconClass] || "/static/icons/file.svg";
+};
 </script>
 
 <style scoped>
 /* 页面主容器 */
 .page-container {
-  background-color: #1A1A1A;
-  color: #FFFFFF;
+  background-color: #1a1a1a;
+  color: #ffffff;
   min-height: 100vh;
   position: relative;
   padding-bottom: 80px;
@@ -598,13 +676,13 @@ const getIconPath = (iconClass) => {
 
 /* 亮色主题样式 */
 .page-container.light-theme {
-  background-color: #F5F5F5;
+  background-color: #f5f5f5;
   color: #333333;
 }
 
 .page-container.light-theme .user-section {
   background: rgba(255, 255, 255, 0.8);
-  border-bottom: 1px solid #E0E0E0;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .page-container.light-theme .user-section .user-name {
@@ -695,7 +773,7 @@ const getIconPath = (iconClass) => {
 
 /* 数据统计卡片亮色主题样式 */
 .page-container.light-theme .stats-card {
-  background: linear-gradient(to right, #F0F0F0, #E8E8E8);
+  background: linear-gradient(to right, #f0f0f0, #e8e8e8);
 }
 
 .page-container.light-theme .stats-label {
@@ -708,15 +786,15 @@ const getIconPath = (iconClass) => {
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background-color: #1A1A1A;
+  background-color: #1a1a1a;
   font-size: 12px;
   position: relative;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 /* 状态栏亮色主题样式 */
 .page-container.light-theme .status-bar {
-  background-color: #F8F8F8;
+  background-color: #f8f8f8;
   color: #333333;
 }
 
@@ -766,12 +844,12 @@ const getIconPath = (iconClass) => {
 }
 
 .user-section .user-name {
-  color: var(--text-color, #FFFFFF);
+  color: var(--text-color, #ffffff);
   transition: color 0.5s ease;
 }
 
 .user-section .user-status {
-  color: var(--text-secondary, #B3B3B3);
+  color: var(--text-secondary, #b3b3b3);
   transition: color 0.5s ease;
 }
 
@@ -785,7 +863,7 @@ const getIconPath = (iconClass) => {
   width: 48px;
   height: 48px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+  background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -805,16 +883,14 @@ const getIconPath = (iconClass) => {
 .user-name {
   font-size: 18px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .user-status {
   font-size: 12px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   margin-top: 2px;
 }
-
-
 
 /* 数据统计卡片 */
 .stats-card {
@@ -822,7 +898,7 @@ const getIconPath = (iconClass) => {
   justify-content: space-around;
   align-items: center;
   padding: 16px 0;
-  background: linear-gradient(to right, #2D2D2D, #404040);
+  background: linear-gradient(to right, #2d2d2d, #404040);
 }
 
 .stats-item {
@@ -838,20 +914,20 @@ const getIconPath = (iconClass) => {
 }
 
 .stats-primary {
-  color: #FF6B35;
+  color: #ff6b35;
 }
 
 .stats-secondary {
-  color: #4ECDC4;
+  color: #4ecdc4;
 }
 
 .stats-tertiary {
-  color: #45B7D1;
+  color: #45b7d1;
 }
 
 .stats-label {
   font-size: 12px;
-  color: #B3B3B3;
+  color: #b3b3b3;
 }
 
 /* 标签导航 */
@@ -877,12 +953,12 @@ const getIconPath = (iconClass) => {
 
 .tab-text {
   font-size: 14px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   transition: color 0.3s ease;
 }
 
 .tab-item.active .tab-text {
-  color: #FF6B35;
+  color: #ff6b35;
   font-weight: 500;
 }
 
@@ -892,7 +968,7 @@ const getIconPath = (iconClass) => {
   left: 0;
   width: 100%;
   height: 2px;
-  background-color: #FF6B35;
+  background-color: #ff6b35;
   transform: scaleX(0);
   transition: transform 0.3s ease;
 }
@@ -941,13 +1017,13 @@ const getIconPath = (iconClass) => {
 .work-title {
   font-size: 14px;
   font-weight: 500;
-  color: #FFFFFF;
+  color: #ffffff;
   display: block;
 }
 
 .work-time {
   font-size: 11px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   margin-top: 2px;
   display: block;
 }
@@ -960,7 +1036,7 @@ const getIconPath = (iconClass) => {
 
 .work-chapter {
   font-size: 12px;
-  color: #B3B3B3;
+  color: #b3b3b3;
 }
 
 .work-meta {
@@ -1003,27 +1079,43 @@ const getIconPath = (iconClass) => {
 }
 
 .fab-menu-item {
-  width: 56px;
-  height: 56px;
-  border-radius: 28px;
-  background: #2D2D2D;
+  min-width: 100px;
+  height: 40px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
   border: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.fab-menu-item .iconfont {
-  color: #FFFFFF;
-  font-size: 18px;
+.page-container.light-theme .fab-menu-item {
+  box-shadow: 0 10px 24px rgba(255, 105, 90, 0.18);
+}
+
+.fab-icon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) invert(1);
+}
+
+.fab-menu-label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 .fab-main {
-  width: 64px;
-  height: 64px;
-  border-radius: 32px;
-  background: linear-gradient(135deg, #FF6B35 0%, #FF8A65 100%);
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1031,10 +1123,9 @@ const getIconPath = (iconClass) => {
   box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
 }
 
-.fab-main .iconfont {
-  color: white;
-  font-size: 20px;
+.fab-main-icon {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
 }
-
-
 </style>
