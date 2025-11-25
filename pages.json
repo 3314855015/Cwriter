@@ -1,56 +1,62 @@
 {
-	"pages": [
-		{
-			"path": "pages/index/index",
-			"style": {
-				"navigationBarTitleText": "",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/editor/index",
-			"style": {
-				"navigationBarTitleText": "文档编辑",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/editor/chapter",
-			"style": {
-				"navigationBarTitleText": "章节编辑",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/chapters/index",
-			"style": {
-				"navigationBarTitleText": "章节管理",
-				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/manage/index",
-			"style": {
-				"navigationBarTitleText": "文件管理",
-				"navigationStyle": "custom"
-			}
-		},
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/editor/index",
+      "style": {
+        "navigationBarTitleText": "文档编辑",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/editor/chapter",
+      "style": {
+        "navigationBarTitleText": "章节编辑",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/chapters/index",
+      "style": {
+        "navigationBarTitleText": "章节管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/manage/index",
+      "style": {
+        "navigationBarTitleText": "文件管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/create/index",
+      "style": {
+        "navigationBarTitleText": "辅助创建",
+        "navigationStyle": "custom"
+      }
+    },
 
-		{
-			"path": "pages/auth/login",
-			"style": {
-				"navigationBarTitleText": "登录",
-				"navigationStyle": "custom"
-			}
-		}
+    {
+      "path": "pages/auth/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "Cwriter",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
 
-	],
-	"globalStyle": {
-		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "Cwriter",
-		"navigationBarBackgroundColor": "#F8F8F8",
-		"backgroundColor": "#F8F8F8"
-	},
-
-	"uniIdRouter": {}
+  "uniIdRouter": {}
 }
