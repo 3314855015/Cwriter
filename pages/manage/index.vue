@@ -12,65 +12,98 @@
 
     <!-- 页面标题 -->
     <view class="page-header">
-      <text class="page-title">文件管理</text>
-      <text class="page-subtitle">管理您的创作内容</text>
+      <view class="header-content">
+        <view class="header-text">
+          <text class="page-title">文件管理</text>
+          <text class="page-subtitle">管理您的创作内容</text>
+        </view>
+        <view class="header-actions">
+          <view class="more-menu-container">
+            <view class="more-btn" @tap="toggleMoreMenu">
+              <text class="more-dots">···</text>
+            </view>
+            <!-- 点击遮罩关闭菜单 -->
+            <view 
+              v-if="showMoreMenu" 
+              class="menu-overlay" 
+              @tap="closeMoreMenu"
+              @touchmove.prevent
+            ></view>
+            <view v-if="showMoreMenu" class="more-menu">
+              <view class="menu-item" @tap="showImport">
+                <text class="menu-text">导入</text>
+              </view>
+              <view class="menu-item" @tap="showExport">
+                <text class="menu-text">导出</text>
+              </view>
+              <view class="menu-item" @tap="loadLocalWorks">
+                <text class="menu-text">加载</text>
+              </view>
+              <view class="menu-item" @tap="deleteSelected">
+                <text class="menu-text">删除</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
     </view>
 
     <!-- 文件管理内容 -->
     <view class="manage-content">
-      <!-- 操作工具栏 -->
-      <view class="toolbar">
-        <view class="toolbar-item disabled" @tap="showImport">
-          <text class="toolbar-text">导入</text>
-        </view>
-        <view class="toolbar-item disabled" @tap="showExport">
-          <text class="toolbar-text">导出</text>
-        </view>
-        <view class="toolbar-item" @tap="loadLocalWorks">
-          <text class="toolbar-text">加载</text>
-        </view>
-        <view class="toolbar-item" @tap="deleteSelected">
-          <text class="toolbar-text">删除</text>
-        </view>
-      </view>
 
     <!-- 作品列表 -->
     <view class="works-section">
       <view class="section-header">
-        <text class="section-title">作品列表</text>
-        <text class="work-count">共 {{ works.length }} 部作品</text>
+        <text class="section-title">{{ currentWork ? currentWork.title : '作品列表' }}</text>
+        <text class="work-count" v-if="!currentWork">共 {{ works.length }} 部作品</text>
       </view>
       
-      <view class="works-list">
+      <!-- 作品列表 -->
+      <view v-if="!currentWork" class="works-list">
         <view 
           v-for="work in works" 
           :key="work.id" 
           class="work-item"
           :class="{ selected: selectedWorks.includes(work.id) }"
-          @tap="openWorkDetail(work)"
+          @tap="selectWork(work)"
           @longpress="toggleWorkSelection(work.id)"
         >
           <view class="work-checkbox" v-if="isSelectionMode">
             <view class="checkbox" :class="{ checked: selectedWorks.includes(work.id) }"></view>
           </view>
           
-          <view class="work-icon">
-            <image src="/static/icons/file.svg" mode="aspectFit"></image>
-          </view>
-          
           <view class="work-info">
             <text class="work-title">{{ work.title }}</text>
-            <text class="work-meta">{{ work.modifiedTime }} · {{ work.chapterCount }} 章节 · {{ work.wordCount }} 字</text>
+            <text class="work-meta">{{ work.chapterCount }} 章节 · {{ work.wordCount }} 字</text>
           </view>
           
-          <view class="work-actions">
-            <view class="action-btn" @tap.stop="editWork(work)">
-              <image src="/static/icons/edit.svg" mode="aspectFit"></image>
-            </view>
-            <view class="action-btn" @tap.stop="deleteWork(work)">
-              <image src="/static/icons/trash.svg" mode="aspectFit"></image>
-            </view>
+          <view class="delete-btn" @tap.stop="deleteWork(work)">
+            <text class="delete-x">×</text>
           </view>
+        </view>
+      </view>
+      
+      <!-- 管理单元格 -->
+      <view v-else class="management-cells">
+        <view class="management-cell" @tap="handleManagement('chapters')">
+          <text class="cell-text">章节管理</text>
+        </view>
+        <view class="management-cell" @tap="handleManagement('characters')">
+          <text class="cell-text">人物管理</text>
+        </view>
+        <view class="management-cell" @tap="handleManagement('drafts')">
+          <text class="cell-text">草稿管理</text>
+        </view>
+        <view class="management-cell" @tap="handleManagement('terms')">
+          <text class="cell-text">术语管理</text>
+        </view>
+        <view class="management-cell" @tap="handleManagement('maps')">
+          <text class="cell-text">地图管理</text>
+        </view>
+        
+        <!-- 返回按钮 -->
+        <view class="back-btn" @tap="backToList">
+          <text class="back-text">← 返回列表</text>
         </view>
       </view>
     </view>
@@ -108,20 +141,13 @@
       :userId="currentUser.id"
     />
 
-    <!-- 文件管理弹窗 -->
-    <FileManagerModal 
-      v-if="currentUser && currentUser.id"
-      :visible="showFileManagerModal" 
-      @update:visible="showFileManagerModal = $event"
-      :userId="currentUser.id"
-    />
+
   </view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import CreateWorkModal from '@/components/CreateWorkModal.vue'
-import FileManagerModal from '@/components/FileManagerModal.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import FileSystemStorage from '@/utils/fileSystemStorage.js'
 import { OfflineAuthService } from '@/utils/offlineAuth.js'
@@ -134,10 +160,12 @@ const currentTime = ref('')
 const isDarkMode = ref(getIsDarkMode())
 const currentUser = ref(null)
 const showCreateWorkModal = ref(false)
-const showFileManagerModal = ref(false)
+
 const works = ref([])
 const selectedWorks = ref([])
 const isSelectionMode = ref(false)
+const currentWork = ref(null)
+const showMoreMenu = ref(false)
 
 // 页面初始化
 onMounted(async () => {
@@ -257,13 +285,12 @@ const loadWorks = async () => {
 }
 
 // 导航功能
-const handleNavSwitch = (target) => {
+const handleNavSwitch = () => {
   // 管理页面不处理，由 BottomNav 组件内部处理
-   
 }
 
 const toggleTheme = () => {
-  const newTheme = themeManager.toggleTheme()
+  themeManager.toggleTheme()
   isDarkMode.value = themeManager.isDarkMode()
 }
 
@@ -328,15 +355,12 @@ const openWorkDetail = (work) => {
   if (isSelectionMode.value) {
     toggleWorkSelection(work.id)
   } else {
-    uni.navigateTo({
-      url: `/pages/manage/work-detail?id=${work.id}`
-    })
+    // 选择作品进入管理模式
+    selectWork(work)
   }
 }
 
-const editWork = (work) => {
-  openWorkDetail(work)
-}
+
 
 const deleteWork = async (work) => {
   try {
@@ -345,7 +369,8 @@ const deleteWork = async (work) => {
       content: `确定要删除作品"${work.title}"吗？此操作不可恢复。`,
       success: async (res) => {
         if (res.confirm) {
-          await fileStorage.deleteWork(work.id)
+          // 传递userId和workId两个参数
+          await fileStorage.deleteWork(currentUser.value?.id || 'default_user', work.id)
           uni.showToast({
             title: '删除成功',
             icon: 'success'
@@ -386,7 +411,7 @@ const deleteSelected = async () => {
       success: async (res) => {
         if (res.confirm) {
           for (const workId of selectedWorks.value) {
-            await fileStorage.deleteWork(workId)
+            await fileStorage.deleteWork(currentUser.value?.id || 'default_user', workId)
           }
           
           uni.showToast({
@@ -409,6 +434,8 @@ const deleteSelected = async () => {
   }
 }
 
+
+
 const exportSelected = () => {
   uni.showToast({
     title: '导出功能开发中',
@@ -416,12 +443,44 @@ const exportSelected = () => {
   })
 }
 
-const handleWorkCreated = (work) => {
+const handleWorkCreated = () => {
   uni.showToast({
     title: '作品创建成功',
     icon: 'success'
   })
   loadWorks()
+}
+
+// 选择作品
+const selectWork = (work) => {
+  if (isSelectionMode.value) {
+    toggleWorkSelection(work.id)
+  } else {
+    currentWork.value = work
+  }
+}
+
+// 返回列表
+const backToList = () => {
+  currentWork.value = null
+}
+
+// 处理管理选项点击
+const handleManagement = (type) => {
+  uni.showToast({
+    title: `${type} 功能开发中`,
+    icon: 'none'
+  })
+}
+
+// 切换更多菜单
+const toggleMoreMenu = () => {
+  showMoreMenu.value = !showMoreMenu.value
+}
+
+// 关闭菜单
+const closeMoreMenu = () => {
+  showMoreMenu.value = false
 }
 </script>
 
@@ -443,51 +502,6 @@ const handleWorkCreated = (work) => {
   padding: 0 30rpx;
 }
 
-/* 工具栏 */
-.toolbar {
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 30rpx;
-  padding: 20rpx;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 20rpx;
-  backdrop-filter: blur(10rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.light-theme .toolbar {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.toolbar-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 25rpx 20rpx;
-  border-radius: 15rpx;
-  transition: all 0.3s ease;
-  min-width: 120rpx;
-  min-height: 80rpx;
-}
-
-.toolbar-item:not(.disabled):active {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.toolbar-item.disabled {
-  opacity: 0.5;
-}
-
-.toolbar-text {
-  font-size: 24rpx;
-  text-align: center;
-  padding: 15rpx 20rpx;
-  display: block;
-}
-
 /* 作品列表 */
 .works-section {
   margin-bottom: 40rpx;
@@ -498,15 +512,67 @@ const handleWorkCreated = (work) => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 30rpx;
+  padding: 25rpx 30rpx;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(15rpx);
+  border-radius: 20rpx;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.light-theme .section-header {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+}
+
+.section-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.3) 20%, 
+    rgba(255, 255, 255, 0.3) 80%, 
+    transparent
+  );
 }
 
 .section-title {
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: 34rpx;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff, #f0f0f0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2rpx 8rpx rgba(255, 255, 255, 0.3);
+}
+
+.light-theme .section-title {
+  background: linear-gradient(135deg, #333333, #666666);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
 }
 
 .work-count {
   font-size: 26rpx;
+  opacity: 0.8;
+  font-weight: 500;
+  padding: 8rpx 16rpx;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12rpx;
+  backdrop-filter: blur(5rpx);
+}
+
+.light-theme .work-count {
+  background: rgba(0, 0, 0, 0.05);
   opacity: 0.7;
 }
 
@@ -593,33 +659,97 @@ const handleWorkCreated = (work) => {
 }
 
 .work-title {
-  font-size: 30rpx;
+  font-size: 32rpx;
   display: block;
-  margin-bottom: 5rpx;
+  margin-bottom: 8rpx;
 }
 
 .work-meta {
-  font-size: 24rpx;
+  font-size: 26rpx;
   opacity: 0.6;
   display: block;
 }
 
-.work-actions {
-  display: flex;
-  gap: 20rpx;
-}
-
-.action-btn {
-  width: 36rpx;
-  height: 36rpx;
-  padding: 8rpx;
+.delete-btn {
+  padding: 10rpx 15rpx;
   border-radius: 8rpx;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 67, 54, 0.1);
+  transition: all 0.2s ease;
 }
 
-.action-btn image {
-  width: 100%;
-  height: 100%;
+.delete-btn:active {
+  background: rgba(255, 67, 54, 0.2);
+  transform: scale(0.95);
+}
+
+.delete-x {
+  color: #FF4336;
+  font-size: 32rpx;
+  font-weight: bold;
+}
+
+/* 管理单元格样式 */
+.management-cells {
+  padding: 20rpx 0;
+}
+
+.management-cell {
+  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  border-radius: 20rpx;
+  padding: 40rpx 30rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10rpx);
+}
+
+.light-theme .management-cell {
+  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.25);
+}
+
+.management-cell:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.4);
+}
+
+.cell-text {
+  color: #FFFFFF;
+  font-size: 32rpx;
+  font-weight: 600;
+  text-align: center;
+  display: block;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20rpx;
+  padding: 30rpx;
+  margin-top: 20rpx;
+  text-align: center;
+  backdrop-filter: blur(10rpx);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.light-theme .back-btn {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.back-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.back-text {
+  color: #FFFFFF;
+  font-size: 28rpx;
+  opacity: 0.8;
+}
+
+.light-theme .back-text {
+  color: #333333;
 }
 
 /* 批量操作栏 */
@@ -699,6 +829,16 @@ const handleWorkCreated = (work) => {
   padding: 40rpx 30rpx 30rpx;
 }
 
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-text {
+  flex: 1;
+}
+
 .page-title {
   font-size: 48rpx;
   font-weight: bold;
@@ -709,6 +849,150 @@ const handleWorkCreated = (work) => {
 .page-subtitle {
   font-size: 28rpx;
   opacity: 0.7;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.modern-manage-btn {
+  background: linear-gradient(135deg, #FF6B35, #F7931E);
+  border: none;
+  border-radius: 25rpx;
+  padding: 20rpx 30rpx;
+  box-shadow: 0 8rpx 24rpx rgba(255, 107, 53, 0.3);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140rpx;
+}
+
+.modern-manage-btn:active {
+  transform: translateY(2rpx);
+  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.4);
+}
+
+.btn-text {
+  color: #FFFFFF;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 更多菜单 */
+.more-menu-container {
+  position: relative;
+}
+
+.more-btn {
+  padding: 15rpx 20rpx;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15rpx;
+  backdrop-filter: blur(10rpx);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.light-theme .more-btn {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.more-btn:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.more-dots {
+  color: #FFFFFF;
+  font-size: 32rpx;
+  font-weight: bold;
+  line-height: 1;
+  letter-spacing: 8rpx;
+}
+
+.light-theme .more-dots {
+  color: #333333;
+}
+
+/* 菜单遮罩 */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  z-index: 999;
+}
+
+/* 下拉菜单 */
+.more-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 10rpx;
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(20rpx);
+  border-radius: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+  min-width: 160rpx;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.light-theme .more-menu {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+}
+
+.menu-item {
+  padding: 25rpx 30rpx;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+.light-theme .menu-item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.light-theme .menu-item:active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.menu-text {
+  color: #FFFFFF;
+  font-size: 28rpx;
+  text-align: center;
+  display: block;
+}
+
+.light-theme .menu-text {
+  color: #333333;
 }
 
 /* 管理内容 */

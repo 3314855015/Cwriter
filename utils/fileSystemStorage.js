@@ -533,9 +533,10 @@ export class FileSystemStorage {
                   const reader = new plus.io.FileReader();
                   reader.onloadend = () => {
                     try {
-                      const content = reader.result
-                        ? JSON.parse(reader.result)
-                        : null;
+                      const content = this.safeParseJSON(
+                        reader.result,
+                        filePath
+                      );
                       resolve(content);
                     } catch (parseError) {
                       console.error(`文件解析失败: ${filePath}`, parseError);
@@ -569,11 +570,14 @@ export class FileSystemStorage {
                   .catch(() => resolve(null));
               } else {
                 // 检查是否是路径包含undefined的错误
-                if (filePath.includes('undefined/')) {
-                  console.error('❌ 路径包含undefined，检查userId和workId是否正确传递', {
-                    filePath,
-                    error
-                  });
+                if (filePath.includes("undefined/")) {
+                  console.error(
+                    "❌ 路径包含undefined，检查userId和workId是否正确传递",
+                    {
+                      filePath,
+                      error,
+                    }
+                  );
                 } else {
                   console.error(`获取文件失败: ${filePath}`, error);
                 }
@@ -607,6 +611,26 @@ export class FileSystemStorage {
     }
 
     resolve(null);
+  }
+
+  safeParseJSON(rawContent, filePath) {
+    if (!rawContent || typeof rawContent !== "string") {
+      return null;
+    }
+
+    // 去除 BOM 和首尾空白，减少解析失败概率
+    let normalized = rawContent.replace(/^\uFEFF/, "").trim();
+    if (!normalized) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(normalized);
+    } catch (error) {
+      // 如果还有不可见字符，尝试进一步清理
+      normalized = normalized.replace(/[\u0000-\u001f]/g, "");
+      return JSON.parse(normalized);
+    }
   }
 
   // 创建默认全局配置
@@ -667,45 +691,105 @@ export class FileSystemStorage {
   // 删除文件
   deleteFile(filePath) {
     if (this.useLocalStorageFallback) {
-      return true; // H5 环境下不需要删除真实文件
+      return Promise.resolve(true); // H5 环境下不需要删除真实文件
     }
 
-    try {
-      if (this.fileExists(filePath)) {
-        this.fs.unlinkSync(filePath);
+    return new Promise((resolve) => {
+      try {
+        this.fileManager.requestFileSystem(
+          plus.io.PUBLIC_DOCUMENTS,
+          (fs) => {
+            fs.root.getFile(
+              filePath,
+              { create: false },
+              (fileEntry) => {
+                fileEntry.remove(
+                  () => resolve(true),
+                  (error) => {
+                    console.error(`删除文件失败: ${filePath}`, error);
+                    resolve(false);
+                  }
+                );
+              },
+              (error) => {
+                // 文件不存在也视为删除成功
+                if (error?.code === 8 || error?.message?.includes("不存在")) {
+                  resolve(true);
+                } else {
+                  console.error(`获取文件失败: ${filePath}`, error);
+                  resolve(false);
+                }
+              }
+            );
+          },
+          (error) => {
+            console.error(`requestFileSystem失败: ${filePath}`, error);
+            resolve(false);
+          }
+        );
+      } catch (error) {
+        console.error(`删除文件失败: ${filePath}`, error);
+        resolve(false);
       }
-      return true;
-    } catch (error) {
-      console.error(`删除文件失败: ${filePath}`, error);
-      return false;
-    }
+    });
   }
 
   // 删除目录及其内容
   deleteDirectory(dirPath) {
     if (this.useLocalStorageFallback) {
-      return true; // H5 环境下不需要删除真实目录
+      return Promise.resolve(true); // H5 环境下不需要删除真实目录
     }
 
-    try {
-      if (this.fileExists(dirPath)) {
-        this.fs.rmdirSync(dirPath, true);
+    return new Promise((resolve) => {
+      try {
+        this.fileManager.requestFileSystem(
+          plus.io.PUBLIC_DOCUMENTS,
+          (fs) => {
+            fs.root.getDirectory(
+              dirPath,
+              { create: false },
+              (dirEntry) => {
+                dirEntry.removeRecursively(
+                  () => resolve(true),
+                  (error) => {
+                    console.error(`删除目录失败: ${dirPath}`, error);
+                    resolve(false);
+                  }
+                );
+              },
+              (error) => {
+                // 目录不存在同样视为成功
+                if (error?.code === 8 || error?.message?.includes("不存在")) {
+                  resolve(true);
+                } else {
+                  console.error(`获取目录失败: ${dirPath}`, error);
+                  resolve(false);
+                }
+              }
+            );
+          },
+          (error) => {
+            console.error(`requestFileSystem失败: ${dirPath}`, error);
+            resolve(false);
+          }
+        );
+      } catch (error) {
+        console.error(`删除目录失败: ${dirPath}`, error);
+        resolve(false);
       }
-      return true;
-    } catch (error) {
-      console.error(`删除目录失败: ${dirPath}`, error);
-      return false;
-    }
+    });
   }
 
   // 获取用户文件路径
   getUserPath(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserPath: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserPath: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     if (this.useLocalStorageFallback) {
       return `mock_path/users/${userId}`; // H5 环境下的模拟路径
     }
@@ -757,11 +841,13 @@ export class FileSystemStorage {
   // 初始化用户存储空间
   async initUserStorage(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ initUserStorage: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ initUserStorage: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     if (this.useLocalStorageFallback) {
       return this.initUserStorageFallback(userId);
     }
@@ -797,11 +883,13 @@ export class FileSystemStorage {
   // 获取用户配置
   async getUserConfig(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserConfig: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserConfig: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     if (this.useLocalStorageFallback) {
       return this.getUserConfigFallback(userId);
     }
@@ -832,11 +920,13 @@ export class FileSystemStorage {
   // 获取用户作品列表
   async getUserWorks(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserWorks: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserWorks: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     if (this.useLocalStorageFallback) {
       return this.getUserWorksFallback(userId);
     }
@@ -967,11 +1057,13 @@ export class FileSystemStorage {
   // 异步获取作品列表（plus.io 专用）
   async getUserWorksAsync(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserWorksAsync: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserWorksAsync: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     return new Promise((resolve) => {
       const worksPath = `${this.getUserPath(userId)}/works`;
 
@@ -1354,25 +1446,60 @@ export class FileSystemStorage {
   }
 
   // 删除作品
-  deleteWork(userId, workId) {
+  async deleteWork(userId, workId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
       console.warn("⚠️ deleteWork: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+      userId = "default_user";
     }
-    
-    try {
-      const userConfig = this.getUserConfig(userId);
 
-      if (!userConfig.works[workId]) {
-        throw new Error("作品不存在");
+    try {
+      const userConfig = (await this.getUserConfig(userId)) || {};
+      // 确保 works 容器存在，防止访问 undefined 属性
+      if (!userConfig.works || typeof userConfig.works !== "object") {
+        userConfig.works = {};
       }
 
       const workDir = this.getWorkPath(userId, workId);
-      const workTitle = userConfig.works[workId].title;
+      if (!workDir) {
+        throw new Error("无法定位作品目录");
+      }
+
+      let workRecord = userConfig.works[workId];
+
+      // 兼容 user.config.json 中缺少作品信息的场景
+      if (!workRecord) {
+        try {
+          const workConfig = await this.readFile(`${workDir}/work.config.json`);
+          if (workConfig) {
+            workRecord = {
+              id: workId,
+              title: workConfig.title || "未命名作品",
+              description: workConfig.description || "",
+              category: workConfig.category || "novel",
+              structure_type: workConfig.structure_type || "single",
+              is_active: workConfig.is_active !== false,
+              created_at: workConfig.created_at,
+              updated_at: workConfig.updated_at,
+              local_file_path: workConfig.local_file_path,
+            };
+          }
+        } catch (extraError) {
+          console.warn("⚠️ 删除作品时读取 work.config.json 失败:", extraError);
+        }
+
+        if (!workRecord) {
+          throw new Error("作品不存在");
+        }
+
+        // 同步一次缺失的作品信息，避免后续再次缺失
+        userConfig.works[workId] = workRecord;
+      }
+
+      const workTitle = workRecord.title;
 
       // 删除整个作品目录
-      this.deleteDirectory(workDir);
+      await this.deleteDirectory(workDir);
 
       // 从用户配置中移除作品
       delete userConfig.works[workId];
@@ -1978,11 +2105,14 @@ export class FileSystemStorage {
   // Fallback: 创建用户存储空间
   initUserStorageFallback(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ initUserStorageFallback: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn(
+        "⚠️ initUserStorageFallback: 无效的userId，使用default_user",
+        { userId }
+      );
+      userId = "default_user";
     }
-    
+
     const data = this.getFallbackData();
 
     if (!data.data.users[userId]) {
@@ -2011,11 +2141,13 @@ export class FileSystemStorage {
   // Fallback: 获取用户配置
   getUserConfigFallback(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserConfigFallback: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserConfigFallback: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     const data = this.getFallbackData();
     let userConfig = data.data.users[userId];
 
@@ -2029,11 +2161,13 @@ export class FileSystemStorage {
   // Fallback: 获取用户作品列表
   getUserWorksFallback(userId) {
     // 检查userId的有效性，防止undefined或null
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
-      console.warn("⚠️ getUserWorksFallback: 无效的userId，使用default_user", { userId });
-      userId = 'default_user';
+    if (!userId || typeof userId !== "string" || userId.trim() === "") {
+      console.warn("⚠️ getUserWorksFallback: 无效的userId，使用default_user", {
+        userId,
+      });
+      userId = "default_user";
     }
-    
+
     // Fallback 模式下没有真实文件系统，返回空数组
     // 在实际使用中，Fallback 模式主要用于开发测试
     console.warn("⚠️ Fallback 模式不支持文件系统扫描，返回空作品列表");
