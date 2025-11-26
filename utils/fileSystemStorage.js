@@ -468,13 +468,19 @@ export class FileSystemStorage {
     }
 
     try {
-      this.fs.mkdirSync(dirPath, true);
+      // 确保 fs 对象存在
+      if (this.fs && this.fs.mkdirSync) {
+        this.fs.mkdirSync(dirPath, true);
+      } else {
+        console.warn('文件系统接口不可用，跳过目录创建:', dirPath);
+      }
     } catch (error) {
       // 目录已存在则忽略错误
       if (error.errMsg && error.errMsg.includes("file already exists")) {
         return;
       }
-      throw error;
+      console.warn('创建目录失败:', dirPath, error);
+      // 不抛出错误，继续执行
     }
   }
 
@@ -1308,7 +1314,7 @@ export class FileSystemStorage {
 
     this.writeFile(`${workDir}/chapters/chapters.json`, []);
     this.writeFile(`${workDir}/glossary/glossary.json`, []);
-    this.writeFile(`${workDir}/maps/map_data.json`, []);
+    this.writeFile(`${workDir}/maps/map_list.json`, { maps: [] });
 
     return workDir;
   }
@@ -1551,7 +1557,7 @@ export class FileSystemStorage {
       this.readFile(`${workDir}/settings/manuscript.json`) || {};
     const chapters = this.readFile(`${workDir}/chapters/chapters.json`) || [];
     const glossary = this.readFile(`${workDir}/glossary/glossary.json`) || [];
-    const mapData = this.readFile(`${workDir}/maps/map_data.json`) || [];
+    const mapData = this.readFile(`${workDir}/maps/map_list.json`) || { maps: [] };
 
     workConfig.content = {
       manuscript,
@@ -1618,7 +1624,7 @@ export class FileSystemStorage {
 
       if (contentUpdates.map_data) {
         this.writeFile(
-          `${workDir}/maps/map_data.json`,
+          `${workDir}/maps/map_list.json`,
           contentUpdates.map_data
         );
       }
@@ -1632,6 +1638,234 @@ export class FileSystemStorage {
     } catch (error) {
       console.error("保存作品内容失败:", error);
       throw new Error(`保存作品内容失败: ${error.message}`);
+    }
+  }
+
+  // 保存地图数据（支持多地图）
+  async saveMapData(userId, workId, mapData) {
+    if (this.useLocalStorageFallback) {
+      try {
+        const result = await this.saveMapDataFallback(userId, workId, mapData);
+        return result;
+      } catch (error) {
+        console.error("[Fallback] 保存地图数据失败:", error);
+        throw new Error(`保存地图数据失败: ${error.message}`);
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    const mapListPath = `${workDir}/maps/map_list.json`;
+
+    try {
+      // 确保maps目录存在
+      this.mkdirIfNotExists(`${workDir}/maps`);
+      
+      // 读取现有地图列表 - 使用异步读取
+      let mapListData = await this.readFile(mapListPath);
+      if (!mapListData) {
+        mapListData = { maps: [] };
+      }
+      
+      // 确保 maps 数组存在
+      if (!mapListData.maps || !Array.isArray(mapListData.maps)) {
+        mapListData.maps = [];
+      }
+      
+      // 准备地图数据
+      const mapId = mapData.id || `map_${Date.now()}`;
+      const formattedMapData = {
+        id: mapId,
+        name: mapData.name || "新地图",
+        description: mapData.description || "",
+        version: "1.0",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+        nodes: mapData.nodes || [],
+        edges: mapData.edges || []
+      };
+
+      // 查找是否已存在该地图
+      const existingIndex = mapListData.maps.findIndex(map => map.id === mapId);
+      if (existingIndex >= 0) {
+        // 更新现有地图
+        formattedMapData.created_at = mapListData.maps[existingIndex].created_at;
+        mapListData.maps[existingIndex] = formattedMapData;
+        console.log(`更新现有地图: ${mapId}, 名称: ${formattedMapData.name}`);
+      } else {
+        // 添加新地图
+        mapListData.maps.push(formattedMapData);
+        console.log(`添加新地图: ${mapId}, 名称: ${formattedMapData.name}`);
+      }
+
+      // 保存地图列表
+      await this.writeFile(mapListPath, mapListData);
+      console.log(`地图列表已保存，当前地图数量: ${mapListData.maps.length}`);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      // 记录操作日志
+      this.logOperation(userId, "save_map", {
+        workId,
+        mapId,
+        mapName: formattedMapData.name,
+        nodesCount: formattedMapData.nodes.length,
+        edgesCount: formattedMapData.edges.length,
+        isUpdate: existingIndex >= 0
+      });
+
+      return formattedMapData;
+    } catch (error) {
+      console.error("保存地图数据失败:", error);
+      throw new Error(`保存地图数据失败: ${error.message}`);
+    }
+  }
+
+  // 获取地图列表
+  async getMapList(userId, workId) {
+    if (this.useLocalStorageFallback) {
+      try {
+        return this.getMapListFallback(userId, workId);
+      } catch (error) {
+        console.error("[Fallback] 获取地图列表失败:", error);
+        return { maps: [] };
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    if (!workDir) {
+      console.warn("无法获取作品路径:", { userId, workId });
+      return { maps: [] };
+    }
+
+    const mapListPath = `${workDir}/maps/map_list.json`;
+
+    try {
+      // 确保maps目录存在
+      this.mkdirIfNotExists(`${workDir}/maps`);
+      
+      const result = await this.readFile(mapListPath);
+      
+      // 如果文件不存在或为空，返回默认结构
+      if (!result) {
+        console.log("地图列表文件不存在，创建默认结构");
+        await this.writeFile(mapListPath, { maps: [] });
+        return { maps: [] };
+      }
+      
+      // 确保返回的数据结构正确
+      if (typeof result === 'object' && result.maps) {
+        console.log(`获取地图列表成功，地图数量: ${result.maps.length}`);
+        return result;
+      } else if (typeof result === 'object') {
+        // 如果有对象但没有maps字段，添加maps字段
+        result.maps = result.maps || [];
+        console.log(`获取地图列表成功（修复格式），地图数量: ${result.maps.length}`);
+        return result;
+      } else {
+        // 如果数据格式不正确，重新创建
+        console.warn("地图列表数据格式不正确，重新创建");
+        await this.writeFile(mapListPath, { maps: [] });
+        return { maps: [] };
+      }
+    } catch (error) {
+      console.warn("地图列表读取失败，尝试创建默认结构:", error);
+      try {
+        this.mkdirIfNotExists(`${workDir}/maps`);
+        if (this.writeFile) {
+          await this.writeFile(mapListPath, { maps: [] });
+        }
+        return { maps: [] };
+      } catch (createError) {
+        console.error("创建默认地图列表失败:", createError);
+        return { maps: [] };
+      }
+    }
+  }
+
+  // 获取单个地图数据
+  async getMapData(userId, workId, mapId) {
+    console.log(`正在获取地图数据: userId=${userId}, workId=${workId}, mapId=${mapId}`);
+    
+    if (this.useLocalStorageFallback) {
+      try {
+        console.log("使用 Fallback 模式获取地图数据");
+        return this.getMapDataFallback(userId, workId, mapId);
+      } catch (error) {
+        console.error("[Fallback] 获取地图数据失败:", error);
+        return null;
+      }
+    }
+
+    console.log("使用文件系统模式获取地图数据");
+    const mapList = await this.getMapList(userId, workId);
+    console.log(`获取到的地图列表:`, mapList);
+    
+    const map = mapList.maps.find(m => m.id === mapId);
+    console.log(`找到的地图:`, map);
+    
+    if (!map) {
+      console.warn(`地图不存在: ${mapId}`);
+      return null;
+    }
+
+    return map;
+  }
+
+  // 删除地图
+  deleteMap(userId, workId, mapId) {
+    if (this.useLocalStorageFallback) {
+      try {
+        return this.deleteMapFallback(userId, workId, mapId);
+      } catch (error) {
+        console.error("[Fallback] 删除地图失败:", error);
+        return false;
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    const mapListPath = `${workDir}/maps/map_list.json`;
+
+    try {
+      let mapListData = this.readFile(mapListPath) || { maps: [] };
+      
+      // 确保 maps 数组存在
+      if (!mapListData.maps || !Array.isArray(mapListData.maps)) {
+        mapListData.maps = [];
+      }
+      
+      const originalLength = mapListData.maps.length;
+      
+      // 删除指定地图
+      mapListData.maps = mapListData.maps.filter(map => map.id !== mapId);
+      
+      if (mapListData.maps.length === originalLength) {
+        console.warn(`地图不存在，无法删除: ${mapId}`);
+        return false;
+      }
+
+      // 保存更新后的列表
+      this.writeFile(mapListPath, mapListData);
+
+      // 更新作品修改时间
+      this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      // 记录操作日志
+      this.logOperation(userId, "delete_map", {
+        workId,
+        mapId,
+      });
+
+      return true;
+    } catch (error) {
+      console.error("删除地图失败:", error);
+      return false;
     }
   }
 
@@ -1955,10 +2189,10 @@ export class FileSystemStorage {
           }
 
           // 读取地图数据
-          const mapDataPath = `${workDir}/maps/map_data.json`;
+          const mapDataPath = `${workDir}/maps/map_list.json`;
           const mapData = this.readFile(mapDataPath);
-          if (mapData && Array.isArray(mapData)) {
-            totalMaps += mapData.length;
+          if (mapData && mapData.maps && Array.isArray(mapData.maps)) {
+            totalMaps += mapData.maps.length;
           }
         } catch (error) {
           console.error(`统计作品 ${work.id} 时出错:`, error);
@@ -2201,7 +2435,7 @@ export class FileSystemStorage {
         },
         chapters: [],
         glossary: [],
-        map_data: [],
+        map_data: { maps: [] },
       },
     };
 
@@ -2308,6 +2542,153 @@ export class FileSystemStorage {
       storageUsed: 0,
       storageType: "localStorage_fallback",
     };
+  }
+
+  // Fallback: 保存地图数据（支持多地图）
+  async saveMapDataFallback(userId, workId, mapData) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+
+      if (!userConfig.works[workId]) {
+        throw new Error("作品不存在");
+      }
+
+      // 确保作品有content对象
+      if (!userConfig.works[workId].content) {
+        userConfig.works[workId].content = {};
+      }
+      
+      // 确保有地图列表
+      if (!userConfig.works[workId].content.map_data) {
+        userConfig.works[workId].content.map_data = { maps: [] };
+      }
+
+      const mapList = userConfig.works[workId].content.map_data;
+      const mapId = mapData.id || `map_${Date.now()}`;
+      
+      // 准备地图数据
+      const formattedMapData = {
+        id: mapId,
+        name: mapData.name || "新地图",
+        description: mapData.description || "",
+        version: "1.0",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+        nodes: mapData.nodes || [],
+        edges: mapData.edges || []
+      };
+
+      // 查找是否已存在该地图
+      const existingIndex = mapList.maps.findIndex(map => map.id === mapId);
+      if (existingIndex >= 0) {
+        // 更新现有地图
+        formattedMapData.created_at = mapList.maps[existingIndex].created_at;
+        mapList.maps[existingIndex] = formattedMapData;
+        console.log(`[Fallback] 更新现有地图: ${mapId}, 名称: ${formattedMapData.name}`);
+      } else {
+        // 添加新地图
+        mapList.maps.push(formattedMapData);
+        console.log(`[Fallback] 添加新地图: ${mapId}, 名称: ${formattedMapData.name}`);
+      }
+
+      // 更新作品修改时间
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+
+      console.log("[Fallback] 地图数据已保存到本地存储:", {
+        workId,
+        mapId,
+        mapName: formattedMapData.name,
+        nodesCount: formattedMapData.nodes.length,
+        edgesCount: formattedMapData.edges.length,
+        isUpdate: existingIndex >= 0,
+        totalMaps: mapList.maps.length
+      });
+
+      return formattedMapData;
+    } catch (error) {
+      console.error("Fallback保存地图数据失败:", error);
+      throw new Error(`保存地图数据失败: ${error.message}`);
+    }
+  }
+
+  // Fallback: 获取地图列表
+  getMapListFallback(userId, workId) {
+    try {
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      if (!work) {
+        console.warn("作品不存在:", workId);
+        return { maps: [] };
+      }
+
+      return work.content?.map_data || { maps: [] };
+    } catch (error) {
+      console.error("Fallback获取地图列表失败:", error);
+      return { maps: [] };
+    }
+  }
+
+  // Fallback: 获取单个地图数据
+  getMapDataFallback(userId, workId, mapId) {
+    try {
+      const mapList = this.getMapListFallback(userId, workId);
+      const map = mapList.maps.find(m => m.id === mapId);
+      
+      if (!map) {
+        console.warn(`地图不存在: ${mapId}`);
+        return null;
+      }
+
+      return map;
+    } catch (error) {
+      console.error("Fallback获取地图数据失败:", error);
+      return null;
+    }
+  }
+
+  // Fallback: 删除地图
+  deleteMapFallback(userId, workId, mapId) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+
+      if (!userConfig.works[workId]) {
+        throw new Error("作品不存在");
+      }
+
+      const mapList = userConfig.works[workId].content?.map_data;
+      if (!mapList || !mapList.maps) {
+        console.warn("地图列表不存在");
+        return false;
+      }
+
+      const originalLength = mapList.maps.length;
+      mapList.maps = mapList.maps.filter(map => map.id !== mapId);
+      
+      if (mapList.maps.length === originalLength) {
+        console.warn(`地图不存在，无法删除: ${mapId}`);
+        return false;
+      }
+
+      // 更新作品修改时间
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+
+      console.log("地图已从本地存储删除:", { workId, mapId });
+      return true;
+    } catch (error) {
+      console.error("Fallback删除地图失败:", error);
+      return false;
+    }
   }
 }
 // 创建单例实例

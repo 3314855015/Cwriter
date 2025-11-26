@@ -185,6 +185,7 @@ const canvasWidth = ref(750);
 const canvasHeight = ref(600);
 let ctx = null;
 let canvas = null;
+let canvasRectIntervalId = null;
 
 // 数据模型
 const nodes = ref([]);
@@ -511,6 +512,11 @@ const viewOffsetY = ref(0);
 
 // 获取 Canvas 实际位置
 const updateCanvasRect = (callback) => {
+  if (!instance || instance?.isUnmounted) {
+    callback && callback();
+    return;
+  }
+
   const query = uni.createSelectorQuery().in(instance);
   query
     .select("canvas")
@@ -529,7 +535,6 @@ const updateCanvasRect = (callback) => {
         if (canvasHeight.value === 600) {
           canvasHeight.value = rect.height || 600;
         }
-
       }
       if (callback) callback();
     })
@@ -1008,10 +1013,12 @@ const updateNodePosition = (x, y) => {
     // 将屏幕坐标转换为画布坐标（考虑缩放和偏移）
     const canvasX = (x - viewOffsetX.value) / viewScale.value;
     const canvasY = (y - viewOffsetY.value) / viewScale.value;
-    
+
     // 同样将起始位置转换为画布坐标
-    const startCanvasX = (touchState.value.startX - viewOffsetX.value) / viewScale.value;
-    const startCanvasY = (touchState.value.startY - viewOffsetY.value) / viewScale.value;
+    const startCanvasX =
+      (touchState.value.startX - viewOffsetX.value) / viewScale.value;
+    const startCanvasY =
+      (touchState.value.startY - viewOffsetY.value) / viewScale.value;
 
     const newX = canvasX - dragOffset.value.x;
     const newY = canvasY - dragOffset.value.y;
@@ -1542,7 +1549,7 @@ onMounted(() => {
   uni.onPageScroll && uni.onPageScroll(handlePageScroll);
 
   // 定期更新 Canvas 位置（防止滚动后位置不准确）
-  setInterval(() => {
+  canvasRectIntervalId = setInterval(() => {
     updateCanvasRect();
   }, 1000);
 });
@@ -1555,6 +1562,11 @@ onUnmounted(() => {
   if (touchState.value.dragTimer) {
     clearTimeout(touchState.value.dragTimer);
   }
+  if (canvasRectIntervalId) {
+    clearInterval(canvasRectIntervalId);
+    canvasRectIntervalId = null;
+  }
+  uni.offPageScroll && uni.offPageScroll(handlePageScroll);
 });
 </script>
 
