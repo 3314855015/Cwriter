@@ -640,15 +640,22 @@ const openWork = (workId) => {
   }
 };
 
+const creationRouteMap = {
+  character: "/pages/create/character",
+  setting: "/pages/create/setting"
+};
+
 const openCreationPage = (type) => {
   const userId = currentUser.value?.id || "default_user";
+  const basePath = type && creationRouteMap[type] ? creationRouteMap[type] : "/pages/create/index";
   const query = [`userId=${userId}`];
-  if (type) {
+
+  if (type && !creationRouteMap[type]) {
     query.push(`type=${type}`);
   }
 
   uni.navigateTo({
-    url: `/pages/create/index?${query.join("&")}`,
+    url: `${basePath}?${query.join("&")}`,
   });
 };
 
