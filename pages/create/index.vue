@@ -703,9 +703,9 @@ watch(modalMapName, (newName) => {
 }
 
 .back-link {
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
   font-size: 18px;
   font-weight: 500;
   padding: 8px 16px;
@@ -719,22 +719,23 @@ watch(modalMapName, (newName) => {
 }
 
 .create-page.light-theme .back-link {
-  background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  color: rgba(0, 0, 0, 0.6);
 }
 
 .back-link:active {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
   transform: scale(0.95);
 }
 
 .create-page.light-theme .back-link:active {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
 }
 
-.create-page.light-theme .back-link {
-  color: rgba(0, 0, 0, 0.7);
-}
+
 
 .form-card,
 .content-card {
