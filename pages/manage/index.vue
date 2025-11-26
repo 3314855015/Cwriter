@@ -176,9 +176,19 @@ onMounted(async () => {
   setInterval(updateTime, 1000)
   
   // 监听主题变更事件
-  uni.$on('theme-changed', (themeData) => {
-    isDarkMode.value = themeData.isDark
-  })
+  try {
+    if (typeof uni !== 'undefined' && uni.$on) {
+      uni.$on('theme-changed', (themeData) => {
+        try {
+          isDarkMode.value = themeData.isDark
+        } catch (error) {
+          console.warn('主题变更处理失败:', error);
+        }
+      })
+    }
+  } catch (error) {
+    console.warn('主题监听器设置失败:', error);
+  }
   
   // 获取当前用户
   try {

@@ -554,6 +554,10 @@ const clearTimers = () => {
     clearTimeout(hideToolbarTimer);
     hideToolbarTimer = null;
   }
+  if (autoSaveTimer) {
+    clearInterval(autoSaveTimer);
+    autoSaveTimer = null;
+  }
 };
 
 onLoad(async (options) => {
@@ -572,9 +576,15 @@ onLoad(async (options) => {
   isDarkMode.value = themeManager.isDarkMode()
   
   // 监听主题变更事件
-  uni.$on('theme-changed', (themeData) => {
-    isDarkMode.value = themeData.isDark
-  })
+  try {
+    if (typeof uni !== 'undefined' && uni.$on) {
+      uni.$on('theme-changed', (themeData) => {
+        isDarkMode.value = themeData.isDark
+      })
+    }
+  } catch (error) {
+    console.warn('主题监听器设置失败:', error)
+  }
 
   chapterId.value = options.chapterId;
   userId.value = options.userId || "default_user";

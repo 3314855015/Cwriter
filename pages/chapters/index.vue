@@ -125,9 +125,19 @@ onLoad((options) => {
   isDarkMode.value = themeManager.isDarkMode()
   
   // 监听主题变更事件
-  uni.$on('theme-changed', (themeData) => {
-    isDarkMode.value = themeData.isDark
-  })
+  try {
+    if (typeof uni !== 'undefined' && uni.$on) {
+      uni.$on('theme-changed', (themeData) => {
+        try {
+          isDarkMode.value = themeData.isDark
+        } catch (error) {
+          console.warn('主题变更处理失败:', error);
+        }
+      })
+    }
+  } catch (error) {
+    console.warn('主题监听器设置失败:', error);
+  }
   
   if (!options || !options.workId) {
     console.error('❌ 章节页面缺少必要参数 workId')

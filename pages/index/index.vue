@@ -304,14 +304,24 @@ const filteredWorks = computed(() => {
 
 // 生命周期
 onMounted(() => {
-  initPage();
-  updateTime();
-  setInterval(updateTime, 60000); // 每分钟更新一次时间
+  try {
+    initPage();
+    updateTime();
+    setInterval(updateTime, 60000); // 每分钟更新一次时间
 
-  // 监听主题变更事件
-  uni.$on("theme-changed", (themeData) => {
-    isDarkMode.value = themeData.isDark;
-  });
+    // 监听主题变更事件
+    if (typeof uni !== 'undefined' && uni.$on) {
+      uni.$on("theme-changed", (themeData) => {
+        try {
+          isDarkMode.value = themeData.isDark;
+        } catch (error) {
+          console.warn('主题变更处理失败:', error);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('页面初始化失败:', error);
+  }
 });
 
 // 方法
