@@ -42,6 +42,20 @@
         "navigationStyle": "custom"
       }
     },
+    {
+      "path": "pages/create/character",
+      "style": {
+        "navigationBarTitleText": "新增人物",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/create/setting",
+      "style": {
+        "navigationBarTitleText": "新增设定",
+        "navigationStyle": "custom"
+      }
+    },
 
     {
       "path": "pages/auth/login",
