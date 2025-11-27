@@ -472,14 +472,14 @@ export class FileSystemStorage {
       if (this.fs && this.fs.mkdirSync) {
         this.fs.mkdirSync(dirPath, true);
       } else {
-        console.warn('文件系统接口不可用，跳过目录创建:', dirPath);
+        console.warn("文件系统接口不可用，跳过目录创建:", dirPath);
       }
     } catch (error) {
       // 目录已存在则忽略错误
       if (error.errMsg && error.errMsg.includes("file already exists")) {
         return;
       }
-      console.warn('创建目录失败:', dirPath, error);
+      console.warn("创建目录失败:", dirPath, error);
       // 不抛出错误，继续执行
     }
   }
@@ -965,7 +965,7 @@ export class FileSystemStorage {
 
         try {
           if (this.fileExists(workConfigPath)) {
-            const workConfig = this.readFile(workConfigPath);
+            const workConfig = await this.readFile(workConfigPath);
             if (workConfig) {
               works.push({
                 ...workConfig,
@@ -991,7 +991,7 @@ export class FileSystemStorage {
       // 同步作品信息到用户配置文件
       try {
         const userConfigPath = this.getUserConfigPath(userId);
-        let userConfig = this.getUserConfig(userId);
+        let userConfig = await this.getUserConfig(userId);
 
         if (!userConfig.works) {
           userConfig.works = {};
@@ -1107,7 +1107,7 @@ export class FileSystemStorage {
                         fileEntry.file(
                           (file) => {
                             const reader = new plus.io.FileReader();
-                            reader.onloadend = () => {
+                            reader.onloadend = async () => {
                               try {
                                 const workConfig = JSON.parse(reader.result);
 
@@ -1139,7 +1139,9 @@ export class FileSystemStorage {
                                 try {
                                   const userConfigPath =
                                     this.getUserConfigPath(userId);
-                                  let userConfig = this.getUserConfig(userId);
+                                  let userConfig = await this.getUserConfig(
+                                    userId
+                                  );
 
                                   if (!userConfig.works) {
                                     userConfig.works = {};
@@ -1313,7 +1315,8 @@ export class FileSystemStorage {
     });
 
     this.writeFile(`${workDir}/chapters/chapters.json`, []);
-    this.writeFile(`${workDir}/glossary/glossary.json`, []);
+    this.writeFile(`${workDir}/characters/characters.json`, []);
+    this.writeFile(`${workDir}/settings/custom_settings.json`, []);
     this.writeFile(`${workDir}/maps/map_list.json`, { maps: [] });
 
     return workDir;
@@ -1343,12 +1346,12 @@ export class FileSystemStorage {
       const workDir = this.createWorkStructure(userId, workId, workData);
 
       // 直接从 work.config.json 读取创建后的信息
-      const workConfig = this.readFile(`${workDir}/work.config.json`);
+      const workConfig = await this.readFile(`${workDir}/work.config.json`);
 
       // 将作品信息同步到用户配置文件中
       try {
         const userConfigPath = this.getUserConfigPath(userId);
-        let userConfig = this.readFile(userConfigPath);
+        let userConfig = await this.readFile(userConfigPath);
 
         if (!userConfig.works) {
           userConfig.works = {};
@@ -1528,7 +1531,7 @@ export class FileSystemStorage {
   }
 
   // 获取作品详情
-  getWorkDetail(userId, workId) {
+  async getWorkDetail(userId, workId) {
     if (this.useLocalStorageFallback) {
       try {
         const workDetail = this.getWorkDetailFallback(userId, workId);
@@ -1547,22 +1550,26 @@ export class FileSystemStorage {
     const workConfigPath = `${workDir}/work.config.json`;
 
     // 读取作品配置
-    const workConfig = this.readFile(workConfigPath);
+    const workConfig = await this.readFile(workConfigPath);
     if (!workConfig) {
       throw new Error("作品不存在");
     }
 
     // 加载作品内容文件
     const manuscript =
-      this.readFile(`${workDir}/settings/manuscript.json`) || {};
-    const chapters = this.readFile(`${workDir}/chapters/chapters.json`) || [];
-    const glossary = this.readFile(`${workDir}/glossary/glossary.json`) || [];
-    const mapData = this.readFile(`${workDir}/maps/map_list.json`) || { maps: [] };
+      (await this.readFile(`${workDir}/settings/manuscript.json`)) || {};
+    const chapters =
+      (await this.readFile(`${workDir}/chapters/chapters.json`)) || [];
+    const terms =
+      (await this.readFile(`${workDir}/settings/custom_settings.json`)) || [];
+    const mapData = (await this.readFile(`${workDir}/maps/map_list.json`)) || {
+      maps: [],
+    };
 
     workConfig.content = {
       manuscript,
       chapters,
-      glossary,
+      terms,
       map_data: mapData,
     };
 
@@ -1570,7 +1577,7 @@ export class FileSystemStorage {
   }
 
   // 保存作品内容
-  saveWorkContent(userId, workId, contentUpdates) {
+  async saveWorkContent(userId, workId, contentUpdates) {
     if (this.useLocalStorageFallback) {
       try {
         const result = this.saveWorkContentFallback(
@@ -1591,7 +1598,7 @@ export class FileSystemStorage {
     try {
       if (contentUpdates.manuscript) {
         const manuscriptPath = `${workDir}/settings/manuscript.json`;
-        const currentManuscript = this.readFile(manuscriptPath) || {};
+        const currentManuscript = (await this.readFile(manuscriptPath)) || {};
 
         const updatedManuscript = {
           ...currentManuscript,
@@ -1615,10 +1622,18 @@ export class FileSystemStorage {
         );
       }
 
+      // 术语现在存储在 settings/custom_settings.json，这个分支保留用于向后兼容
       if (contentUpdates.glossary) {
         this.writeFile(
-          `${workDir}/glossary/glossary.json`,
+          `${workDir}/settings/custom_settings.json`,
           contentUpdates.glossary
+        );
+      }
+
+      if (contentUpdates.terms) {
+        this.writeFile(
+          `${workDir}/settings/custom_settings.json`,
+          contentUpdates.terms
         );
       }
 
@@ -1659,18 +1674,18 @@ export class FileSystemStorage {
     try {
       // 确保maps目录存在
       this.mkdirIfNotExists(`${workDir}/maps`);
-      
+
       // 读取现有地图列表 - 使用异步读取
       let mapListData = await this.readFile(mapListPath);
       if (!mapListData) {
         mapListData = { maps: [] };
       }
-      
+
       // 确保 maps 数组存在
       if (!mapListData.maps || !Array.isArray(mapListData.maps)) {
         mapListData.maps = [];
       }
-      
+
       // 准备地图数据
       const mapId = mapData.id || `map_${Date.now()}`;
       const formattedMapData = {
@@ -1683,14 +1698,17 @@ export class FileSystemStorage {
         work_id: workId,
         user_id: userId,
         nodes: mapData.nodes || [],
-        edges: mapData.edges || []
+        edges: mapData.edges || [],
       };
 
       // 查找是否已存在该地图
-      const existingIndex = mapListData.maps.findIndex(map => map.id === mapId);
+      const existingIndex = mapListData.maps.findIndex(
+        (map) => map.id === mapId
+      );
       if (existingIndex >= 0) {
         // 更新现有地图
-        formattedMapData.created_at = mapListData.maps[existingIndex].created_at;
+        formattedMapData.created_at =
+          mapListData.maps[existingIndex].created_at;
         mapListData.maps[existingIndex] = formattedMapData;
         console.log(`更新现有地图: ${mapId}, 名称: ${formattedMapData.name}`);
       } else {
@@ -1715,7 +1733,7 @@ export class FileSystemStorage {
         mapName: formattedMapData.name,
         nodesCount: formattedMapData.nodes.length,
         edgesCount: formattedMapData.edges.length,
-        isUpdate: existingIndex >= 0
+        isUpdate: existingIndex >= 0,
       });
 
       return formattedMapData;
@@ -1747,24 +1765,26 @@ export class FileSystemStorage {
     try {
       // 确保maps目录存在
       this.mkdirIfNotExists(`${workDir}/maps`);
-      
+
       const result = await this.readFile(mapListPath);
-      
+
       // 如果文件不存在或为空，返回默认结构
       if (!result) {
         console.log("地图列表文件不存在，创建默认结构");
         await this.writeFile(mapListPath, { maps: [] });
         return { maps: [] };
       }
-      
+
       // 确保返回的数据结构正确
-      if (typeof result === 'object' && result.maps) {
+      if (typeof result === "object" && result.maps) {
         console.log(`获取地图列表成功，地图数量: ${result.maps.length}`);
         return result;
-      } else if (typeof result === 'object') {
+      } else if (typeof result === "object") {
         // 如果有对象但没有maps字段，添加maps字段
         result.maps = result.maps || [];
-        console.log(`获取地图列表成功（修复格式），地图数量: ${result.maps.length}`);
+        console.log(
+          `获取地图列表成功（修复格式），地图数量: ${result.maps.length}`
+        );
         return result;
       } else {
         // 如果数据格式不正确，重新创建
@@ -1789,8 +1809,10 @@ export class FileSystemStorage {
 
   // 获取单个地图数据
   async getMapData(userId, workId, mapId) {
-    console.log(`正在获取地图数据: userId=${userId}, workId=${workId}, mapId=${mapId}`);
-    
+    console.log(
+      `正在获取地图数据: userId=${userId}, workId=${workId}, mapId=${mapId}`
+    );
+
     if (this.useLocalStorageFallback) {
       try {
         console.log("使用 Fallback 模式获取地图数据");
@@ -1804,10 +1826,10 @@ export class FileSystemStorage {
     console.log("使用文件系统模式获取地图数据");
     const mapList = await this.getMapList(userId, workId);
     console.log(`获取到的地图列表:`, mapList);
-    
-    const map = mapList.maps.find(m => m.id === mapId);
+
+    const map = mapList.maps.find((m) => m.id === mapId);
     console.log(`找到的地图:`, map);
-    
+
     if (!map) {
       console.warn(`地图不存在: ${mapId}`);
       return null;
@@ -1817,7 +1839,7 @@ export class FileSystemStorage {
   }
 
   // 删除地图
-  deleteMap(userId, workId, mapId) {
+  async deleteMap(userId, workId, mapId) {
     if (this.useLocalStorageFallback) {
       try {
         return this.deleteMapFallback(userId, workId, mapId);
@@ -1831,18 +1853,18 @@ export class FileSystemStorage {
     const mapListPath = `${workDir}/maps/map_list.json`;
 
     try {
-      let mapListData = this.readFile(mapListPath) || { maps: [] };
-      
+      let mapListData = (await this.readFile(mapListPath)) || { maps: [] };
+
       // 确保 maps 数组存在
       if (!mapListData.maps || !Array.isArray(mapListData.maps)) {
         mapListData.maps = [];
       }
-      
+
       const originalLength = mapListData.maps.length;
-      
+
       // 删除指定地图
-      mapListData.maps = mapListData.maps.filter(map => map.id !== mapId);
-      
+      mapListData.maps = mapListData.maps.filter((map) => map.id !== mapId);
+
       if (mapListData.maps.length === originalLength) {
         console.warn(`地图不存在，无法删除: ${mapId}`);
         return false;
@@ -1870,12 +1892,12 @@ export class FileSystemStorage {
   }
 
   // 添加专有名词
-  addGlossaryItem(userId, workId, itemData) {
+  async addGlossaryItem(userId, workId, itemData) {
     const glossaryPath = `${this.getWorkPath(
       userId,
       workId
-    )}/glossary/glossary.json`;
-    const glossary = this.readFile(glossaryPath) || [];
+    )}/settings/custom_settings.json`;
+    const glossary = (await this.readFile(glossaryPath)) || [];
 
     const newItem = {
       id: Date.now().toString(),
@@ -2105,13 +2127,13 @@ export class FileSystemStorage {
   }
 
   // 备份数据
-  createBackup(userId) {
+  async createBackup(userId) {
     try {
       const backupDir = `${this.basePath}/backups/${userId}`;
       this.mkdirIfNotExists(backupDir);
 
       const backupId = Date.now().toString();
-      const userConfig = this.getUserConfig(userId);
+      const userConfig = await this.getUserConfig(userId);
 
       const backup = {
         id: backupId,
@@ -2127,7 +2149,7 @@ export class FileSystemStorage {
 
       // 更新全局配置中的备份计数
       if (!this.useLocalStorageFallback) {
-        const config = this.readFile(this.configFile);
+        const config = await this.readFile(this.configFile);
         if (config && config.backups_count !== undefined) {
           config.backups_count[userId] =
             (config.backups_count[userId] || 0) + 1;
@@ -2144,7 +2166,7 @@ export class FileSystemStorage {
   }
 
   // 获取存储统计信息
-  getStorageStats(userId) {
+  async getStorageStats(userId) {
     if (this.useLocalStorageFallback) {
       try {
         const stats = this.getStorageStatsFallback(userId);
@@ -2165,7 +2187,7 @@ export class FileSystemStorage {
     }
 
     try {
-      const userConfig = this.getUserConfig(userId);
+      const userConfig = await this.getUserConfig(userId);
       const userPath = this.getUserPath(userId);
 
       let totalWords = 0;
@@ -2175,13 +2197,13 @@ export class FileSystemStorage {
 
       // 遍历所有作品 - 添加空值检查
       const works = userConfig?.works || {};
-      Object.values(works).forEach((work) => {
+      Object.values(works).forEach(async (work) => {
         try {
           const workDir = this.getWorkPath(userId, work.id);
 
           // 读取稿件内容
           const manuscriptPath = `${workDir}/settings/manuscript.json`;
-          const manuscript = this.readFile(manuscriptPath);
+          const manuscript = await this.readFile(manuscriptPath);
 
           if (manuscript && manuscript.content) {
             totalWords += manuscript.content.split(/\s+/).length;
@@ -2190,7 +2212,7 @@ export class FileSystemStorage {
 
           // 读取地图数据
           const mapDataPath = `${workDir}/maps/map_list.json`;
-          const mapData = this.readFile(mapDataPath);
+          const mapData = await this.readFile(mapDataPath);
           if (mapData && mapData.maps && Array.isArray(mapData.maps)) {
             totalMaps += mapData.maps.length;
           }
@@ -2267,20 +2289,20 @@ export class FileSystemStorage {
   }
 
   // 清理过期日志和备份
-  cleanupOldData(maxLogs = 1000, maxBackups = 10) {
+  async cleanupOldData(maxLogs = 1000, maxBackups = 10) {
     try {
       // 清理日志
       const logsDir = `${this.basePath}/logs`;
       if (this.fileExists(logsDir)) {
         const logFiles = this.fs.readdirSync(logsDir) || [];
-        logFiles.forEach((userId) => {
+        for (const userId of logFiles) {
           const logFile = `${logsDir}/${userId}/operations.json`;
-          const logs = this.readFile(logFile) || [];
+          const logs = (await this.readFile(logFile)) || [];
 
           if (logs.length > maxLogs) {
             this.writeFile(logFile, logs.slice(-maxLogs));
           }
-        });
+        }
       }
 
       // 清理备份
@@ -2491,6 +2513,13 @@ export class FileSystemStorage {
       work.content.glossary = contentUpdates.glossary;
     }
 
+    if (contentUpdates.terms) {
+      if (!work.content.settings) {
+        work.content.settings = {};
+      }
+      work.content.settings.custom_settings = contentUpdates.terms;
+    }
+
     if (contentUpdates.map_data) {
       work.content.map_data = contentUpdates.map_data;
     }
@@ -2558,7 +2587,7 @@ export class FileSystemStorage {
       if (!userConfig.works[workId].content) {
         userConfig.works[workId].content = {};
       }
-      
+
       // 确保有地图列表
       if (!userConfig.works[workId].content.map_data) {
         userConfig.works[workId].content.map_data = { maps: [] };
@@ -2566,7 +2595,7 @@ export class FileSystemStorage {
 
       const mapList = userConfig.works[workId].content.map_data;
       const mapId = mapData.id || `map_${Date.now()}`;
-      
+
       // 准备地图数据
       const formattedMapData = {
         id: mapId,
@@ -2578,20 +2607,24 @@ export class FileSystemStorage {
         work_id: workId,
         user_id: userId,
         nodes: mapData.nodes || [],
-        edges: mapData.edges || []
+        edges: mapData.edges || [],
       };
 
       // 查找是否已存在该地图
-      const existingIndex = mapList.maps.findIndex(map => map.id === mapId);
+      const existingIndex = mapList.maps.findIndex((map) => map.id === mapId);
       if (existingIndex >= 0) {
         // 更新现有地图
         formattedMapData.created_at = mapList.maps[existingIndex].created_at;
         mapList.maps[existingIndex] = formattedMapData;
-        console.log(`[Fallback] 更新现有地图: ${mapId}, 名称: ${formattedMapData.name}`);
+        console.log(
+          `[Fallback] 更新现有地图: ${mapId}, 名称: ${formattedMapData.name}`
+        );
       } else {
         // 添加新地图
         mapList.maps.push(formattedMapData);
-        console.log(`[Fallback] 添加新地图: ${mapId}, 名称: ${formattedMapData.name}`);
+        console.log(
+          `[Fallback] 添加新地图: ${mapId}, 名称: ${formattedMapData.name}`
+        );
       }
 
       // 更新作品修改时间
@@ -2607,7 +2640,7 @@ export class FileSystemStorage {
         nodesCount: formattedMapData.nodes.length,
         edgesCount: formattedMapData.edges.length,
         isUpdate: existingIndex >= 0,
-        totalMaps: mapList.maps.length
+        totalMaps: mapList.maps.length,
       });
 
       return formattedMapData;
@@ -2639,8 +2672,8 @@ export class FileSystemStorage {
   getMapDataFallback(userId, workId, mapId) {
     try {
       const mapList = this.getMapListFallback(userId, workId);
-      const map = mapList.maps.find(m => m.id === mapId);
-      
+      const map = mapList.maps.find((m) => m.id === mapId);
+
       if (!map) {
         console.warn(`地图不存在: ${mapId}`);
         return null;
@@ -2670,8 +2703,8 @@ export class FileSystemStorage {
       }
 
       const originalLength = mapList.maps.length;
-      mapList.maps = mapList.maps.filter(map => map.id !== mapId);
-      
+      mapList.maps = mapList.maps.filter((map) => map.id !== mapId);
+
       if (mapList.maps.length === originalLength) {
         console.warn(`地图不存在，无法删除: ${mapId}`);
         return false;
@@ -2687,6 +2720,294 @@ export class FileSystemStorage {
       return true;
     } catch (error) {
       console.error("Fallback删除地图失败:", error);
+      return false;
+    }
+  }
+
+  // 获取章节数据
+  async getChapters(userId, workId) {
+    if (this.useLocalStorageFallback) {
+      return this.getChaptersFallback(userId, workId);
+    }
+
+    // 获取作品路径，检查参数有效性
+    const workDir = this.getWorkPath(userId, workId);
+    if (!workDir) {
+      console.warn("getChapters: 无法获取作品路径", { userId, workId });
+      return [];
+    }
+
+    const chaptersPath = `${workDir}/chapters/chapters.json`;
+    const chapters = await this.readFile(chaptersPath);
+    return Array.isArray(chapters) ? chapters : [];
+  }
+
+  // 获取人物数据
+  async getCharacters(userId, workId) {
+    if (this.useLocalStorageFallback) {
+      return this.getCharactersFallback(userId, workId);
+    }
+
+    // 获取作品路径，检查参数有效性
+    const workDir = this.getWorkPath(userId, workId);
+    if (!workDir) {
+      console.warn("getCharacters: 无法获取作品路径", { userId, workId });
+      return [];
+    }
+
+    // 首先尝试从专门的 characters 文件获取
+    const charactersPath = `${workDir}/characters/characters.json`;
+    let characters = await this.readFile(charactersPath);
+
+    // 确保返回数组，处理文件不存在的情况
+    if (!characters || !Array.isArray(characters)) {
+      characters = [];
+    }
+
+    // 如果 characters 文件为空，尝试从其他可能的位置获取人物数据
+    if (characters.length === 0) {
+      // 尝试从 custom_settings 中获取 category 为 character 的条目
+      const glossaryPath = `${workDir}/settings/custom_settings.json`;
+      const glossary = (await this.readFile(glossaryPath)) || [];
+      if (Array.isArray(glossary)) {
+        characters = glossary.filter(
+          (item) =>
+            item.type === "character" ||
+            item.category === "character" ||
+            item.category === "人物"
+        );
+      }
+    }
+
+    return characters;
+  }
+
+  // 获取术语数据
+  async getTerms(userId, workId) {
+    if (this.useLocalStorageFallback) {
+      return this.getTermsFallback(userId, workId);
+    }
+
+    // 获取作品路径，检查参数有效性
+    const workDir = this.getWorkPath(userId, workId);
+    if (!workDir) {
+      console.warn("getTerms: 无法获取作品路径", { userId, workId });
+      return [];
+    }
+
+    // 根据用户反馈，术语数据存储在 settings/custom_settings.json
+    const termsPath = `${workDir}/settings/custom_settings.json`;
+    let terms = await this.readFile(termsPath);
+
+    // 确保 terms 是数组
+    if (!Array.isArray(terms)) {
+      terms = [];
+    }
+
+    return terms;
+  }
+
+  // 删除章节
+  async deleteChapter(userId, workId, chapterId) {
+    if (this.useLocalStorageFallback) {
+      return this.deleteChapterFallback(userId, workId, chapterId);
+    }
+
+    const chaptersPath = `${this.getWorkPath(
+      userId,
+      workId
+    )}/chapters/chapters.json`;
+    const chapters = (await this.readFile(chaptersPath)) || [];
+
+    // 确保 chapters 是数组
+    if (!Array.isArray(chapters)) {
+      console.warn("章节数据不是数组格式，重置为空数组");
+      return true;
+    }
+
+    const filteredChapters = chapters.filter(
+      (chapter) => chapter.id !== chapterId
+    );
+    this.writeFile(chaptersPath, filteredChapters);
+
+    this.logOperation(userId, "delete_chapter", {
+      workId,
+      chapterId,
+    });
+
+    return true;
+  }
+
+  // 删除人物
+  async deleteCharacter(userId, workId, characterId) {
+    if (this.useLocalStorageFallback) {
+      return this.deleteCharacterFallback(userId, workId, characterId);
+    }
+
+    const charactersPath = `${this.getWorkPath(
+      userId,
+      workId
+    )}/characters/characters.json`;
+    const characters = (await this.readFile(charactersPath)) || [];
+
+    // 确保 characters 是数组
+    if (!Array.isArray(characters)) {
+      console.warn("人物数据不是数组格式，重置为空数组");
+      return true;
+    }
+
+    const filteredCharacters = characters.filter(
+      (character) => character.id !== characterId
+    );
+    this.writeFile(charactersPath, filteredCharacters);
+
+    this.logOperation(userId, "delete_character", {
+      workId,
+      characterId,
+    });
+
+    return true;
+  }
+
+  // 删除术语
+  async deleteTerm(userId, workId, termId) {
+    if (this.useLocalStorageFallback) {
+      return this.deleteTermFallback(userId, workId, termId);
+    }
+
+    const termsPath = `${this.getWorkPath(
+      userId,
+      workId
+    )}/settings/custom_settings.json`;
+    const terms = (await this.readFile(termsPath)) || [];
+
+    // 确保 terms 是数组
+    if (!Array.isArray(terms)) {
+      console.warn("术语数据不是数组格式，重置为空数组");
+      return true;
+    }
+
+    const filteredTerms = terms.filter((term) => term.id !== termId);
+    this.writeFile(termsPath, filteredTerms);
+
+    this.logOperation(userId, "delete_term", {
+      workId,
+      termId,
+    });
+
+    return true;
+  }
+
+  // Fallback 方法
+  getChaptersFallback(userId, workId) {
+    try {
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+      return work?.content?.chapters || [];
+    } catch (error) {
+      console.error("Fallback获取章节数据失败:", error);
+      return [];
+    }
+  }
+
+  getCharactersFallback(userId, workId) {
+    try {
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      // 首先尝试从专门的 characters 数组获取
+      let characters = work?.content?.characters || [];
+
+      return characters;
+    } catch (error) {
+      console.error("Fallback获取人物数据失败:", error);
+      return [];
+    }
+  }
+
+  getTermsFallback(userId, workId) {
+    try {
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      // 从 settings/custom_settings 获取术语数据
+      let terms = work?.content?.settings?.custom_settings || [];
+
+      // 确保返回数组
+      if (!Array.isArray(terms)) {
+        terms = [];
+      }
+
+      return terms;
+    } catch (error) {
+      console.error("Fallback获取术语数据失败:", error);
+      return [];
+    }
+  }
+
+  deleteChapterFallback(userId, workId, chapterId) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      if (!work?.content?.chapters) return false;
+
+      work.content.chapters = work.content.chapters.filter(
+        (chapter) => chapter.id !== chapterId
+      );
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+      return true;
+    } catch (error) {
+      console.error("Fallback删除章节失败:", error);
+      return false;
+    }
+  }
+
+  deleteCharacterFallback(userId, workId, characterId) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      if (!work?.content?.characters) return false;
+
+      work.content.characters = work.content.characters.filter(
+        (character) => character.id !== characterId
+      );
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+      return true;
+    } catch (error) {
+      console.error("Fallback删除人物失败:", error);
+      return false;
+    }
+  }
+
+  deleteTermFallback(userId, workId, termId) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+      const work = userConfig.works[workId];
+
+      if (!work?.content?.settings?.custom_settings) return false;
+
+      work.content.settings.custom_settings =
+        work.content.settings.custom_settings.filter(
+          (term) => term.id !== termId
+        );
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+      return true;
+    } catch (error) {
+      console.error("Fallback删除术语失败:", error);
       return false;
     }
   }

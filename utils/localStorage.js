@@ -257,7 +257,7 @@ export class UserStorage {
   // 添加专有名词
   static addGlossaryItem(userId, workId, itemData) {
     const workPath = this.getWorkPath(userId, workId)
-    const glossary = uni.getStorageSync(`${workPath}/glossary.json`) || []
+    const glossary = uni.getStorageSync(`${workPath}/settings/custom_settings.json`) || []
     
     const newItem = {
       id: Date.now().toString(),
@@ -272,7 +272,7 @@ export class UserStorage {
     }
     
     glossary.push(newItem)
-    uni.setStorageSync(`${workPath}/glossary.json`, glossary)
+    uni.setStorageSync(`${workPath}/settings/custom_settings.json`, glossary)
     
     // 记录操作日志
     this.logOperation(userId, 'add_glossary', { workId, itemName: newItem.name })
