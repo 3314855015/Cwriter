@@ -1,5 +1,6 @@
 # 说明文档目录 - 不提交说明文档
 说明文档/
+Android-SDK@4.85.82519_20251107-1/
 
 # UniApp 相关
 unpackage/
@@ -92,3 +93,13 @@ z_n8n-mvp/test-ai-map.html
 z_n8n-mvp/n8n-workflow-config.json
 z_n8n-mvp/ai-enhanced-functions.js
 vis-network.min.js
+
+# 原生插件相关临时文件
+temp_aar/
+*.aar.bak
+vite.config.js.bak
+
+# Android Studio 项目文件（如果在外部）
+.gradle/
+local.properties
+*.iml
