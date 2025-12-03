@@ -1,0 +1,65 @@
+apply plugin: 'com.android.library'
+
+android {
+    compileSdkVersion 33
+    buildToolsVersion "33.0.0"
+
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 33
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+    
+    sourceSets {
+        main {
+            assets.srcDirs = ['assets']
+        }
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    jcenter()
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    // uni-app SDK - 需要从uni-app SDK中获取
+    compileOnly fileTree(dir: 'libs', include: ['uniapp-v8-release.aar'])
+    
+    // FastJSON - uni-app使用
+    compileOnly 'com.alibaba:fastjson:1.2.83'
+    
+    // PDF生成库 - Apache PDFBox（开源免费，Apache 2.0许可证）
+    implementation 'org.apache.pdfbox:pdfbox:2.0.29'
+    
+    // DOCX生成库 - Apache POI
+    implementation 'org.apache.poi:poi-ooxml:5.2.3'
+    implementation 'org.apache.poi:poi:5.2.3'
+    
+    // XML处理（POI依赖）
+    implementation 'org.apache.xmlbeans:xmlbeans:5.1.1'
+    implementation 'org.apache.commons:commons-compress:1.21'
+}
+
+

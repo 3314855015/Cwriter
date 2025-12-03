@@ -1,0 +1,9 @@
+{
+  "modules": [
+    {
+      "name": "export-native",
+      "class": "com.cwriter.export.ExportModule",
+      "type": "module"
+    }
+  ]
+}
