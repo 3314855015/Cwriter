@@ -63,6 +63,13 @@
         "navigationBarTitleText": "登录",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/export/index",
+      "style": {
+        "navigationBarTitleText": "导出作品",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

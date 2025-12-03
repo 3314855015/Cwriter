@@ -4,9 +4,21 @@
     <view class="status-bar">
       <text class="status-time">{{ currentTime }}</text>
       <view class="status-icons">
-        <image class="status-icon" src="/static/icons/signal.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/wifi.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/battery.svg" mode="aspectFit"></image>
+        <image
+          class="status-icon"
+          src="/static/icons/signal.svg"
+          mode="aspectFit"
+        ></image>
+        <image
+          class="status-icon"
+          src="/static/icons/wifi.svg"
+          mode="aspectFit"
+        ></image>
+        <image
+          class="status-icon"
+          src="/static/icons/battery.svg"
+          mode="aspectFit"
+        ></image>
       </view>
     </view>
 
@@ -23,9 +35,9 @@
               <text class="more-dots">···</text>
             </view>
             <!-- 点击遮罩关闭菜单 -->
-            <view 
-              v-if="showMoreMenu" 
-              class="menu-overlay" 
+            <view
+              v-if="showMoreMenu"
+              class="menu-overlay"
               @tap="closeMoreMenu"
               @touchmove.prevent
             ></view>
@@ -50,209 +62,271 @@
 
     <!-- 文件管理内容 -->
     <view class="manage-content">
-
-    <!-- 作品列表 -->
-    <view class="works-section">
-      <view class="section-header">
-        <text class="section-title">{{ currentWork ? currentWork.title : '作品列表' }}</text>
-        <text class="work-count" v-if="!currentWork">共 {{ works.length }} 部作品</text>
-      </view>
-      
       <!-- 作品列表 -->
-      <view v-if="!currentWork" class="works-list">
-        <view 
-          v-for="work in works" 
-          :key="work.id" 
-          class="work-item"
-          :class="{ selected: selectedWorks.includes(work.id) }"
-          @tap="selectWork(work)"
-          @longpress="toggleWorkSelection(work.id)"
-        >
-          <view class="work-checkbox" v-if="isSelectionMode">
-            <view class="checkbox" :class="{ checked: selectedWorks.includes(work.id) }"></view>
+      <view class="works-section">
+        <view class="section-header">
+          <text class="section-title">{{
+            currentWork ? currentWork.title : "作品列表"
+          }}</text>
+          <text class="work-count" v-if="!currentWork"
+            >共 {{ works.length }} 部作品</text
+          >
+        </view>
+
+        <!-- 作品列表 -->
+        <view v-if="!currentWork" class="works-list">
+          <view
+            v-for="work in works"
+            :key="work.id"
+            class="work-item"
+            :class="{ selected: selectedWorks.includes(work.id) }"
+            @tap="selectWork(work)"
+            @longpress="toggleWorkSelection(work.id)"
+          >
+            <view class="work-checkbox" v-if="isSelectionMode">
+              <view
+                class="checkbox"
+                :class="{ checked: selectedWorks.includes(work.id) }"
+              ></view>
+            </view>
+
+            <view class="work-info">
+              <text class="work-title">{{ work.title }}</text>
+              <text class="work-meta"
+                >{{ work.chapterCount }} 章节 · {{ work.wordCount }} 字</text
+              >
+            </view>
+
+            <view class="delete-btn" @tap.stop="deleteWork(work)">
+              <text class="delete-x">×</text>
+            </view>
           </view>
-          
-          <view class="work-info">
-            <text class="work-title">{{ work.title }}</text>
-            <text class="work-meta">{{ work.chapterCount }} 章节 · {{ work.wordCount }} 字</text>
+        </view>
+
+        <!-- 管理单元格 -->
+        <view v-else class="management-content">
+          <!-- 章节管理 -->
+          <view
+            v-if="currentManagementType === 'chapters'"
+            class="management-section"
+          >
+            <view class="management-header">
+              <text class="management-title">章节管理</text>
+              <text class="management-subtitle">管理作品章节结构</text>
+            </view>
+            <view class="management-body">
+              <view v-if="chapters.length === 0" class="empty-state">
+                <text class="empty-text">暂无章节</text>
+                <text class="empty-hint">点击下方按钮创建第一个章节</text>
+              </view>
+              <view v-else class="chapters-list">
+                <view
+                  v-for="(chapter, index) in chapters"
+                  :key="chapter.id"
+                  class="chapter-item"
+                  @tap="editChapter(chapter)"
+                >
+                  <view class="chapter-info">
+                    <text class="chapter-title">{{
+                      chapter.title || `第${index + 1}章`
+                    }}</text>
+                    <text class="chapter-word-count"
+                      >{{ chapter.word_count || 0 }}字</text
+                    >
+                  </view>
+                  <view class="chapter-actions">
+                    <text
+                      class="action-btn delete"
+                      @tap.stop="deleteChapter(chapter.id)"
+                      >删除</text
+                    >
+                  </view>
+                </view>
+              </view>
+              <view class="add-btn" @tap="addChapter">
+                <text class="add-text">+ 添加章节</text>
+              </view>
+            </view>
           </view>
-          
-          <view class="delete-btn" @tap.stop="deleteWork(work)">
-            <text class="delete-x">×</text>
+
+          <!-- 人物管理 -->
+          <view
+            v-else-if="currentManagementType === 'characters'"
+            class="management-section"
+          >
+            <view class="management-header">
+              <text class="management-title">人物管理</text>
+              <text class="management-subtitle">管理作品人物设定</text>
+            </view>
+            <view class="management-body">
+              <view v-if="characters.length === 0" class="empty-state">
+                <text class="empty-text">暂无人物</text>
+                <text class="empty-hint">点击下方按钮创建第一个人物</text>
+              </view>
+              <view v-else class="characters-grid">
+                <view
+                  v-for="character in characters"
+                  :key="character.id"
+                  class="character-card"
+                  @tap="editCharacter(character)"
+                >
+                  <view class="character-avatar">
+                    <text class="avatar-text">{{
+                      character.name ? character.name[0] : "?"
+                    }}</text>
+                  </view>
+                  <view class="character-info">
+                    <text class="character-name">{{
+                      character.name || "未命名"
+                    }}</text>
+                    <text class="character-role">{{
+                      character.role || character.description || "无角色"
+                    }}</text>
+                  </view>
+                  <view class="character-actions">
+                    <text
+                      class="action-btn delete"
+                      @tap.stop="deleteCharacter(character.id)"
+                      >删除</text
+                    >
+                  </view>
+                </view>
+              </view>
+              <view class="add-btn" @tap="addCharacter">
+                <text class="add-text">+ 添加人物</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 术语管理 -->
+          <view
+            v-else-if="currentManagementType === 'terms'"
+            class="management-section"
+          >
+            <view class="management-header">
+              <text class="management-title">术语管理</text>
+              <text class="management-subtitle">管理作品术语设定</text>
+            </view>
+            <view class="management-body">
+              <view v-if="terms.length === 0" class="empty-state">
+                <text class="empty-text">暂无术语</text>
+                <text class="empty-hint">点击下方按钮添加第一个术语</text>
+              </view>
+              <view v-else class="terms-list">
+                <view
+                  v-for="term in terms"
+                  :key="term.id"
+                  class="term-item"
+                  @tap="editTerm(term)"
+                >
+                  <view class="term-info">
+                    <text class="term-name">{{ term.name || "未命名" }}</text>
+                    <text class="term-definition">{{
+                      term.description || term.definition || "暂无定义"
+                    }}</text>
+                  </view>
+                  <view class="term-actions">
+                    <text
+                      class="action-btn delete"
+                      @tap.stop="deleteTerm(term.id)"
+                      >删除</text
+                    >
+                  </view>
+                </view>
+              </view>
+              <view class="add-btn" @tap="addTerm">
+                <text class="add-text">+ 添加术语</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 地图管理 -->
+          <view
+            v-else-if="currentManagementType === 'maps'"
+            class="management-section"
+          >
+            <view class="management-header">
+              <text class="management-title">地图管理</text>
+              <text class="management-subtitle">管理作品地图数据</text>
+            </view>
+            <view class="management-body">
+              <view v-if="maps.length === 0" class="empty-state">
+                <text class="empty-text">暂无地图</text>
+                <text class="empty-hint">点击下方按钮创建第一个地图</text>
+              </view>
+              <view v-else class="maps-list">
+                <view
+                  v-for="map in maps"
+                  :key="map.id"
+                  class="map-item"
+                  @tap="editMap(map)"
+                >
+                  <view class="map-info">
+                    <text class="map-name">{{ map.name || "未命名" }}</text>
+                    <text class="map-desc">{{
+                      map.description || "暂无描述"
+                    }}</text>
+                    <text class="map-meta"
+                      >{{ formatTime(map.updated_at) }} ·
+                      {{ map.nodes?.length || 0 }}个节点</text
+                    >
+                  </view>
+                  <view class="map-actions">
+                    <text
+                      class="action-btn edit"
+                      @tap.stop="editMapDirectly(map)"
+                      >编辑</text
+                    >
+                    <text
+                      class="action-btn delete"
+                      @tap.stop="deleteMap(map.id)"
+                      >删除</text
+                    >
+                  </view>
+                </view>
+              </view>
+              <view class="add-btn" @tap="addMap">
+                <text class="add-text">+ 创建地图</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 默认管理选项 -->
+          <view v-else class="management-options">
+            <view class="management-cell" @tap="startManagement('chapters')">
+              <text class="cell-text">章节管理</text>
+            </view>
+            <view class="management-cell" @tap="startManagement('characters')">
+              <text class="cell-text">人物管理</text>
+            </view>
+            <view class="management-cell" @tap="startManagement('drafts')">
+              <text class="cell-text">草稿管理</text>
+            </view>
+            <view class="management-cell" @tap="startManagement('terms')">
+              <text class="cell-text">术语管理</text>
+            </view>
+            <view class="management-cell" @tap="startManagement('maps')">
+              <text class="cell-text">地图管理</text>
+            </view>
           </view>
         </view>
       </view>
-      
-      <!-- 管理单元格 -->
-      <view v-else class="management-content">
-        <!-- 章节管理 -->
-        <view v-if="currentManagementType === 'chapters'" class="management-section">
-          <view class="management-header">
-            <text class="management-title">章节管理</text>
-            <text class="management-subtitle">管理作品章节结构</text>
-          </view>
-          <view class="management-body">
-            <view v-if="chapters.length === 0" class="empty-state">
-              <text class="empty-text">暂无章节</text>
-              <text class="empty-hint">点击下方按钮创建第一个章节</text>
-            </view>
-            <view v-else class="chapters-list">
-              <view 
-                v-for="(chapter, index) in chapters" 
-                :key="chapter.id"
-                class="chapter-item"
-                @tap="editChapter(chapter)"
-              >
-                <view class="chapter-info">
-                  <text class="chapter-title">{{ chapter.title || `第${index + 1}章` }}</text>
-                  <text class="chapter-word-count">{{ chapter.word_count || 0 }}字</text>
-                </view>
-                <view class="chapter-actions">
-                  <text class="action-btn delete" @tap.stop="deleteChapter(chapter.id)">删除</text>
-                </view>
-              </view>
-            </view>
-            <view class="add-btn" @tap="addChapter">
-              <text class="add-text">+ 添加章节</text>
-            </view>
-          </view>
-        </view>
 
-        <!-- 人物管理 -->
-        <view v-else-if="currentManagementType === 'characters'" class="management-section">
-          <view class="management-header">
-            <text class="management-title">人物管理</text>
-            <text class="management-subtitle">管理作品人物设定</text>
-          </view>
-          <view class="management-body">
-            <view v-if="characters.length === 0" class="empty-state">
-              <text class="empty-text">暂无人物</text>
-              <text class="empty-hint">点击下方按钮创建第一个人物</text>
-            </view>
-            <view v-else class="characters-grid">
-              <view 
-                v-for="character in characters" 
-                :key="character.id"
-                class="character-card"
-                @tap="editCharacter(character)"
-              >
-                <view class="character-avatar">
-                  <text class="avatar-text">{{ character.name ? character.name[0] : '?' }}</text>
-                </view>
-                <view class="character-info">
-                  <text class="character-name">{{ character.name || '未命名' }}</text>
-                  <text class="character-role">{{ character.role || character.description || '无角色' }}</text>
-                </view>
-                <view class="character-actions">
-                  <text class="action-btn delete" @tap.stop="deleteCharacter(character.id)">删除</text>
-                </view>
-              </view>
-            </view>
-            <view class="add-btn" @tap="addCharacter">
-              <text class="add-text">+ 添加人物</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 术语管理 -->
-        <view v-else-if="currentManagementType === 'terms'" class="management-section">
-          <view class="management-header">
-            <text class="management-title">术语管理</text>
-            <text class="management-subtitle">管理作品术语设定</text>
-          </view>
-          <view class="management-body">
-            <view v-if="terms.length === 0" class="empty-state">
-              <text class="empty-text">暂无术语</text>
-              <text class="empty-hint">点击下方按钮添加第一个术语</text>
-            </view>
-            <view v-else class="terms-list">
-              <view 
-                v-for="term in terms" 
-                :key="term.id"
-                class="term-item"
-                @tap="editTerm(term)"
-              >
-                <view class="term-info">
-                  <text class="term-name">{{ term.name || '未命名' }}</text>
-                  <text class="term-definition">{{ term.description || term.definition || '暂无定义' }}</text>
-                </view>
-                <view class="term-actions">
-                  <text class="action-btn delete" @tap.stop="deleteTerm(term.id)">删除</text>
-                </view>
-              </view>
-            </view>
-            <view class="add-btn" @tap="addTerm">
-              <text class="add-text">+ 添加术语</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 地图管理 -->
-        <view v-else-if="currentManagementType === 'maps'" class="management-section">
-          <view class="management-header">
-            <text class="management-title">地图管理</text>
-            <text class="management-subtitle">管理作品地图数据</text>
-          </view>
-          <view class="management-body">
-            <view v-if="maps.length === 0" class="empty-state">
-              <text class="empty-text">暂无地图</text>
-              <text class="empty-hint">点击下方按钮创建第一个地图</text>
-            </view>
-            <view v-else class="maps-list">
-              <view 
-                v-for="map in maps" 
-                :key="map.id"
-                class="map-item"
-                @tap="editMap(map)"
-              >
-                <view class="map-info">
-                  <text class="map-name">{{ map.name || '未命名' }}</text>
-                  <text class="map-desc">{{ map.description || '暂无描述' }}</text>
-                  <text class="map-meta">{{ formatTime(map.updated_at) }} · {{ map.nodes?.length || 0 }}个节点</text>
-                </view>
-                <view class="map-actions">
-                  <text class="action-btn edit" @tap.stop="editMapDirectly(map)">编辑</text>
-                  <text class="action-btn delete" @tap.stop="deleteMap(map.id)">删除</text>
-                </view>
-              </view>
-            </view>
-            <view class="add-btn" @tap="addMap">
-              <text class="add-text">+ 创建地图</text>
-            </view>
-          </view>
-        </view>
-
-        <!-- 默认管理选项 -->
-        <view v-else class="management-options">
-          <view class="management-cell" @tap="startManagement('chapters')">
-            <text class="cell-text">章节管理</text>
-          </view>
-          <view class="management-cell" @tap="startManagement('characters')">
-            <text class="cell-text">人物管理</text>
-          </view>
-          <view class="management-cell" @tap="startManagement('drafts')">
-            <text class="cell-text">草稿管理</text>
-          </view>
-          <view class="management-cell" @tap="startManagement('terms')">
-            <text class="cell-text">术语管理</text>
-          </view>
-          <view class="management-cell" @tap="startManagement('maps')">
-            <text class="cell-text">地图管理</text>
-          </view>
-        </view>
+      <!-- 悬浮返回按钮 -->
+      <view v-if="currentWork" class="floating-back-btn" @tap="backToList">
+        <text class="back-icon">←</text>
+        <text class="back-label">返回</text>
       </view>
-    </view>
-
-    <!-- 悬浮返回按钮 -->
-    <view v-if="currentWork" class="floating-back-btn" @tap="backToList">
-      <text class="back-icon">←</text>
-      <text class="back-label">返回</text>
-    </view>
     </view>
 
     <!-- 批量操作栏 -->
-    <view class="batch-toolbar" v-if="isSelectionMode && selectedWorks.length > 0">
-      <text class="selected-count">已选择 {{ selectedWorks.length }} 个作品</text>
+    <view
+      class="batch-toolbar"
+      v-if="isSelectionMode && selectedWorks.length > 0"
+    >
+      <text class="selected-count"
+        >已选择 {{ selectedWorks.length }} 个作品</text
+      >
       <view class="batch-actions">
         <view class="batch-btn" @tap="deleteSelected">
           <image src="/static/icons/trash.svg" mode="aspectFit"></image>
@@ -264,9 +338,9 @@
         </view>
       </view>
     </view>
-  
+
     <!-- 底部导航栏 -->
-    <BottomNav 
+    <BottomNav
       :active-nav="'manage'"
       :is-dark-mode="isDarkMode"
       @switch-nav="handleNavSwitch"
@@ -274,645 +348,925 @@
     />
 
     <!-- 创建作品弹窗 -->
-    <CreateWorkModal 
+    <CreateWorkModal
       v-if="currentUser && currentUser.id"
-      :visible="showCreateWorkModal" 
+      :visible="showCreateWorkModal"
       @update:visible="showCreateWorkModal = $event"
       @created="handleWorkCreated"
       :userId="currentUser.id"
     />
-
-
   </view>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import CreateWorkModal from '@/components/CreateWorkModal.vue'
-import BottomNav from '@/components/BottomNav.vue'
-import FileSystemStorage from '@/utils/fileSystemStorage.js'
-import { OfflineAuthService } from '@/utils/offlineAuth.js'
-import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js'
+import { ref, onMounted } from "vue";
+import CreateWorkModal from "@/components/CreateWorkModal.vue";
+import BottomNav from "@/components/BottomNav.vue";
+import FileSystemStorage from "@/utils/fileSystemStorage.js";
+import { OfflineAuthService } from "@/utils/offlineAuth.js";
+import themeManager, {
+  isDarkMode as getIsDarkMode,
+} from "@/utils/themeManager.js";
 
-const fileStorage = FileSystemStorage
+const fileStorage = FileSystemStorage;
 
 // 响应式数据
-const currentTime = ref('')
-const isDarkMode = ref(getIsDarkMode())
-const currentUser = ref(null)
-const showCreateWorkModal = ref(false)
+const currentTime = ref("");
+const isDarkMode = ref(getIsDarkMode());
+const currentUser = ref(null);
+const showCreateWorkModal = ref(false);
 
-const works = ref([])
-const selectedWorks = ref([])
-const isSelectionMode = ref(false)
-const currentWork = ref(null)
-const showMoreMenu = ref(false)
+const works = ref([]);
+const selectedWorks = ref([]);
+const isSelectionMode = ref(false);
+const currentWork = ref(null);
+const showMoreMenu = ref(false);
 
 // 管理相关数据
-const currentManagementType = ref('')
-const chapters = ref([])
-const characters = ref([])
-const terms = ref([])
-const maps = ref([])
+const currentManagementType = ref("");
+const chapters = ref([]);
+const characters = ref([]);
+const terms = ref([]);
+const maps = ref([]);
 
 // 页面初始化
 onMounted(async () => {
   // 初始化主题
-  isDarkMode.value = themeManager.isDarkMode()
-  
-  updateTime()
-  setInterval(updateTime, 1000)
-  
+  isDarkMode.value = themeManager.isDarkMode();
+
+  updateTime();
+  setInterval(updateTime, 1000);
+
   // 监听主题变更事件
   try {
-    if (typeof uni !== 'undefined' && uni.$on) {
-      uni.$on('theme-changed', (themeData) => {
+    if (typeof uni !== "undefined" && uni.$on) {
+      uni.$on("theme-changed", (themeData) => {
         try {
-          isDarkMode.value = themeData.isDark
+          isDarkMode.value = themeData.isDark;
         } catch (error) {
-          console.warn('主题变更处理失败:', error);
+          console.warn("主题变更处理失败:", error);
         }
-      })
+      });
     }
   } catch (error) {
-    console.warn('主题监听器设置失败:', error);
+    console.warn("主题监听器设置失败:", error);
   }
-  
+
   // 获取当前用户
   try {
-    currentUser.value = await OfflineAuthService.getCurrentUser()
-    
+    currentUser.value = await OfflineAuthService.getCurrentUser();
+
     if (currentUser.value && currentUser.value.id) {
-      await loadWorks()
+      await loadWorks();
     } else {
-      console.warn('未找到有效用户信息，创建默认用户')
+      console.warn("未找到有效用户信息，创建默认用户");
       // 创建默认用户
       currentUser.value = {
-        id: 'default_user',
-        username: '离线用户',
-        email: ''
-      }
+        id: "default_user",
+        username: "离线用户",
+        email: "",
+      };
       // 初始化默认用户存储
-      await fileStorage.initUserStorage(currentUser.value.id)
-      await loadWorks()
+      await fileStorage.initUserStorage(currentUser.value.id);
+      await loadWorks();
     }
   } catch (error) {
-    console.error('Failed to load user data:', error)
+    console.error("Failed to load user data:", error);
     // 失败时创建默认用户
     currentUser.value = {
-      id: 'default_user',
-      username: '离线用户', 
-      email: ''
-    }
+      id: "default_user",
+      username: "离线用户",
+      email: "",
+    };
     try {
-      await fileStorage.initUserStorage(currentUser.value.id)
-      await loadWorks()
+      await fileStorage.initUserStorage(currentUser.value.id);
+      await loadWorks();
     } catch (initError) {
-      console.error('初始化默认用户存储失败:', initError)
+      console.error("初始化默认用户存储失败:", initError);
     }
   }
-})
+});
+
+// 原生插件调试脚本 - 在页面加载完成后执行
+setTimeout(() => {
+  console.log("=== 原生插件调试开始 ===");
+
+  // 1. 检查运行环境
+  console.log(
+    "当前运行环境:",
+    (typeof process !== "undefined" &&
+      process.env &&
+      process.env.UNI_PLATFORM) ||
+      "unknown"
+  );
+  console.log("是否在APP中:", typeof uni !== "undefined");
+  console.log("plus对象可用:", typeof plus !== "undefined");
+
+  // 2. 检查所有可用的原生插件
+  if (typeof plus !== "undefined" && plus.nativeObj) {
+    console.log("可用原生插件列表:", Object.keys(plus.nativeObj));
+  }
+
+  // 3. 尝试加载插件 - 使用直接Android类实例方式
+  try {
+    console.log("--- 开始加载插件 ---");
+
+    let plugin = null;
+    let pluginName = "直接Android实例";
+
+    // 首先尝试标准插件注册方式
+    try {
+      plugin = uni.requireNativePlugin("export-native");
+      console.log("标准插件加载:", plugin);
+      if (plugin && Object.keys(plugin).length > 0) {
+        pluginName = "标准插件";
+        console.log("✅ 使用标准插件注册方式");
+      }
+    } catch (e) {
+      console.log("标准插件加载失败:", e.message);
+    }
+
+    // 如果标准方式失败，使用直接Android类实例
+    if (!plugin || Object.keys(plugin).length === 0) {
+      console.log("--- 尝试直接Android类实例方式 ---");
+
+      if (typeof plus !== "undefined" && plus.android) {
+        const mainActivity = plus.android.runtimeMainActivity();
+        console.log("MainActivity:", mainActivity);
+
+        // 获取ExportModule类
+        const ExportModule = plus.android.importClass(
+          "com.cwriter.export.ExportModule"
+        );
+        console.log("ExportModule类:", ExportModule);
+
+        if (ExportModule) {
+          // 创建实例
+          const instance = new ExportModule();
+          console.log("✅ ExportModule直接实例创建成功:", instance);
+
+          // 包装为uni-app插件对象
+          plugin = {
+            exportToPDF: function (options, callback) {
+              try {
+                console.log("🔄 调用Android exportToPDFSync方法...");
+                console.log("📝 PDF导出参数:", options);
+
+                const startTime = Date.now();
+
+                const result = instance.exportToPDFSync(
+                  plus.android.newObject(
+                    "com.alibaba.fastjson.JSONObject",
+                    JSON.stringify(options)
+                  )
+                );
+
+                    const endTime = Date.now();
+                    console.log(`⏱️ PDF导出耗时: ${endTime - startTime}ms`);
+                console.log("📤 同步返回结果:", result);
+
+                    if (callback) {
+                  let finalResult = result;
+                      try {
+                    if (typeof result === "string") {
+                      finalResult = JSON.parse(result);
+                        }
+                      } catch (parseError) {
+                    finalResult = {
+                          success: false,
+                      error: "结果解析失败: " + String(parseError),
+                    };
+                    }
+                  callback(finalResult);
+                  }
+              } catch (error) {
+                console.error("❌ exportToPDFSync 调用失败:", error);
+                if (callback)
+                  callback({ success: false, error: error.message });
+              }
+            },
+
+            exportToDOCX: function (options, callback) {
+              try {
+                console.log("🔄 调用Android exportToDOCXSync方法...");
+                console.log("📝 DOCX导出参数:", options);
+
+                const startTime = Date.now();
+
+                const result = instance.exportToDOCXSync(
+                  plus.android.newObject(
+                    "com.alibaba.fastjson.JSONObject",
+                    JSON.stringify(options)
+                  )
+                );
+
+                    const endTime = Date.now();
+                    console.log(`⏱️ DOCX导出耗时: ${endTime - startTime}ms`);
+                console.log("📤 同步返回结果:", result);
+
+                    if (callback) {
+                  let finalResult = result;
+                      try {
+                    if (typeof result === "string") {
+                      finalResult = JSON.parse(result);
+                        }
+                      } catch (parseError) {
+                    finalResult = {
+                          success: false,
+                      error: "结果解析失败: " + String(parseError),
+                    };
+                    }
+                  callback(finalResult);
+                  }
+              } catch (error) {
+                console.error("❌ exportToDOCXSync 调用失败:", error);
+                if (callback)
+                  callback({ success: false, error: error.message });
+              }
+            },
+          };
+
+          pluginName = "Android直接实例";
+          console.log("✅ 使用Android直接实例方式");
+        }
+      }
+    }
+
+    console.log("最终插件对象:", plugin);
+    console.log("插件对象类型:", typeof plugin);
+
+    if (plugin) {
+      console.log("插件对象键值:", Object.keys(plugin));
+      console.log("使用方式:", pluginName);
+
+      // 测试插件方法
+      console.log("exportToPDF方法:", typeof plugin.exportToPDF);
+      console.log("exportToDOCX方法:", typeof plugin.exportToDOCX);
+
+      // 如果方法可用，进行简单测试
+      if (typeof plugin.exportToPDF === "function") {
+        console.log("✅ exportToPDF方法可用");
+
+        // 进行简单测试调用
+        console.log("🧪 执行exportToPDF测试...");
+        plugin.exportToPDF(
+          {
+            title: "测试PDF文档",
+            content:
+              "这是一个测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
+          },
+          (result) => {
+            console.log("📋 exportToPDF测试结果:", result);
+            if (result && result.success) {
+              console.log("🎉 PDF导出测试成功！文件路径:", result.path);
+            } else {
+              console.log("❌ PDF导出测试失败:", result?.error);
+            }
+          }
+        );
+
+        // 也测试DOCX导出
+        setTimeout(() => {
+          console.log("🧪 执行exportToDOCX测试...");
+          plugin.exportToDOCX(
+            {
+              title: "测试DOCX文档",
+              content:
+                "这是一个DOCX测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
+            },
+            (result) => {
+              console.log("📋 exportToDOCX测试结果:", result);
+              if (result && result.success) {
+                console.log("🎉 DOCX导出测试成功！文件路径:", result.path);
+              } else {
+                console.log("❌ DOCX导出测试失败:", result?.error);
+              }
+            }
+          );
+        }, 1000);
+      } else {
+        console.log("❌ exportToPDF方法不可用");
+      }
+
+      // 将插件对象保存到全局，供其他页面使用
+      if (typeof window !== "undefined") {
+        window.exportNativePlugin = plugin;
+        console.log("✅ 插件已保存到 window.exportNativePlugin");
+      }
+    } else {
+      console.log("❌ 插件加载失败 - 所有方式都失败");
+    }
+  } catch (error) {
+    console.error("❌ 插件加载出错:", error);
+    console.error("错误堆栈:", error.stack);
+  }
+
+  // 6. 检查manifest配置
+  console.log(
+    "manifest.json中的插件配置:",
+    plus && plus.runtime && plus.runtime.appid
+  );
+
+  // 7. 检查插件是否在Plus中注册
+  if (typeof plus !== "undefined") {
+    try {
+      const pluginInfo = plus.navigator.getInstallWidget
+        ? plus.navigator.getInstallWidget()
+        : "不可用";
+      console.log("Plus插件信息:", pluginInfo);
+    } catch (e) {
+      console.log("无法获取Plus插件信息:", e.message);
+    }
+  }
+
+  console.log("=== 原生插件调试结束 ===");
+}, 3000); // 延迟3秒执行，确保页面完全加载
 
 // 更新时间
 const updateTime = () => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('zh-CN', { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  })
-}
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // 加载作品列表
 const loadWorks = async () => {
   try {
     if (!currentUser.value || !currentUser.value.id) {
-      console.warn('用户信息无效，跳过作品加载')
-      works.value = []
-      return
+      console.warn("用户信息无效，跳过作品加载");
+      works.value = [];
+      return;
     }
 
     // 从文件系统获取作品列表
-    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
-    
-    console.log('📚 管理页面加载到的作品数据:', userWorks)
-    
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id);
+
+    console.log("📚 管理页面加载到的作品数据:", userWorks);
+
     // 使用 Promise.all 来并行处理所有作品的字数计算
     const worksPromises = userWorks.map(async (work) => {
       // 计算字数：尝试从文档文件获取，如果没有则从标题和描述估算
-      let wordCount = 0
+      let wordCount = 0;
       try {
         // 尝试读取文档内容来计算字数
-        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`
-        const manuscript = await fileStorage.readFile(manuscriptPath)
+        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`;
+        const manuscript = await fileStorage.readFile(manuscriptPath);
         if (manuscript && manuscript.word_count) {
-          wordCount = manuscript.word_count
+          wordCount = manuscript.word_count;
         } else if (manuscript && manuscript.content) {
-          wordCount = manuscript.content.replace(/\s/g, '').length
+          wordCount = manuscript.content.replace(/\s/g, "").length;
         } else {
           // 估算字数：标题 + 描述
-          wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+          wordCount =
+            (work.title?.length || 0) + (work.description?.length || 0);
         }
       } catch (error) {
         // 如果读取失败，使用估算字数
-        wordCount = (work.title?.length || 0) + (work.description?.length || 0)
+        wordCount = (work.title?.length || 0) + (work.description?.length || 0);
       }
-      
+
       return {
         id: work.id,
-        title: work.title || '未命名作品',
-        modifiedTime: new Date(work.updated_at || work.created_at).toLocaleDateString(),
+        title: work.title || "未命名作品",
+        modifiedTime: new Date(
+          work.updated_at || work.created_at
+        ).toLocaleDateString(),
         chapterCount: work.chapter_count || 0,
         wordCount: wordCount,
         structure_type: work.structure_type,
         file_structure: work.file_structure,
         local_file_path: work.local_file_path,
-        folderName: work.folderName
-      }
-    })
-    
+        folderName: work.folderName,
+      };
+    });
+
     // 等待所有作品数据处理完成
-    works.value = await Promise.all(worksPromises)
-    
-    console.log('✅ 管理页面作品列表加载完成，共', works.value.length, '个作品')
-    
+    works.value = await Promise.all(worksPromises);
+
+    console.log(
+      "✅ 管理页面作品列表加载完成，共",
+      works.value.length,
+      "个作品"
+    );
   } catch (error) {
-    console.error('❌ 管理页面加载作品列表失败:', error)
-    console.error('错误详情:', error.stack)
-    works.value = []
+    console.error("❌ 管理页面加载作品列表失败:", error);
+    console.error("错误详情:", error.stack);
+    works.value = [];
   }
-}
+};
 
 // 导航功能
 const handleNavSwitch = () => {
   // 管理页面不处理，由 BottomNav 组件内部处理
-}
+};
 
 const toggleTheme = () => {
-  themeManager.toggleTheme()
-  isDarkMode.value = themeManager.isDarkMode()
-}
+  themeManager.toggleTheme();
+  isDarkMode.value = themeManager.isDarkMode();
+};
 
 // 工具栏操作
 const showImport = () => {
   uni.showToast({
-    title: '导入功能开发中',
-    icon: 'none'
-  })
-}
+    title: "导入功能开发中",
+    icon: "none",
+  });
+};
 
 const showExport = () => {
-  uni.showToast({
-    title: '导出功能开发中',
-    icon: 'none'
-  })
-}
+  // 跳转到导出页面
+  uni.navigateTo({
+    url: "/pages/export/index",
+  });
+  closeMoreMenu();
+};
 
 const loadLocalWorks = async () => {
   try {
     if (!currentUser.value || !currentUser.value.id) {
       uni.showToast({
-        title: '请先登录',
-        icon: 'none'
-      })
-      return
+        title: "请先登录",
+        icon: "none",
+      });
+      return;
     }
 
     // 获取用户的所有作品
-    const userWorks = await fileStorage.getUserWorks(currentUser.value.id)
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id);
     if (userWorks && userWorks.length > 0) {
       // 更新作品列表
-      works.value = userWorks.map(work => ({
+      works.value = userWorks.map((work) => ({
         id: work.id,
         title: work.title,
         modifiedTime: new Date(work.updated_at).toLocaleDateString(),
         chapterCount: work.chapter_count || 0,
-        wordCount: work.word_count || 0
-      }))
-      
+        wordCount: work.word_count || 0,
+      }));
+
       uni.showToast({
         title: `加载了 ${userWorks.length} 个作品`,
-        icon: 'success'
-      })
+        icon: "success",
+      });
     } else {
       uni.showToast({
-        title: '未找到作品',
-        icon: 'none'
-      })
+        title: "未找到作品",
+        icon: "none",
+      });
     }
   } catch (error) {
-    console.error('Failed to load user works:', error)
+    console.error("Failed to load user works:", error);
     uni.showToast({
-      title: '加载作品失败',
-      icon: 'error'
-    })
+      title: "加载作品失败",
+      icon: "error",
+    });
   }
-}
+};
 
 // 作品操作
 const openWorkDetail = (work) => {
   if (isSelectionMode.value) {
-    toggleWorkSelection(work.id)
+    toggleWorkSelection(work.id);
   } else {
     // 选择作品进入管理模式
-    selectWork(work)
+    selectWork(work);
   }
-}
-
-
+};
 
 const deleteWork = async (work) => {
   try {
     uni.showModal({
-      title: '确认删除',
+      title: "确认删除",
       content: `确定要删除作品"${work.title}"吗？此操作不可恢复。`,
       success: async (res) => {
         if (res.confirm) {
           // 传递userId和workId两个参数
-          await fileStorage.deleteWork(currentUser.value?.id || 'default_user', work.id)
+          await fileStorage.deleteWork(
+            currentUser.value?.id || "default_user",
+            work.id
+          );
           uni.showToast({
-            title: '删除成功',
-            icon: 'success'
-          })
-          await loadWorks()
+            title: "删除成功",
+            icon: "success",
+          });
+          await loadWorks();
         }
-      }
-    })
+      },
+    });
   } catch (error) {
-    console.error('Failed to delete work:', error)
+    console.error("Failed to delete work:", error);
     uni.showToast({
-      title: '删除失败',
-      icon: 'error'
-    })
+      title: "删除失败",
+      icon: "error",
+    });
   }
-}
+};
 
 const toggleWorkSelection = (workId) => {
-  const index = selectedWorks.value.indexOf(workId)
+  const index = selectedWorks.value.indexOf(workId);
   if (index > -1) {
-    selectedWorks.value.splice(index, 1)
+    selectedWorks.value.splice(index, 1);
   } else {
-    selectedWorks.value.push(workId)
+    selectedWorks.value.push(workId);
   }
-  
+
   if (selectedWorks.value.length === 0) {
-    isSelectionMode.value = false
+    isSelectionMode.value = false;
   }
-}
+};
 
 const deleteSelected = async () => {
-  if (selectedWorks.value.length === 0) return
-  
+  if (selectedWorks.value.length === 0) return;
+
   try {
     uni.showModal({
-      title: '确认删除',
+      title: "确认删除",
       content: `确定要删除选中的 ${selectedWorks.value.length} 个作品吗？此操作不可恢复。`,
       success: async (res) => {
         if (res.confirm) {
           for (const workId of selectedWorks.value) {
-            await fileStorage.deleteWork(currentUser.value?.id || 'default_user', workId)
+            await fileStorage.deleteWork(
+              currentUser.value?.id || "default_user",
+              workId
+            );
           }
-          
+
           uni.showToast({
             title: `删除成功`,
-            icon: 'success'
-          })
-          
-          selectedWorks.value = []
-          isSelectionMode.value = false
-          await loadWorks()
+            icon: "success",
+          });
+
+          selectedWorks.value = [];
+          isSelectionMode.value = false;
+          await loadWorks();
         }
-      }
-    })
+      },
+    });
   } catch (error) {
-    console.error('Failed to delete selected works:', error)
+    console.error("Failed to delete selected works:", error);
     uni.showToast({
-      title: '删除失败',
-      icon: 'error'
-    })
+      title: "删除失败",
+      icon: "error",
+    });
   }
-}
-
-
+};
 
 const exportSelected = () => {
-  uni.showToast({
-    title: '导出功能开发中',
-    icon: 'none'
-  })
-}
+  // 如果有选中的作品，传递作品ID
+  if (selectedWorks.value.length > 0) {
+    const workIds = selectedWorks.value.join(",");
+    uni.navigateTo({
+      url: `/pages/export/index?workIds=${workIds}`,
+    });
+  } else {
+    // 没有选中作品，直接跳转
+    uni.navigateTo({
+      url: "/pages/export/index",
+    });
+  }
+};
 
 const handleWorkCreated = () => {
   uni.showToast({
-    title: '作品创建成功',
-    icon: 'success'
-  })
-  loadWorks()
-}
+    title: "作品创建成功",
+    icon: "success",
+  });
+  loadWorks();
+};
 
 // 选择作品
 const selectWork = (work) => {
   if (isSelectionMode.value) {
-    toggleWorkSelection(work.id)
+    toggleWorkSelection(work.id);
   } else {
-    currentWork.value = work
+    currentWork.value = work;
   }
-}
+};
 
 // 返回列表
 const backToList = () => {
-  currentWork.value = null
-  currentManagementType.value = ''
-  chapters.value = []
-  characters.value = []
-  terms.value = []
-  maps.value = []
-}
+  currentWork.value = null;
+  currentManagementType.value = "";
+  chapters.value = [];
+  characters.value = [];
+  terms.value = [];
+  maps.value = [];
+};
 
 // 开始管理
 const startManagement = async (type) => {
-  currentManagementType.value = type
-  await loadManagementData(type)
-}
+  currentManagementType.value = type;
+  await loadManagementData(type);
+};
 
 // 加载管理数据
 const loadManagementData = async (type) => {
-  if (!currentUser.value || !currentWork.value) return
-  
+  if (!currentUser.value || !currentWork.value) return;
+
   try {
     switch (type) {
-      case 'chapters':
-        await loadChapters()
-        break
-      case 'characters':
-        await loadCharacters()
-        break
-      case 'terms':
-        await loadTerms()
-        break
-      case 'maps':
-        await loadMaps()
-        break
+      case "chapters":
+        await loadChapters();
+        break;
+      case "characters":
+        await loadCharacters();
+        break;
+      case "terms":
+        await loadTerms();
+        break;
+      case "maps":
+        await loadMaps();
+        break;
     }
   } catch (error) {
-    console.error(`加载${type}数据失败:`, error)
+    console.error(`加载${type}数据失败:`, error);
     uni.showToast({
-      title: '加载失败',
-      icon: 'error'
-    })
+      title: "加载失败",
+      icon: "error",
+    });
   }
-}
+};
 
 // 加载章节数据
 const loadChapters = async () => {
   try {
-    const result = await fileStorage.getChapters(currentUser.value.id, currentWork.value.id)
-    chapters.value = Array.isArray(result) ? result : []
-    console.log('章节数据:', chapters.value)
+    const result = await fileStorage.getChapters(
+      currentUser.value.id,
+      currentWork.value.id
+    );
+    chapters.value = Array.isArray(result) ? result : [];
+    console.log("章节数据:", chapters.value);
   } catch (error) {
-    console.error('加载章节数据失败:', error)
-    chapters.value = []
+    console.error("加载章节数据失败:", error);
+    chapters.value = [];
   }
-}
+};
 
 // 加载人物数据
 const loadCharacters = async () => {
   try {
-    const result = await fileStorage.getCharacters(currentUser.value.id, currentWork.value.id)
-    characters.value = Array.isArray(result) ? result : []
-    console.log('人物数据:', characters.value)
+    const result = await fileStorage.getCharacters(
+      currentUser.value.id,
+      currentWork.value.id
+    );
+    characters.value = Array.isArray(result) ? result : [];
+    console.log("人物数据:", characters.value);
   } catch (error) {
-    console.error('加载人物数据失败:', error)
-    characters.value = []
+    console.error("加载人物数据失败:", error);
+    characters.value = [];
   }
-}
+};
 
 // 加载术语数据
 const loadTerms = async () => {
   try {
-    const result = await fileStorage.getTerms(currentUser.value.id, currentWork.value.id)
-    terms.value = Array.isArray(result) ? result : []
-    console.log('术语数据:', terms.value)
+    const result = await fileStorage.getTerms(
+      currentUser.value.id,
+      currentWork.value.id
+    );
+    terms.value = Array.isArray(result) ? result : [];
+    console.log("术语数据:", terms.value);
   } catch (error) {
-    console.error('加载术语数据失败:', error)
-    terms.value = []
+    console.error("加载术语数据失败:", error);
+    terms.value = [];
   }
-}
+};
 
 // 加载地图数据
 const loadMaps = async () => {
   try {
-    const mapsData = await fileStorage.getMapList(currentUser.value.id, currentWork.value.id)
-    maps.value = (mapsData && Array.isArray(mapsData.maps)) ? mapsData.maps : []
-    console.log('地图数据:', maps.value)
+    const mapsData = await fileStorage.getMapList(
+      currentUser.value.id,
+      currentWork.value.id
+    );
+    maps.value = mapsData && Array.isArray(mapsData.maps) ? mapsData.maps : [];
+    console.log("地图数据:", maps.value);
   } catch (error) {
-    console.error('加载地图数据失败:', error)
-    maps.value = []
+    console.error("加载地图数据失败:", error);
+    maps.value = [];
   }
-}
+};
 
 // 章节操作
 const addChapter = () => {
   uni.navigateTo({
-    url: `/pages/editor/chapter?workId=${currentWork.value.id}&mode=create`
-  })
-}
+    url: `/pages/editor/chapter?workId=${currentWork.value.id}&mode=create`,
+  });
+};
 
 const editChapter = (chapter) => {
   uni.navigateTo({
-    url: `/pages/editor/chapter?workId=${currentWork.value.id}&chapterId=${chapter.id}&mode=edit`
-  })
-}
+    url: `/pages/editor/chapter?workId=${currentWork.value.id}&chapterId=${chapter.id}&mode=edit`,
+  });
+};
 
 const deleteChapter = (chapterId) => {
   uni.showModal({
-    title: '确认删除',
-    content: '确定要删除这个章节吗？此操作不可恢复。',
+    title: "确认删除",
+    content: "确定要删除这个章节吗？此操作不可恢复。",
     success: async (res) => {
       if (res.confirm) {
         try {
-          await fileStorage.deleteChapter(currentUser.value.id, currentWork.value.id, chapterId)
-          await loadChapters()
+          await fileStorage.deleteChapter(
+            currentUser.value.id,
+            currentWork.value.id,
+            chapterId
+          );
+          await loadChapters();
           uni.showToast({
-            title: '删除成功',
-            icon: 'success'
-          })
+            title: "删除成功",
+            icon: "success",
+          });
         } catch (error) {
-          console.error('删除章节失败:', error)
+          console.error("删除章节失败:", error);
           uni.showToast({
-            title: '删除失败',
-            icon: 'error'
-          })
+            title: "删除失败",
+            icon: "error",
+          });
         }
       }
-    }
-  })
-}
+    },
+  });
+};
 
 // 人物操作
 const addCharacter = () => {
   uni.navigateTo({
-    url: `/pages/create?type=character&workId=${currentWork.value.id}`
-  })
-}
+    url: `/pages/create?type=character&workId=${currentWork.value.id}`,
+  });
+};
 
 const editCharacter = (character) => {
   uni.navigateTo({
-    url: `/pages/create?type=character&workId=${currentWork.value.id}&characterId=${character.id}`
-  })
-}
+    url: `/pages/create?type=character&workId=${currentWork.value.id}&characterId=${character.id}`,
+  });
+};
 
 const deleteCharacter = (characterId) => {
   uni.showModal({
-    title: '确认删除',
-    content: '确定要删除这个人物吗？此操作不可恢复。',
+    title: "确认删除",
+    content: "确定要删除这个人物吗？此操作不可恢复。",
     success: async (res) => {
       if (res.confirm) {
         try {
-          await fileStorage.deleteCharacter(currentUser.value.id, currentWork.value.id, characterId)
-          await loadCharacters()
+          await fileStorage.deleteCharacter(
+            currentUser.value.id,
+            currentWork.value.id,
+            characterId
+          );
+          await loadCharacters();
           uni.showToast({
-            title: '删除成功',
-            icon: 'success'
-          })
+            title: "删除成功",
+            icon: "success",
+          });
         } catch (error) {
-          console.error('删除人物失败:', error)
+          console.error("删除人物失败:", error);
           uni.showToast({
-            title: '删除失败',
-            icon: 'error'
-          })
+            title: "删除失败",
+            icon: "error",
+          });
         }
       }
-    }
-  })
-}
+    },
+  });
+};
 
 // 术语操作
 const addTerm = () => {
   uni.navigateTo({
-    url: `/pages/create?type=term&workId=${currentWork.value.id}`
-  })
-}
+    url: `/pages/create?type=term&workId=${currentWork.value.id}`,
+  });
+};
 
 const editTerm = (term) => {
   uni.navigateTo({
-    url: `/pages/create?type=term&workId=${currentWork.value.id}&termId=${term.id}`
-  })
-}
+    url: `/pages/create?type=term&workId=${currentWork.value.id}&termId=${term.id}`,
+  });
+};
 
 const deleteTerm = (termId) => {
   uni.showModal({
-    title: '确认删除',
-    content: '确定要删除这个术语吗？此操作不可恢复。',
+    title: "确认删除",
+    content: "确定要删除这个术语吗？此操作不可恢复。",
     success: async (res) => {
       if (res.confirm) {
         try {
-          await fileStorage.deleteTerm(currentUser.value.id, currentWork.value.id, termId)
-          await loadTerms()
+          await fileStorage.deleteTerm(
+            currentUser.value.id,
+            currentWork.value.id,
+            termId
+          );
+          await loadTerms();
           uni.showToast({
-            title: '删除成功',
-            icon: 'success'
-          })
+            title: "删除成功",
+            icon: "success",
+          });
         } catch (error) {
-          console.error('删除术语失败:', error)
+          console.error("删除术语失败:", error);
           uni.showToast({
-            title: '删除失败',
-            icon: 'error'
-          })
+            title: "删除失败",
+            icon: "error",
+          });
         }
       }
-    }
-  })
-}
+    },
+  });
+};
 
 // 地图操作
 const addMap = () => {
   uni.navigateTo({
-    url: `/pages/create?type=map&workId=${currentWork.value.id}`
-  })
-}
+    url: `/pages/create?type=map&workId=${currentWork.value.id}`,
+  });
+};
 
 const editMap = (map) => {
   // 这里可以扩展为查看地图详情
-  console.log('查看地图:', map)
-}
+  console.log("查看地图:", map);
+};
 
 const editMapDirectly = (map) => {
   uni.navigateTo({
-    url: `/pages/create?type=map&workId=${currentWork.value.id}&mapId=${map.id}`
-  })
-}
+    url: `/pages/create?type=map&workId=${currentWork.value.id}&mapId=${map.id}`,
+  });
+};
 
 const deleteMap = (mapId) => {
   uni.showModal({
-    title: '确认删除',
-    content: '确定要删除这个地图吗？此操作不可恢复。',
+    title: "确认删除",
+    content: "确定要删除这个地图吗？此操作不可恢复。",
     success: async (res) => {
       if (res.confirm) {
         try {
-          await fileStorage.deleteMap(currentUser.value.id, currentWork.value.id, mapId)
-          await loadMaps()
+          await fileStorage.deleteMap(
+            currentUser.value.id,
+            currentWork.value.id,
+            mapId
+          );
+          await loadMaps();
           uni.showToast({
-            title: '删除成功',
-            icon: 'success'
-          })
+            title: "删除成功",
+            icon: "success",
+          });
         } catch (error) {
-          console.error('删除地图失败:', error)
+          console.error("删除地图失败:", error);
           uni.showToast({
-            title: '删除失败',
-            icon: 'error'
-          })
+            title: "删除失败",
+            icon: "error",
+          });
         }
       }
-    }
-  })
-}
+    },
+  });
+};
 
 // 格式化时间
 const formatTime = (timestamp) => {
-  if (!timestamp) return '未知时间'
-  
+  if (!timestamp) return "未知时间";
+
   try {
-    const now = new Date()
-    const time = new Date(timestamp)
-    
+    const now = new Date();
+    const time = new Date(timestamp);
+
     if (isNaN(time.getTime())) {
-      return '未知时间'
+      return "未知时间";
     }
-    
-    const diff = Math.floor((now.getTime() - time.getTime()) / 1000)
-    
-    if (diff < 60) return '刚刚'
-    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
-    if (diff < 604800) return `${Math.floor(diff / 86400)}天前`
-    
-    return time.toLocaleDateString()
+
+    const diff = Math.floor((now.getTime() - time.getTime()) / 1000);
+
+    if (diff < 60) return "刚刚";
+    if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}天前`;
+
+    return time.toLocaleDateString();
   } catch (error) {
-    return '未知时间'
+    return "未知时间";
   }
-}
+};
 
 // 处理管理选项点击（保留原有功能）
 const handleManagement = (type) => {
-  if (type === 'drafts') {
+  if (type === "drafts") {
     uni.showToast({
-      title: '草稿管理功能开发中',
-      icon: 'none'
-    })
+      title: "草稿管理功能开发中",
+      icon: "none",
+    });
   } else {
-    startManagement(type)
+    startManagement(type);
   }
-}
+};
 
 // 切换更多菜单
 const toggleMoreMenu = () => {
-  showMoreMenu.value = !showMoreMenu.value
-}
+  showMoreMenu.value = !showMoreMenu.value;
+};
 
 // 关闭菜单
 const closeMoreMenu = () => {
-  showMoreMenu.value = false
-}
+  showMoreMenu.value = false;
+};
 </script>
 
 <style scoped>
@@ -991,7 +1345,7 @@ const closeMoreMenu = () => {
   position: fixed;
   bottom: 140rpx; /* 底部导航栏高度 + 间隔 */
   right: 30rpx;
-  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  background: linear-gradient(135deg, #007aff, #5ac8fa);
   border-radius: 50rpx;
   padding: 20rpx 30rpx;
   box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
@@ -1009,13 +1363,13 @@ const closeMoreMenu = () => {
 }
 
 .back-icon {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: bold;
 }
 
 .back-label {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 28rpx;
   font-weight: 500;
 }
@@ -1041,7 +1395,7 @@ const closeMoreMenu = () => {
 
 /* 添加按钮 */
 .add-btn {
-  background: linear-gradient(135deg, #34C759, #32D74B);
+  background: linear-gradient(135deg, #34c759, #32d74b);
   border-radius: 16rpx;
   padding: 30rpx;
   text-align: center;
@@ -1056,7 +1410,7 @@ const closeMoreMenu = () => {
 }
 
 .add-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: 600;
 }
@@ -1153,14 +1507,14 @@ const closeMoreMenu = () => {
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #FF9500, #FF5F6D);
+  background: linear-gradient(135deg, #ff9500, #ff5f6d);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .avatar-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: bold;
 }
@@ -1327,12 +1681,12 @@ const closeMoreMenu = () => {
 
 .action-btn.edit {
   background: rgba(0, 122, 255, 0.2);
-  color: #007AFF;
+  color: #007aff;
 }
 
 .action-btn.delete {
   background: rgba(255, 67, 54, 0.2);
-  color: #FF4336;
+  color: #ff4336;
 }
 
 .action-btn:active {
@@ -1367,16 +1721,17 @@ const closeMoreMenu = () => {
 }
 
 .section-header::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, 
-    transparent, 
-    rgba(255, 255, 255, 0.3) 20%, 
-    rgba(255, 255, 255, 0.3) 80%, 
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3) 20%,
+    rgba(255, 255, 255, 0.3) 80%,
     transparent
   );
 }
@@ -1465,13 +1820,13 @@ const closeMoreMenu = () => {
 }
 
 .checkbox.checked {
-  background: #007AFF;
-  border-color: #007AFF;
+  background: #007aff;
+  border-color: #007aff;
   position: relative;
 }
 
 .checkbox.checked::after {
-  content: '✓';
+  content: "✓";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1521,7 +1876,7 @@ const closeMoreMenu = () => {
 }
 
 .delete-x {
-  color: #FF4336;
+  color: #ff4336;
   font-size: 32rpx;
   font-weight: bold;
 }
@@ -1532,7 +1887,7 @@ const closeMoreMenu = () => {
 }
 
 .management-cell {
-  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  background: linear-gradient(135deg, #007aff, #5ac8fa);
   border-radius: 20rpx;
   padding: 40rpx 30rpx;
   margin-bottom: 20rpx;
@@ -1542,7 +1897,7 @@ const closeMoreMenu = () => {
 }
 
 .light-theme .management-cell {
-  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  background: linear-gradient(135deg, #007aff, #5ac8fa);
   box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.25);
 }
 
@@ -1552,7 +1907,7 @@ const closeMoreMenu = () => {
 }
 
 .cell-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: 600;
   text-align: center;
@@ -1581,7 +1936,7 @@ const closeMoreMenu = () => {
 }
 
 .back-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 28rpx;
   opacity: 0.8;
 }
@@ -1695,7 +2050,7 @@ const closeMoreMenu = () => {
 }
 
 .modern-manage-btn {
-  background: linear-gradient(135deg, #FF6B35, #F7931E);
+  background: linear-gradient(135deg, #ff6b35, #f7931e);
   border: none;
   border-radius: 25rpx;
   padding: 20rpx 30rpx;
@@ -1713,7 +2068,7 @@ const closeMoreMenu = () => {
 }
 
 .btn-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
@@ -1744,7 +2099,7 @@ const closeMoreMenu = () => {
 }
 
 .more-dots {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: bold;
   line-height: 1;
@@ -1823,7 +2178,7 @@ const closeMoreMenu = () => {
 }
 
 .menu-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 28rpx;
   text-align: center;
   display: block;
@@ -1896,7 +2251,7 @@ const closeMoreMenu = () => {
   position: fixed;
   bottom: 140rpx; /* 底部导航栏高度 + 间隔 */
   right: 30rpx;
-  background: linear-gradient(135deg, #007AFF, #5AC8FA);
+  background: linear-gradient(135deg, #007aff, #5ac8fa);
   border-radius: 50rpx;
   padding: 20rpx 30rpx;
   box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
@@ -1914,13 +2269,13 @@ const closeMoreMenu = () => {
 }
 
 .back-icon {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: bold;
 }
 
 .back-label {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 28rpx;
   font-weight: 500;
 }
@@ -1946,7 +2301,7 @@ const closeMoreMenu = () => {
 
 /* 添加按钮 */
 .add-btn {
-  background: linear-gradient(135deg, #34C759, #32D74B);
+  background: linear-gradient(135deg, #34c759, #32d74b);
   border-radius: 16rpx;
   padding: 30rpx;
   text-align: center;
@@ -1961,7 +2316,7 @@ const closeMoreMenu = () => {
 }
 
 .add-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: 600;
 }
@@ -2058,14 +2413,14 @@ const closeMoreMenu = () => {
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #FF9500, #FF5F6D);
+  background: linear-gradient(135deg, #ff9500, #ff5f6d);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .avatar-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 32rpx;
   font-weight: bold;
 }
@@ -2232,12 +2587,12 @@ const closeMoreMenu = () => {
 
 .action-btn.edit {
   background: rgba(0, 122, 255, 0.2);
-  color: #007AFF;
+  color: #007aff;
 }
 
 .action-btn.delete {
   background: rgba(255, 67, 54, 0.2);
-  color: #FF4336;
+  color: #ff4336;
 }
 
 .action-btn:active {
@@ -2348,7 +2703,7 @@ const closeMoreMenu = () => {
 
 .view-all {
   font-size: 28rpx;
-  color: #007AFF;
+  color: #007aff;
   opacity: 0.8;
 }
 
@@ -2424,6 +2779,4 @@ const closeMoreMenu = () => {
   width: 100%;
   height: 100%;
 }
-
-
 </style>

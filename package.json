@@ -14,12 +14,15 @@
     "build:app-plus": "uni build -p app-plus"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.38.0",
-    "vue": "^3.3.4",
     "@dcloudio/uni-app": "^3.0.0-4070020240412001",
     "@dcloudio/uni-components": "^3.0.0-4070020240412001",
     "@dcloudio/uni-h5": "^3.0.0-4070020240412001",
-    "@dcloudio/uni-mp-vue": "^3.0.0-4070020240412001"
+    "@dcloudio/uni-mp-vue": "^3.0.0-4070020240412001",
+    "@supabase/supabase-js": "^2.38.0",
+    "docx": "^9.5.1",
+    "file-saver": "^2.0.5",
+    "jspdf": "^3.0.4",
+    "vue": "^3.3.4"
   },
   "devDependencies": {
     "@dcloudio/types": "^3.0.0",

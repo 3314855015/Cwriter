@@ -1,0 +1,20 @@
+{
+  "name": "export-native",
+  "id": "export-native",
+  "version": "1.0.0",
+  "description": "原生PDF/DOCX导出插件 - 支持Android离线导出",
+  "_dp_type": "nativeplugin",
+  "_dp_nativeplugin": {
+    "android": {
+      "plugins": [
+        {
+          "type": "module",
+          "name": "export-native",
+          "class": "com.cwriter.export.ExportModule"
+        }
+      ],
+      "integrateType": "aar",
+      "dependencies": []
+    }
+  }
+}
