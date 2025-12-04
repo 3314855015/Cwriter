@@ -1,5 +1,8 @@
 <template>
   <view class="create-page" :class="{ 'light-theme': !isDarkMode }">
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
+    
     <view class="header">
       <view class="header-titles">
         <text class="title">新增人物\n</text>
@@ -87,6 +90,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager from "@/utils/themeManager.js";
 

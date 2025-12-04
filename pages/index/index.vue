@@ -1,27 +1,8 @@
 <template>
   <!-- 页面主容器 -->
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
-    <!-- 状态栏 -->
-    <view class="status-bar">
-      <text class="status-time">{{ currentTime }}</text>
-      <view class="status-icons">
-        <image
-          class="status-icon"
-          src="/static/icons/signal.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/wifi.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/battery.svg"
-          mode="aspectFit"
-        ></image>
-      </view>
-    </view>
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
 
     <!-- 用户信息区域 -->
     <view class="user-section">
@@ -174,6 +155,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import CreateWorkModal from "@/components/CreateWorkModal.vue";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 
 import BottomNav from "@/components/BottomNav.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
@@ -187,7 +169,6 @@ import themeManager, {
 const fileStorage = FileSystemStorage;
 
 // 响应式数据
-const currentTime = ref("");
 const activeTab = ref("recent");
 const isMenuOpen = ref(false);
 const isDarkMode = ref(getIsDarkMode());
@@ -306,8 +287,6 @@ const filteredWorks = computed(() => {
 onMounted(() => {
   try {
     initPage();
-    updateTime();
-    setInterval(updateTime, 60000); // 每分钟更新一次时间
 
     // 监听主题变更事件
     if (typeof uni !== 'undefined' && uni.$on) {
@@ -323,15 +302,6 @@ onMounted(() => {
     console.error('页面初始化失败:', error);
   }
 });
-
-// 方法
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = `${now.getHours()}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
-};
 
 const switchTab = (tabId) => {
   activeTab.value = tabId;
@@ -797,33 +767,7 @@ const getIconPath = (iconClass) => {
   color: #666666;
 }
 
-/* 状态栏样式 */
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-  background-color: #1a1a1a;
-  font-size: 12px;
-  position: relative;
-  color: #ffffff;
-}
 
-/* 状态栏亮色主题样式 */
-.page-container.light-theme .status-bar {
-  background-color: #f8f8f8;
-  color: #333333;
-}
-
-.status-icons {
-  display: flex;
-  gap: 8px;
-}
-
-.status-icon {
-  width: 16px;
-  height: 16px;
-}
 
 /* 用户信息区域 */
 .user-section {

@@ -1,26 +1,9 @@
 <template>
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
-    <!-- 状态栏 -->
-    <view class="status-bar">
-      <text class="status-time">{{ currentTime }}</text>
-      <view class="status-icons">
-        <image
-          class="status-icon"
-          src="/static/icons/signal.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/wifi.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/battery.svg"
-          mode="aspectFit"
-        ></image>
-      </view>
-    </view>
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
+    
+
 
     <!-- 页面标题 -->
     <view class="page-header">
@@ -134,6 +117,7 @@
 <script setup>
 import { ref, onMounted, computed } from "vue";
 import { onLoad } from "@dcloudio/uni-app";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import fileStorage from "@/utils/fileSystemStorage.js";
 import { OfflineAuthService } from "@/utils/offlineAuth.js";
 import themeManager, {
@@ -149,7 +133,6 @@ import {
 } from "@/utils/exportHelper.js";
 
 // 响应式数据
-const currentTime = ref("");
 const isDarkMode = ref(getIsDarkMode());
 const currentUser = ref(null);
 const availableWorks = ref([]);
@@ -188,8 +171,6 @@ onLoad((options) => {
 
 // 页面初始化
 onMounted(async () => {
-  updateTime();
-  setInterval(updateTime, 1000);
 
   // 获取当前用户
   try {
@@ -236,14 +217,7 @@ onMounted(async () => {
   }
 });
 
-// 更新时间
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+
 
 // 加载作品列表
 const loadWorks = async () => {
@@ -387,6 +361,13 @@ const handleExport = async () => {
   }
 
   try {
+    console.log("🚀 === 开始导出调试 ===");
+    console.log("📋 导出格式:", exportFormat.value);
+    console.log("📋 用户ID:", currentUser.value.id);
+    console.log("📋 作品ID:", selectedWorkId.value);
+    console.log("📋 导出路径:", exportPath.value);
+    console.log("📋 是否可用:", canExport.value);
+
     uni.showLoading({
       title: "导出中...",
     });
@@ -394,17 +375,21 @@ const handleExport = async () => {
     let filePath = "";
 
     if (exportFormat.value === "pdf") {
+      console.log("🔍 开始PDF导出...");
       filePath = await exportAsPDF(
         currentUser.value.id,
         selectedWorkId.value,
         exportPath.value
       );
+      console.log("✅ PDF导出完成:", filePath);
     } else if (exportFormat.value === "docx") {
+      console.log("🔍 开始DOCX导出...");
       filePath = await exportAsDOCX(
         currentUser.value.id,
         selectedWorkId.value,
         exportPath.value
       );
+      console.log("✅ DOCX导出完成:", filePath);
     }
 
     exportedFilePath.value = filePath;
@@ -415,7 +400,11 @@ const handleExport = async () => {
       icon: "success",
     });
   } catch (error) {
-    console.error("导出失败:", error);
+    console.error("❌ 导出失败详情:");
+    console.error("  错误类型:", error.name);
+    console.error("  错误消息:", error.message);
+    console.error("  错误堆栈:", error.stack);
+    
     uni.hideLoading();
     uni.showToast({
       title: "导出失败: " + error.message,
@@ -482,29 +471,7 @@ const handleBack = () => {
   color: #333333;
 }
 
-/* 状态栏 */
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20rpx 30rpx;
-  height: 60rpx;
-}
 
-.status-time {
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.status-icons {
-  display: flex;
-  gap: 15rpx;
-}
-
-.status-icon {
-  width: 32rpx;
-  height: 32rpx;
-}
 
 /* 页面标题 */
 .page-header {

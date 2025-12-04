@@ -1,14 +1,7 @@
 <template>
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
-    <!-- 状态栏 -->
-    <view class="status-bar">
-      <text class="status-time">{{ currentTime }}</text>
-      <view class="status-icons">
-        <image class="status-icon" src="/static/icons/signal.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/wifi.svg" mode="aspectFit"></image>
-        <image class="status-icon" src="/static/icons/battery.svg" mode="aspectFit"></image>
-      </view>
-    </view>
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
 
     <!-- 页面头部 -->
     <view class="page-header">
@@ -84,6 +77,7 @@
 <script setup>
 import { ref } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
+import HeaderPlaceholder from '@/components/HeaderPlaceholder.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import FileSystemStorage from '@/utils/fileSystemStorage.js'
 import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js'
@@ -91,7 +85,7 @@ import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.
 const fileStorage = FileSystemStorage
 
 // 响应式数据
-const currentTime = ref('')
+
 const isDarkMode = ref(getIsDarkMode())
 const isEditMode = ref(false)
 const workInfo = ref({ title: '加载中...' })
@@ -99,26 +93,9 @@ const chapters = ref([])
 const workId = ref('')
 const userId = ref('')
 
-let clockTimer = null
 
-const updateTime = () => {
-  const now = new Date()
-  currentTime.value = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`
-}
 
-const startClock = () => {
-  if (clockTimer) {
-    clearInterval(clockTimer)
-  }
-  clockTimer = setInterval(updateTime, 60000)
-}
 
-const stopClock = () => {
-  if (clockTimer) {
-    clearInterval(clockTimer)
-    clockTimer = null
-  }
-}
 
 onLoad((options) => {
   // 初始化主题
@@ -153,13 +130,9 @@ onLoad((options) => {
   userId.value = options.userId || 'default_user'
 
   loadWorkChapters()
-  updateTime()
-  startClock()
 })
 
-onUnload(() => {
-  stopClock()
-})
+
 
 const loadWorkChapters = async () => {
   try {
@@ -392,29 +365,7 @@ const handleNavSwitch = (navType) => {
   color: #333333;
 }
 
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 16px;
-  background-color: #1A1A1A;
-  font-size: 12px;
-}
 
-.light-theme .status-bar {
-  background-color: #F8F8F8;
-  color: #333333;
-}
-
-.status-icons {
-  display: flex;
-  gap: 8px;
-}
-
-.status-icon {
-  width: 16px;
-  height: 16px;
-}
 
 .page-header {
   display: flex;

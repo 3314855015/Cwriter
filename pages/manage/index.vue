@@ -1,26 +1,7 @@
 <template>
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
-    <!-- 状态栏 -->
-    <view class="status-bar">
-      <text class="status-time">{{ currentTime }}</text>
-      <view class="status-icons">
-        <image
-          class="status-icon"
-          src="/static/icons/signal.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/wifi.svg"
-          mode="aspectFit"
-        ></image>
-        <image
-          class="status-icon"
-          src="/static/icons/battery.svg"
-          mode="aspectFit"
-        ></image>
-      </view>
-    </view>
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
 
     <!-- 页面标题 -->
     <view class="page-header">
@@ -361,6 +342,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import CreateWorkModal from "@/components/CreateWorkModal.vue";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import BottomNav from "@/components/BottomNav.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import { OfflineAuthService } from "@/utils/offlineAuth.js";
@@ -371,7 +353,6 @@ import themeManager, {
 const fileStorage = FileSystemStorage;
 
 // 响应式数据
-const currentTime = ref("");
 const isDarkMode = ref(getIsDarkMode());
 const currentUser = ref(null);
 const showCreateWorkModal = ref(false);
@@ -393,9 +374,6 @@ const maps = ref([]);
 onMounted(async () => {
   // 初始化主题
   isDarkMode.value = themeManager.isDarkMode();
-
-  updateTime();
-  setInterval(updateTime, 1000);
 
   // 监听主题变更事件
   try {
@@ -614,6 +592,7 @@ setTimeout(() => {
             title: "测试PDF文档",
             content:
               "这是一个测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
+            savePath: "/storage/emulated/0/Download/test_export.pdf"
           },
           (result) => {
             console.log("📋 exportToPDF测试结果:", result);
@@ -633,6 +612,7 @@ setTimeout(() => {
               title: "测试DOCX文档",
               content:
                 "这是一个DOCX测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
+              savePath: "/storage/emulated/0/Download/test_export.docx"
             },
             (result) => {
               console.log("📋 exportToDOCX测试结果:", result);
@@ -682,14 +662,7 @@ setTimeout(() => {
   console.log("=== 原生插件调试结束 ===");
 }, 3000); // 延迟3秒执行，确保页面完全加载
 
-// 更新时间
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+
 
 // 加载作品列表
 const loadWorks = async () => {
@@ -1993,29 +1966,7 @@ const closeMoreMenu = () => {
   font-size: 26rpx;
 }
 
-/* 状态栏 */
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20rpx 30rpx;
-  height: 60rpx;
-}
 
-.status-time {
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.status-icons {
-  display: flex;
-  gap: 15rpx;
-}
-
-.status-icon {
-  width: 32rpx;
-  height: 32rpx;
-}
 
 /* 页面标题 */
 .page-header {

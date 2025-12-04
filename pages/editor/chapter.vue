@@ -1,5 +1,8 @@
 <template>
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
+    <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
+    <HeaderPlaceholder />
+    
     <!-- 顶部工具栏 -->
     <view
       class="top-toolbar"
@@ -309,6 +312,7 @@
 <script setup>
 import { ref, nextTick, watch, computed } from "vue";
 import { onLoad, onUnload } from "@dcloudio/uni-app";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager, {
   isDarkMode as getIsDarkMode,
@@ -317,7 +321,6 @@ import themeManager, {
 const fileStorage = FileSystemStorage;
 
 // 响应式数据
-const currentTime = ref("");
 const isDarkMode = ref(getIsDarkMode());
 const isSaving = ref(false);
 const workInfo = ref({ title: "加载中..." });
@@ -940,8 +943,6 @@ onLoad(async (options) => {
 
   await loadChapterData();
 
-  updateTime();
-  clockTimer = setInterval(updateTime, 60000);
   autoSaveTimer = setInterval(() => {
     if (chapterContent.value.trim() && !isSaving.value) {
       autoSave();
@@ -968,14 +969,6 @@ onUnload(() => {
 });
 
 // 方法
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = `${now.getHours()}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
-};
-
 const loadChapterData = async () => {
   try {
     // 读取作品配置
