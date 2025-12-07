@@ -2,8 +2,8 @@
     "name" : "Cwriter",
     "appid" : "__UNI__F764106",
     "description" : "",
-    "versionName" : "1.0.6",
-    "versionCode" : 130,
+    "versionName" : "1.1.0",
+    "versionCode" : 150,
     "transformPx" : false,
     /* 5+App特有相关 */
     "app-plus" : {
@@ -31,7 +31,7 @@
         "distribute" : {
             /* android打包配置 */
             "android" : {
-                "minSdkVersion" : "24",
+                "minSdkVersion" : "26",
                 "permissions" : [
                     "<uses-permission android:name=\"android.permission.CHANGE_NETWORK_STATE\"/>",
                     "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",

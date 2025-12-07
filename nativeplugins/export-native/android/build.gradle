@@ -1,14 +1,18 @@
-apply plugin: 'com.android.library'
+plugins {
+    alias(libs.plugins.android.library)
+}
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion "33.0.0"
+    namespace 'com.cwriter.export'
+    compileSdk {
+        version = release(36)
+    }
 
     defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 33
-        versionCode 1
-        versionName "1.0.0"
+        minSdk 26  // 提高minSdk到26以支持POI库
+        targetSdk 36
+        versionCode 150
+        versionName "1.1.0"
     }
 
     buildTypes {
@@ -19,11 +23,11 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
 
-    lintOptions {
+    lint {
         abortOnError false
     }
     
@@ -32,12 +36,33 @@ android {
             assets.srcDirs = ['assets']
         }
     }
+    
+    // 解决META-INF冲突，同时保留字体资源
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE.txt'
+        pickFirst 'META-INF/gradle/incremental.annotation.processors'
+        // 确保包含iText字体资源
+        pickFirst '**/*.afm'
+        pickFirst '**/*.ttf'
+        pickFirst '**/*.otf'
+    }
+    
+    // 强制包含依赖库到classes.jar中
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
 }
 
 repositories {
     google()
     mavenCentral()
-    jcenter()
     flatDir {
         dirs 'libs'
     }
@@ -50,16 +75,50 @@ dependencies {
     // FastJSON - uni-app使用
     compileOnly 'com.alibaba:fastjson:1.2.83'
     
-    // PDF生成库 - Apache PDFBox（开源免费，Apache 2.0许可证）
-    implementation 'org.apache.pdfbox:pdfbox:2.0.29'
+    // Android-compatible PDF library (替换PDFBox)
+    api 'com.itextpdf:itext7-core:7.2.5'
     
-    // DOCX生成库 - Apache POI
-    implementation 'org.apache.poi:poi-ooxml:5.2.3'
-    implementation 'org.apache.poi:poi:5.2.3'
+    // DOCX生成库 - 使用版本管理配置
+    api(libs.poi) {
+        exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    api(libs.poi.ooxml) {
+        exclude group: 'commons-logging', module: 'commons-logging'
+        exclude group: 'org.apache.logging.log4j', module: 'log4j-api'
+    }
     
     // XML处理（POI依赖）
-    implementation 'org.apache.xmlbeans:xmlbeans:5.1.1'
-    implementation 'org.apache.commons:commons-compress:1.21'
+    api 'org.apache.xmlbeans:xmlbeans:4.0.0'
+    api 'org.apache.commons:commons-compress:1.21'
+    api 'commons-codec:commons-codec:1.15'
+    
+    // 添加缺失的POI依赖
+    api 'commons-io:commons-io:2.11.0'
+    api 'org.apache.commons:commons-collections4:4.4'
+    api 'org.apache.commons:commons-math3:3.6.1'
+    
+    // 添加SLF4J作为日志框架（避免commons-logging冲突）
+    api 'org.slf4j:slf4j-android:1.7.36'
+    
+    // 注意：不再添加AndroidX核心库，让主项目提供
+    // 移除以下依赖避免冲突：
+    // implementation 'androidx.core:core:1.12.0'
+    // implementation 'androidx.appcompat:appcompat:1.6.1'
+}
+
+// 简化打包流程，避免依赖冲突
+tasks.whenTaskAdded { task ->
+    if (task.name == 'bundleReleaseAar') {
+        task.doLast {
+            println "🔧 AAR 构建完成，使用 api 依赖方式避免冲突"
+            
+            def aarFile = file("build/outputs/aar/export-native-release.aar")
+            if (aarFile.exists()) {
+                println "✅ AAR 文件位置: ${aarFile.absolutePath}"
+                println "💡 提示：依赖通过 api 方式传递，主项目会自动解析"
+            }
+        }
+    }
 }
 
 

@@ -2,8 +2,6 @@
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
     <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
     <HeaderPlaceholder />
-    
-
 
     <!-- 页面标题 -->
     <view class="page-header">
@@ -131,6 +129,11 @@ import {
   getDefaultExportPath,
   deleteExportFile,
 } from "@/utils/exportHelper.js";
+import {
+  ensureStoragePermission,
+  showSaveLocationInfo,
+  openFileManager,
+} from "@/utils/filePermissionHelper.js";
 
 // 响应式数据
 const isDarkMode = ref(getIsDarkMode());
@@ -171,7 +174,6 @@ onLoad((options) => {
 
 // 页面初始化
 onMounted(async () => {
-
   // 获取当前用户
   try {
     currentUser.value = await OfflineAuthService.getCurrentUser();
@@ -216,8 +218,6 @@ onMounted(async () => {
     }
   }
 });
-
-
 
 // 加载作品列表
 const loadWorks = async () => {
@@ -307,11 +307,60 @@ const selectFormat = async (format) => {
 };
 
 // 选择路径
-const selectPath = () => {
+const selectPath = async () => {
+  // #ifdef APP-PLUS
+  // 在App环境中，使用应用私有目录（不需要权限）
+  // 让用户选择是否使用默认路径或自定义路径
+  uni.showActionSheet({
+    itemList: ["使用默认路径（推荐）", "自定义路径"],
+    success: async (res) => {
+      if (res.tapIndex === 0) {
+        // 使用默认路径
+        if (selectedWorkId.value) {
+          const selectedWork = availableWorks.value.find(
+            (w) => w.id === selectedWorkId.value
+          );
+          if (selectedWork) {
+            const defaultPath = getDefaultExportPath(
+              selectedWork.title,
+              exportFormat.value
+            );
+            exportPath.value = defaultPath;
+            uni.showToast({
+              title: "已使用默认路径",
+              icon: "success",
+              duration: 1500,
+            });
+          }
+        }
+      } else {
+        // 自定义路径
+        uni.showModal({
+          title: "自定义导出路径",
+          editable: true,
+          placeholderText: "请输入文件路径（相对于应用下载目录）",
+          content: exportPath.value.replace("_downloads/", ""),
+          success: (modalRes) => {
+            if (modalRes.confirm && modalRes.content) {
+              const customPath = modalRes.content.trim();
+              // 确保路径以_downloads/开头
+              exportPath.value = customPath.startsWith("_downloads/")
+                ? customPath
+                : `_downloads/${customPath}`;
+            }
+          },
+        });
+      }
+    },
+  });
+  // #endif
+
+  // #ifndef APP-PLUS
+  // H5环境，直接输入文件名
   uni.showModal({
     title: "选择导出路径",
     editable: true,
-    placeholderText: "请输入文件路径",
+    placeholderText: "请输入文件名",
     content: exportPath.value,
     success: (res) => {
       if (res.confirm && res.content) {
@@ -319,6 +368,7 @@ const selectPath = () => {
       }
     },
   });
+  // #endif
 };
 
 // 加载预览
@@ -368,6 +418,9 @@ const handleExport = async () => {
     console.log("📋 导出路径:", exportPath.value);
     console.log("📋 是否可用:", canExport.value);
 
+    // 检查并确保权限（如果需要）
+    await ensureStoragePermission();
+
     uni.showLoading({
       title: "导出中...",
     });
@@ -395,16 +448,28 @@ const handleExport = async () => {
     exportedFilePath.value = filePath;
 
     uni.hideLoading();
-    uni.showToast({
+
+    // 显示文件保存位置信息
+    showSaveLocationInfo(filePath);
+
+    // 询问用户是否打开文件管理器
+    uni.showModal({
       title: "导出成功",
-      icon: "success",
+      content: `文件已保存到应用下载目录\n\n是否打开文件位置？`,
+      confirmText: "打开",
+      cancelText: "知道了",
+      success: (res) => {
+        if (res.confirm) {
+          openFileManager(filePath);
+        }
+      },
     });
   } catch (error) {
     console.error("❌ 导出失败详情:");
     console.error("  错误类型:", error.name);
     console.error("  错误消息:", error.message);
     console.error("  错误堆栈:", error.stack);
-    
+
     uni.hideLoading();
     uni.showToast({
       title: "导出失败: " + error.message,
@@ -470,8 +535,6 @@ const handleBack = () => {
   background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
   color: #333333;
 }
-
-
 
 /* 页面标题 */
 .page-header {

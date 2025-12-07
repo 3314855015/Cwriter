@@ -5,6 +5,11 @@ import {
   nativeExportDOCX,
   isNativeExportAvailable,
 } from "./nativeExport.js";
+import {
+  hybridExportPDF,
+  hybridExportDOCX,
+  isHybridExportAvailable,
+} from "./exportHybrid.js";
 
 /**
  * 检查导出插件是否已初始化
@@ -350,8 +355,24 @@ export async function exportAsHTML(userId, workId, savePath) {
  */
 export async function exportAsPDF(userId, workId, savePath) {
   try {
-    // 优先使用原生插件（APP环境）
+    // 优先使用混合导出方案（APP环境）
     // #ifdef APP-PLUS
+    if (isHybridExportAvailable()) {
+      try {
+        const workData = await getFullWorkData(userId, workId);
+        const title = workData.title || "未命名作品";
+        const textContent = formatWorkAsText(workData);
+
+        const result = await hybridExportPDF(title, textContent, savePath);
+        console.log("✅ 使用混合导出方案导出PDF成功");
+        return result;
+      } catch (hybridError) {
+        console.warn("⚠️ 混合导出方案失败，尝试原生插件方案:", hybridError.message);
+        // 继续执行原生插件方案
+      }
+    }
+    
+    // 备选方案：使用原生插件
     if (isNativeExportAvailable()) {
       try {
         const workData = await getFullWorkData(userId, workId);
@@ -420,8 +441,7 @@ export async function exportAsPDF(userId, workId, savePath) {
         console.warn("require方式检测失败:", e);
       }
     }
-
-    // 如果仍未找到，使用降级方案
+    // 如果仍未找到，直接使用降级方案
     if (!hasJsPDF) {
       console.warn("jsPDF未安装或未正确配置，使用HTML降级方案");
       console.warn("调试信息:", {
@@ -436,7 +456,7 @@ export async function exportAsPDF(userId, workId, savePath) {
         uni.showModal({
           title: "PDF导出提示",
           content:
-            "当前导出为HTML格式（.html）。\n\n这是为了避免代码分包问题的正常行为。\n\nHTML文件可以在浏览器中打开后打印为PDF。\n\n如需真正的PDF支持，需要配置额外的加载方式（可能影响打包）。",
+            "当前导出为HTML格式（.html）。\n\n这是为了避免代码分包问题的正常行为。\n\nHTML文件可以在浏览器中打开后打印为PDF。\n\n如需真正的PDF支持，建议使用原生插件（APP环境）或配置全局变量方式。",
           showCancel: false,
         });
       }, 100);
@@ -569,8 +589,24 @@ export async function exportAsPDF(userId, workId, savePath) {
  */
 export async function exportAsDOCX(userId, workId, savePath) {
   try {
-    // 优先使用原生插件（APP环境）
+    // 优先使用混合导出方案（APP环境）
     // #ifdef APP-PLUS
+    if (isHybridExportAvailable()) {
+      try {
+        const workData = await getFullWorkData(userId, workId);
+        const title = workData.title || "未命名作品";
+        const textContent = formatWorkAsText(workData);
+
+        const result = await hybridExportDOCX(title, textContent, savePath);
+        console.log("✅ 使用混合导出方案导出DOCX成功");
+        return result;
+      } catch (hybridError) {
+        console.warn("⚠️ 混合导出方案失败，尝试原生插件方案:", hybridError.message);
+        // 继续执行原生插件方案
+      }
+    }
+    
+    // 备选方案：使用原生插件
     if (isNativeExportAvailable()) {
       try {
         const workData = await getFullWorkData(userId, workId);
@@ -655,7 +691,7 @@ export async function exportAsDOCX(userId, workId, savePath) {
       }
     }
 
-    // 如果仍未找到，使用降级方案
+    // 如果仍未找到，直接使用降级方案
     if (!hasDocx) {
       console.warn("docx库未安装或未正确配置，使用文本降级方案");
       console.warn("调试信息:", {
@@ -671,7 +707,7 @@ export async function exportAsDOCX(userId, workId, savePath) {
         uni.showModal({
           title: "DOCX导出提示",
           content:
-            "当前导出为文本格式（.txt）。\n\n这是为了避免代码分包问题的正常行为。\n\n文本文件可以在Word中打开并另存为DOCX格式。\n\n如需真正的DOCX支持，需要配置额外的加载方式（可能影响打包）。",
+            "当前导出为文本格式（.txt）。\n\n这是为了避免代码分包问题的正常行为。\n\n文本文件可以在Word中打开并另存为DOCX格式。\n\n如需真正的DOCX支持，建议使用原生插件（APP环境）或配置全局变量方式。",
           showCancel: false,
         });
       }, 100);

@@ -1,7 +1,7 @@
 {
   "name": "export-native",
   "id": "export-native",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "原生PDF/DOCX导出插件 - 支持Android离线导出",
   "_dp_type": "nativeplugin",
   "_dp_nativeplugin": {
@@ -14,7 +14,18 @@
         }
       ],
       "integrateType": "aar",
-      "dependencies": []
+      "dependencies": [
+        "com.itextpdf:itext7-core:7.2.5",
+        "org.apache.poi:poi:5.2.3",
+        "org.apache.poi:poi-ooxml:5.2.3",
+        "org.apache.xmlbeans:xmlbeans:4.0.0",
+        "org.apache.commons:commons-compress:1.21",
+        "commons-codec:commons-codec:1.15",
+        "commons-io:commons-io:2.11.0",
+        "org.apache.commons:commons-collections4:4.4",
+        "org.apache.commons:commons-math3:3.6.1",
+        "org.slf4j:slf4j-android:1.7.36"
+      ]
     }
   }
 }

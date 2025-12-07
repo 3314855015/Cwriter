@@ -1,6 +1,7 @@
 # 说明文档目录 - 不提交说明文档
 说明文档/
 Android-SDK@4.85.82519_20251107-1/
+nativeplugins/export-native/android/aar_extracted/
 
 # UniApp 相关
 unpackage/
@@ -103,3 +104,4 @@ vite.config.js.bak
 .gradle/
 local.properties
 *.iml
+nativeplugins/export-native/android/aar_extracted/classes.jar
