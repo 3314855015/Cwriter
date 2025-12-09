@@ -364,10 +364,8 @@ export async function exportAsPDF(userId, workId, savePath) {
         const textContent = formatWorkAsText(workData);
 
         const result = await hybridExportPDF(title, textContent, savePath);
-        console.log("✅ 使用混合导出方案导出PDF成功");
         return result;
       } catch (hybridError) {
-        console.warn("⚠️ 混合导出方案失败，尝试原生插件方案:", hybridError.message);
         // 继续执行原生插件方案
       }
     }
@@ -380,10 +378,8 @@ export async function exportAsPDF(userId, workId, savePath) {
         const textContent = formatWorkAsText(workData);
 
         const result = await nativeExportPDF(title, textContent, savePath);
-        console.log("✅ 使用原生插件导出PDF成功");
         return result;
       } catch (nativeError) {
-        console.warn("⚠️ 原生插件导出失败，尝试降级方案:", nativeError.message);
         // 继续执行降级方案
       }
     }
@@ -409,19 +405,16 @@ export async function exportAsPDF(userId, workId, savePath) {
     if (checkExportPlugin() && globalObj && globalObj.jsPDF) {
       jsPDF = globalObj.jsPDF;
       hasJsPDF = true;
-      console.log("✅ 检测到导出插件中的jsPDF");
     }
     // 方式2: 检查全局变量（支持多种环境）
     else if (globalObj && globalObj.jsPDF) {
       jsPDF = globalObj.jsPDF;
       hasJsPDF = true;
-      console.log("✅ 检测到jsPDF全局变量");
     }
     // 方式3: 检查window对象（H5环境）
     else if (typeof window !== "undefined" && window.jsPDF) {
       jsPDF = window.jsPDF;
       hasJsPDF = true;
-      console.log("✅ 检测到window.jsPDF");
     }
     // 方式4: 检查是否可以通过eval访问（仅开发环境，作为备用）
     else if (typeof eval !== "undefined") {
@@ -434,21 +427,14 @@ export async function exportAsPDF(userId, workId, savePath) {
         if (result) {
           jsPDF = result.default || result.jsPDF || result;
           hasJsPDF = true;
-          console.log("✅ 通过require检测到jsPDF");
         }
       } catch (e) {
         // 忽略错误，继续降级方案
-        console.warn("require方式检测失败:", e);
       }
     }
     // 如果仍未找到，直接使用降级方案
     if (!hasJsPDF) {
-      console.warn("jsPDF未安装或未正确配置，使用HTML降级方案");
-      console.warn("调试信息:", {
-        hasWindow: typeof window !== "undefined",
-        windowJsPDF: typeof window !== "undefined" ? !!window.jsPDF : false,
-        globalJsPDF: typeof global !== "undefined" ? !!global.jsPDF : false,
-      });
+      console.warn("jsPDF未配置，使用HTML降级方案");
       // 降级方案：导出为HTML
       const htmlPath = savePath.replace(".pdf", ".html");
       const htmlContent = await exportAsHTML(userId, workId, htmlPath);
@@ -598,10 +584,8 @@ export async function exportAsDOCX(userId, workId, savePath) {
         const textContent = formatWorkAsText(workData);
 
         const result = await hybridExportDOCX(title, textContent, savePath);
-        console.log("✅ 使用混合导出方案导出DOCX成功");
         return result;
       } catch (hybridError) {
-        console.warn("⚠️ 混合导出方案失败，尝试原生插件方案:", hybridError.message);
         // 继续执行原生插件方案
       }
     }
@@ -614,10 +598,8 @@ export async function exportAsDOCX(userId, workId, savePath) {
         const textContent = formatWorkAsText(workData);
 
         const result = await nativeExportDOCX(title, textContent, savePath);
-        console.log("✅ 使用原生插件导出DOCX成功");
         return result;
       } catch (nativeError) {
-        console.warn("⚠️ 原生插件导出失败，尝试降级方案:", nativeError.message);
         // 继续执行降级方案
       }
     }
@@ -649,21 +631,18 @@ export async function exportAsDOCX(userId, workId, savePath) {
       docx = globalObj.docx;
       fileSaver = globalObj.saveAs;
       hasDocx = true;
-      console.log("✅ 检测到导出插件中的docx和file-saver");
     }
     // 方式2: 检查全局变量（支持多种环境）
     else if (globalObj && globalObj.docx && globalObj.saveAs) {
       docx = globalObj.docx;
       fileSaver = globalObj.saveAs;
       hasDocx = true;
-      console.log("✅ 检测到docx和file-saver全局变量");
     }
     // 方式3: 检查window对象（H5环境）
     else if (typeof window !== "undefined" && window.docx && window.saveAs) {
       docx = window.docx;
       fileSaver = window.saveAs;
       hasDocx = true;
-      console.log("✅ 检测到window.docx和window.saveAs");
     }
     // 方式4: 检查是否可以通过eval访问（仅开发环境，作为备用）
     else if (typeof eval !== "undefined") {
@@ -683,23 +662,15 @@ export async function exportAsDOCX(userId, workId, savePath) {
             fileSaverResult.saveAs ||
             fileSaverResult;
           hasDocx = true;
-          console.log("✅ 通过require检测到docx和file-saver");
         }
       } catch (e) {
         // 忽略错误，继续降级方案
-        console.warn("require方式检测失败:", e);
       }
     }
 
     // 如果仍未找到，直接使用降级方案
     if (!hasDocx) {
-      console.warn("docx库未安装或未正确配置，使用文本降级方案");
-      console.warn("调试信息:", {
-        hasWindow: typeof window !== "undefined",
-        windowDocx: typeof window !== "undefined" ? !!window.docx : false,
-        windowSaveAs: typeof window !== "undefined" ? !!window.saveAs : false,
-        globalDocx: typeof global !== "undefined" ? !!global.docx : false,
-      });
+      console.warn("docx库未配置，使用文本降级方案");
       // 降级方案：导出为文本
       const txtPath = savePath.replace(".docx", ".txt");
       const textContent = await exportAsText(userId, workId, txtPath);

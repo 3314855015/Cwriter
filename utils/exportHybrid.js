@@ -10,27 +10,18 @@ export function hybridExportPDF(title, content, savePath) {
   return new Promise((resolve, reject) => {
     // #ifdef APP-PLUS
     try {
-      console.log("🚀 开始混合PDF导出");
-      console.log("📋 参数:", { title, contentLength: content?.length, savePath });
-
       // 转换路径格式
       let convertedSavePath = savePath;
       if (savePath.startsWith("_downloads/")) {
         convertedSavePath = plus.io.convertLocalFileSystemURL(savePath);
-        console.log("📁 路径转换:", savePath, "->", convertedSavePath);
       }
-
-      // 优先尝试直接调用ExportUtils工具类
-      console.log("🔧 尝试直接调用ExportUtils工具类...");
       try {
         const ExportUtils = plus.android.importClass("com.cwriter.export.ExportUtils");
         
         // 检查工具类是否可用
         const isAvailable = ExportUtils.isExportAvailable();
-        console.log("✅ ExportUtils工具类可用性:", isAvailable);
         
         if (isAvailable) {
-          console.log("🔧 调用ExportUtils.exportToPDFForPlugin...");
           const result = ExportUtils.exportToPDFForPlugin(
             title || "未命名文档",
             content || "",
@@ -46,20 +37,14 @@ export function hybridExportPDF(title, content, savePath) {
             parsedResult = JSON.parse(result);
           }
 
-          console.log("📤 ExportUtils返回结果:", parsedResult);
-
           if (parsedResult && parsedResult.success) {
-            console.log("✅ PDF导出成功 (ExportUtils):", parsedResult.path);
             resolve(parsedResult.path);
             return;
           }
         }
       } catch (directError) {
-        console.warn("⚠️ 直接调用ExportUtils失败，尝试插件方式:", directError);
+        // 继续尝试插件方式
       }
-
-      // 备选方案：使用插件机制
-      console.log("🔧 尝试插件方式...");
       try {
         const module = uni.requireNativePlugin('export-native');
         if (module && typeof module.exportToPDFSync === 'function') {
@@ -69,12 +54,9 @@ export function hybridExportPDF(title, content, savePath) {
             savePath: convertedSavePath
           };
           
-          console.log("📤 发送给插件的参数:", JSON.stringify(options, null, 2));
           const result = module.exportToPDFSync(options);
-          console.log("📤 插件返回结果:", result);
           
           if (result && result.success) {
-            console.log("✅ PDF导出成功 (插件方式):", result.path);
             resolve(result.path);
             return;
           } else {
@@ -83,11 +65,8 @@ export function hybridExportPDF(title, content, savePath) {
           }
         }
       } catch (pluginError) {
-        console.warn("⚠️ 插件方式失败:", pluginError);
+        // 继续尝试字符串版本
       }
-
-      // 最后备选：字符串版本
-      console.log("🔧 尝试字符串版本...");
       try {
         const ExportUtils = plus.android.importClass("com.cwriter.export.ExportUtils");
         const result = ExportUtils.exportToPDFWithString(JSON.stringify({
@@ -105,7 +84,6 @@ export function hybridExportPDF(title, content, savePath) {
         }
 
         if (parsedResult && parsedResult.success) {
-          console.log("✅ PDF导出成功 (字符串版本):", parsedResult.path);
           resolve(parsedResult.path);
           return;
         } else {
@@ -113,12 +91,10 @@ export function hybridExportPDF(title, content, savePath) {
           return;
         }
       } catch (stringError) {
-        console.error("❌ 所有方案都失败:", stringError);
         reject(new Error("PDF导出失败: " + stringError.message));
       }
 
     } catch (error) {
-      console.error("❌ 混合PDF导出失败:", error);
       reject(new Error("PDF导出失败: " + error.message));
     }
     // #endif
@@ -136,27 +112,18 @@ export function hybridExportDOCX(title, content, savePath) {
   return new Promise((resolve, reject) => {
     // #ifdef APP-PLUS
     try {
-      console.log("🚀 开始混合DOCX导出");
-      console.log("📋 参数:", { title, contentLength: content?.length, savePath });
-
       // 转换路径格式
       let convertedSavePath = savePath;
       if (savePath.startsWith("_downloads/")) {
         convertedSavePath = plus.io.convertLocalFileSystemURL(savePath);
-        console.log("📁 路径转换:", savePath, "->", convertedSavePath);
       }
-
-      // 优先尝试直接调用ExportUtils工具类
-      console.log("🔧 尝试直接调用ExportUtils工具类...");
       try {
         const ExportUtils = plus.android.importClass("com.cwriter.export.ExportUtils");
         
         // 检查工具类是否可用
         const isAvailable = ExportUtils.isExportAvailable();
-        console.log("✅ ExportUtils工具类可用性:", isAvailable);
         
         if (isAvailable) {
-          console.log("🔧 调用ExportUtils.exportToDOCXForPlugin...");
           const result = ExportUtils.exportToDOCXForPlugin(
             title || "未命名文档",
             content || "",
@@ -172,20 +139,14 @@ export function hybridExportDOCX(title, content, savePath) {
             parsedResult = JSON.parse(result);
           }
 
-          console.log("📤 ExportUtils返回结果:", parsedResult);
-
           if (parsedResult && parsedResult.success) {
-            console.log("✅ DOCX导出成功 (ExportUtils):", parsedResult.path);
             resolve(parsedResult.path);
             return;
           }
         }
       } catch (directError) {
-        console.warn("⚠️ 直接调用ExportUtils失败，尝试插件方式:", directError);
+        // 继续尝试插件方式
       }
-
-      // 备选方案：使用插件机制
-      console.log("🔧 尝试插件方式...");
       try {
         const module = uni.requireNativePlugin('export-native');
         if (module && typeof module.exportToDOCXSync === 'function') {
@@ -195,12 +156,9 @@ export function hybridExportDOCX(title, content, savePath) {
             savePath: convertedSavePath
           };
           
-          console.log("📤 发送给插件的参数:", JSON.stringify(options, null, 2));
           const result = module.exportToDOCXSync(options);
-          console.log("📤 插件返回结果:", result);
           
           if (result && result.success) {
-            console.log("✅ DOCX导出成功 (插件方式):", result.path);
             resolve(result.path);
             return;
           } else {
@@ -209,11 +167,8 @@ export function hybridExportDOCX(title, content, savePath) {
           }
         }
       } catch (pluginError) {
-        console.warn("⚠️ 插件方式失败:", pluginError);
+        // 继续尝试字符串版本
       }
-
-      // 最后备选：字符串版本
-      console.log("🔧 尝试字符串版本...");
       try {
         const ExportUtils = plus.android.importClass("com.cwriter.export.ExportUtils");
         const result = ExportUtils.exportToDOCXWithString(JSON.stringify({
@@ -231,7 +186,6 @@ export function hybridExportDOCX(title, content, savePath) {
         }
 
         if (parsedResult && parsedResult.success) {
-          console.log("✅ DOCX导出成功 (字符串版本):", parsedResult.path);
           resolve(parsedResult.path);
           return;
         } else {
@@ -239,12 +193,10 @@ export function hybridExportDOCX(title, content, savePath) {
           return;
         }
       } catch (stringError) {
-        console.error("❌ 所有方案都失败:", stringError);
         reject(new Error("DOCX导出失败: " + stringError.message));
       }
 
     } catch (error) {
-      console.error("❌ 混合DOCX导出失败:", error);
       reject(new Error("DOCX导出失败: " + error.message));
     }
     // #endif
@@ -264,14 +216,12 @@ export function isHybridExportAvailable() {
     // 优先检查ExportUtils工具类
     const ExportUtils = plus.android.importClass("com.cwriter.export.ExportUtils");
     if (ExportUtils && ExportUtils.isExportAvailable()) {
-      console.log("✅ 混合导出可用 (ExportUtils)");
       return true;
     }
     
     // 备选检查插件
     const module = uni.requireNativePlugin('export-native');
     if (module && (typeof module.exportToPDFSync === 'function' || typeof module.exportToDOCXSync === 'function')) {
-      console.log("✅ 混合导出可用 (插件)");
       return true;
     }
     

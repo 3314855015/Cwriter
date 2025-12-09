@@ -30,7 +30,6 @@ export function initExportPlugin() {
       : null;
 
   if (!globalObj) {
-    console.warn("⚠️ 无法找到全局对象，导出插件初始化失败");
     return false;
   }
 
@@ -43,7 +42,6 @@ export function initExportPlugin() {
         globalObj.jsPDF = window.jsPDF;
         globalObj.docx = window.docx;
         globalObj.saveAs = window.saveAs;
-        console.log("✅ 导出插件已初始化（通过全局变量）");
         return true;
       }
     }
@@ -71,20 +69,15 @@ export function initExportPlugin() {
             window.saveAs = globalObj.saveAs;
           }
 
-          console.log("✅ 导出插件已初始化（通过运行时require）");
           return true;
         }
       } catch (requireError) {
-        console.warn("⚠️ 运行时require失败:", requireError.message);
+        // 运行时require失败
       }
     }
 
-    console.warn("⚠️ 导出插件初始化失败：库文件未找到");
-    console.warn("💡 提示：由于uni-app构建限制，静态import会导致分包问题");
-    console.warn("💡 建议：使用降级方案（HTML/文本导出）或配置CDN加载");
     return false;
   } catch (error) {
-    console.error("❌ 导出插件初始化异常:", error);
     return false;
   }
 }
