@@ -6,14 +6,14 @@
     <!-- 页面头部 -->
     <view class="page-header">
       <view class="header-left" @tap="goBack">
-        <image class="back-icon" src="/static/icons/times.svg" mode="aspectFit"></image>
+        <text class="back-text">X</text>
       </view>
       <view class="header-center">
         <text class="page-title">{{ workInfo.title }}</text>
       </view>
       <view class="header-right">
         <view class="action-btn" @tap="addChapter">
-          <image class="add-icon" src="/static/icons/plus.svg" mode="aspectFit"></image>
+          <text class="add-text">+</text>
         </view>
       </view>
     </view>
@@ -58,8 +58,54 @@
       <view class="empty-state" v-if="chapters.length === 0">
         <image class="empty-icon" src="/static/icons/file.svg" mode="aspectFit"></image>
         <text class="empty-text">还没有章节</text>
-        <view class="empty-btn" @tap="addChapter">
+        <view class="empty-btn" @tap="showCreateModal">
           <text class="btn-text">创建第一章</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 创建章节模态框 -->
+    <view v-if="showCreateChapterModal" class="modal-overlay" @tap="hideCreateModal">
+      <view class="modal-container" @tap.stop>
+        <!-- 关闭按钮 -->
+        <view class="modal-close" @tap="hideCreateModal">
+          <text class="close-text">×</text>
+        </view>
+        
+        <!-- 标题 -->
+        <view class="modal-header">
+          <text class="modal-title">创建新章节</text>
+        </view>
+        
+        <!-- 输入区域 -->
+        <view class="modal-content">
+          <view class="input-group">
+            <text class="input-label">章节标题</text>
+            <input
+              v-model="newChapterTitle"
+              class="modal-input"
+              placeholder="请输入章节标题"
+              placeholder-class="input-placeholder"
+              :maxlength="50"
+              @input="onTitleInput"
+            />
+            <text class="input-counter">{{ newChapterTitle.length }}/50</text>
+          </view>
+        </view>
+        
+        <!-- 按钮区域 -->
+        <view class="modal-actions">
+          <button class="action-btn cancel-btn" @tap="hideCreateModal">
+            <text class="btn-text">取消</text>
+          </button>
+          <button 
+            class="action-btn create-btn" 
+            :class="{ disabled: !newChapterTitle.trim() }"
+            :disabled="!newChapterTitle.trim()"
+            @tap="handleCreateChapter"
+          >
+            <text class="btn-text">创建</text>
+          </button>
         </view>
       </view>
     </view>
@@ -92,6 +138,8 @@ const workInfo = ref({ title: '加载中...' })
 const chapters = ref([])
 const workId = ref('')
 const userId = ref('')
+const showCreateChapterModal = ref(false)
+const newChapterTitle = ref('')
 
 
 
@@ -177,16 +225,7 @@ const loadWorkChapters = async () => {
 }
 
 const addChapter = () => {
-  uni.showModal({
-    title: '新建章节',
-    editable: true,
-    placeholderText: '请输入章节标题',
-    success: (res) => {
-      if (res.confirm && res.content.trim()) {
-        createChapter(res.content.trim())
-      }
-    }
-  })
+  showCreateModal()
 }
 
 const createChapter = async (title) => {
@@ -337,6 +376,35 @@ const goBack = () => {
   uni.navigateBack()
 }
 
+// 模态框相关方法
+const showCreateModal = () => {
+  showCreateChapterModal.value = true
+  newChapterTitle.value = ''
+}
+
+const hideCreateModal = () => {
+  showCreateChapterModal.value = false
+  newChapterTitle.value = ''
+}
+
+const onTitleInput = (e) => {
+  newChapterTitle.value = e.detail.value
+}
+
+const handleCreateChapter = () => {
+  const title = newChapterTitle.value.trim()
+  if (!title) {
+    uni.showToast({
+      title: '请输入章节标题',
+      icon: 'none'
+    })
+    return
+  }
+  
+  createChapter(title)
+  hideCreateModal()
+}
+
 const toggleTheme = () => {
   const newTheme = themeManager.toggleTheme()
   isDarkMode.value = themeManager.isDarkMode()
@@ -385,9 +453,10 @@ const handleNavSwitch = (navType) => {
   width: 60px;
 }
 
-.back-icon {
-  width: 24px;
-  height: 24px;
+.back-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: inherit;
 }
 
 .page-title {
@@ -403,18 +472,27 @@ const handleNavSwitch = (navType) => {
 }
 
 .action-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 20px;
-  background: #FF6B35;
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
 }
 
-.add-icon {
-  width: 20px;
-  height: 20px;
+.action-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+.add-text {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
 }
 
 .chapters-container {
@@ -552,14 +630,22 @@ const handleNavSwitch = (navType) => {
 
 .empty-btn {
   padding: 12px 24px;
-  border-radius: 8px;
-  background: #FF6B35;
-  color: white;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
+}
+
+.empty-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
 }
 
 .btn-text {
   font-size: 14px;
   font-weight: 500;
+  color: inherit;
 }
 
 .chapter-actions {
@@ -587,5 +673,280 @@ const handleNavSwitch = (navType) => {
 .chapter-action-btn image {
   width: 16px;
   height: 16px;
+}
+
+/* 创建章节模态框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-container {
+  background: #2A2A2A;
+  border-radius: 16px;
+  margin: 20px;
+  width: calc(100% - 40px);
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.light-theme .modal-container {
+  background: #FFFFFF;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.light-theme .modal-close {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.modal-close:active {
+  transform: scale(0.9);
+}
+
+.close-text {
+  color: #FFFFFF;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.light-theme .close-text {
+  color: #333333;
+}
+
+.modal-header {
+  padding: 24px 20px 16px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.light-theme .modal-title {
+  color: #333333;
+}
+
+.modal-content {
+  padding: 0 20px 20px;
+}
+
+.input-group {
+  position: relative;
+}
+
+.input-label {
+  display: block;
+  font-size: 14px;
+  color: #B3B3B3;
+  margin-bottom: 8px;
+}
+
+.light-theme .input-label {
+  color: #666666;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #1A1A1A;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 16px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.light-theme .modal-input {
+  background: #F5F5F5;
+  border: 1px solid #E0E0E0;
+  color: #333333;
+}
+
+.modal-input:focus {
+  border-color: #FF6B35;
+  outline: none;
+}
+
+.input-placeholder {
+  color: #666666;
+}
+
+.light-theme .input-placeholder {
+  color: #999999;
+}
+
+.input-counter {
+  position: absolute;
+  right: 16px;
+  bottom: -18px;
+  font-size: 12px;
+  color: #666666;
+}
+
+.light-theme .input-counter {
+  color: #999999;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #404040;
+}
+
+.light-theme .modal-actions {
+  border-top: 1px solid #E0E0E0;
+}
+
+.modal-actions .action-btn {
+  flex: 1;
+  padding: 12px 24px;
+  border-radius: 8px;
+  border: none;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.cancel-btn {
+  background: #404040;
+  color: #FFFFFF;
+}
+
+.light-theme .cancel-btn {
+  background: #F5F5F5;
+  color: #666666;
+}
+
+.cancel-btn:active {
+  background: #333333;
+}
+
+.light-theme .cancel-btn:active {
+  background: #E0E0E0;
+}
+
+.create-btn {
+  background: linear-gradient(135deg, #FF6B35 0%, #FF8A65 100%);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+}
+
+.create-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
+}
+
+.create-btn.disabled {
+  background: #404040;
+  color: #666666;
+  box-shadow: none;
+}
+
+.create-btn.disabled:active {
+  transform: none;
+}
+
+/* 亮色主题适配 */
+.light-theme .modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.light-theme .modal-container {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+  border: 2px solid rgba(255, 107, 53, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .modal-close {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .modal-close:active {
+  background: rgba(255, 107, 53, 0.1);
+}
+
+.light-theme .close-text {
+  color: #333333;
+}
+
+.light-theme .modal-title {
+  color: #333333;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.light-theme .input-label {
+  color: #ff6b35;
+}
+
+.light-theme .modal-input {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #333333;
+}
+
+.light-theme .modal-input:focus {
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+}
+
+.light-theme .input-placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.light-theme .input-counter {
+  color: #999999;
+}
+
+.light-theme .modal-actions {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .cancel-btn {
+  background: #f5f5f5;
+  color: #666666;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .cancel-btn:active {
+  background: #e0e0e0;
+}
+
+.light-theme .create-btn.disabled {
+  background: #f5f5f5;
+  color: #999999;
+  box-shadow: none;
 }
 </style>

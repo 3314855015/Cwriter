@@ -40,7 +40,7 @@
       </view>
       <view class="stats-item">
         <text class="stats-number stats-secondary">{{
-          statsData.totalCharacters
+          formatWordCount(statsData.totalCharacters)
         }}</text>
         <text class="stats-label">总字数</text>
       </view>
@@ -74,13 +74,37 @@
     </view>
 
     <!-- 作品列表 -->
-    <scroll-view class="works-list" scroll-y="true">
-      <view class="work-items">
+    <scroll-view 
+      class="works-list" 
+      scroll-y="true"
+      :enhanced="true"
+      :show-scrollbar="false"
+      :bounces="true"
+    >
+      <!-- 加载状态 -->
+      <view v-if="isLoading" class="loading-state">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">加载中</text>
+      </view>
+      
+      <!-- 空状态 -->
+      <view v-else-if="filteredWorks.length === 0" class="empty-state">
+        <image class="empty-icon" src="/static/icons/file.svg" mode="aspectFit"></image>
+        <text class="empty-text">还没有作品</text>
+        <view class="empty-btn" @tap="createNewWork">
+          <text class="btn-text">创建第一个作品</text>
+        </view>
+      </view>
+      
+      <!-- 作品列表 -->
+      <view v-else class="work-items">
         <view
           v-for="work in filteredWorks"
           :key="work.id"
           class="work-item"
           @tap="openWork(work.id)"
+          hover-class="work-item-hover"
+          :hover-stay-time="50"
         >
           <view class="work-content">
             <view class="work-main">
@@ -94,8 +118,9 @@
                   class="work-icon"
                   src="/static/icons/file.svg"
                   mode="aspectFit"
+                  lazy-load
                 ></image>
-                <text class="work-words">{{ work.wordCount }}字</text>
+                <text class="work-words">{{ formatWordCount(work.wordCount) }}字</text>
               </view>
             </view>
           </view>
@@ -187,7 +212,7 @@ const tabs = ref([
   { id: "recent", name: "最近" },
   { id: "favorite", name: "收藏" },
   { id: "local", name: "本机" },
-  { id: "map", name: "地图" },
+  { id: "map", name: "场景" },
 ]);
 
 // 菜单项数据
@@ -224,49 +249,22 @@ const menuItems = ref([
     id: "map",
     icon: "icon-map-marked-alt",
     action: "createNewMap",
-    label: "地图",
+    label: "场景",
     gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
   },
 ]);
 
-// 作品数据
-const works = ref([
-  {
-    id: "work_001",
-    title: "《1》",
-    modifiedTime: "2小时前修改",
-    chapter: "第12章",
-    wordCount: "1,247",
-    type: "recent",
-  },
-  {
-    id: "work_002",
-    title: "《2》",
-    modifiedTime: "昨天修改",
-    chapter: "第8章",
-    wordCount: "856",
-    type: "recent",
-  },
-  {
-    id: "work_003",
-    title: "《3》",
-    modifiedTime: "3天前修改",
-    chapter: "第3章",
-    wordCount: "2,103",
-    type: "recent",
-  },
-  {
-    id: "work_004",
-    title: "《4》",
-    modifiedTime: "1周前修改",
-    chapter: "第15章",
-    wordCount: "3,456",
-    type: "recent",
-  },
-]);
+// 作品数据 - 初始为空，显示加载状态
+const works = ref([]);
+const isLoading = ref(true);
 
 // 计算属性：根据当前标签筛选作品
 const filteredWorks = computed(() => {
+  // 使用缓存优化性能
+  if (!works.value || works.value.length === 0) {
+    return [];
+  }
+  
   if (activeTab.value === "recent") {
     // 最近标签：显示所有作品
     return works.value;
@@ -404,6 +402,9 @@ const initPage = async () => {
     // 输出存储路径调试信息
     fileStorage.logStoragePaths(currentUser.value.id);
 
+    // 执行自动备份
+    await createAutoBackup();
+
     // 调试：直接测试作品扫描
 
     const testWorks = await fileStorage.getUserWorks(currentUser.value.id);
@@ -427,32 +428,40 @@ const initPage = async () => {
   }
 };
 
+// 字数格式化函数 - 将字数转换为K/W/M格式
+const formatWordCount = (count) => {
+  if (!count || count === 0) return '0';
+  
+  const num = parseInt(count);
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'm';
+  } else if (num >= 10000) {
+    return (num / 10000).toFixed(1) + 'w';
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'k';
+  }
+  return num.toString();
+};
+
 // 加载用户数据
 const loadUserData = async () => {
   if (!currentUser.value) return;
 
   try {
+    isLoading.value = true;
+    
     // 加载作品列表（现在会扫描 works 目录下的所有 work.config.json）
     const userWorks = await fileStorage.getUserWorks(currentUser.value.id);
 
     // 使用 Promise.all 来并行处理所有作品的字数计算
     const worksPromises = userWorks.map(async (work) => {
-      // 计算字数：尝试从文档文件获取，如果没有则从标题和描述估算
       let wordCount = 0;
+      
       try {
-        // 尝试读取文档内容来计算字数
-        const manuscriptPath = `${work.local_file_path}/settings/manuscript.json`;
-        const manuscript = await fileStorage.readFile(manuscriptPath);
-        if (manuscript && manuscript.word_count) {
-          wordCount = manuscript.word_count;
-        } else if (manuscript && manuscript.content) {
-          wordCount = manuscript.content.replace(/\s/g, "").length;
-        } else {
-          // 估算字数：标题 + 描述
-          wordCount =
-            (work.title?.length || 0) + (work.description?.length || 0);
-        }
+        // 所有作品都使用分章节字数获取逻辑
+        wordCount = await getChapterizedWorkWordCount(work.id);
       } catch (error) {
+        console.warn(`获取作品 ${work.title} 字数失败:`, error);
         // 如果读取失败，使用估算字数
         wordCount = (work.title?.length || 0) + (work.description?.length || 0);
       }
@@ -461,8 +470,7 @@ const loadUserData = async () => {
         id: work.id,
         title: work.title || "未命名作品",
         modifiedTime: formatTime(work.updated_at || work.created_at),
-        chapter:
-          work.structure_type === "chapterized" ? "分章节作品" : "整体作品",
+        chapter: await getChapterCount(work.id),
         wordCount: wordCount,
         structure_type: work.structure_type, // 确保保留结构类型
         description: work.description || "",
@@ -510,7 +518,142 @@ const loadUserData = async () => {
       totalCharacters: 0,
       totalMaps: 0,
     };
+  } finally {
+    isLoading.value = false;
   }
+};
+
+// 创建自动备份
+const createAutoBackup = async () => {
+  try {
+    console.log('开始创建自动备份...');
+    
+    // 获取所有作品
+    const userWorks = await fileStorage.getUserWorks(currentUser.value.id);
+    
+    if (!userWorks || userWorks.length === 0) {
+      console.log('没有作品需要备份');
+      return;
+    }
+    
+    const backupData = {
+      backup_time: new Date().toISOString(),
+      user_id: currentUser.value.id,
+      app_version: '2.0.0',
+      works: []
+    };
+    
+    // 遍历所有作品，备份重要数据
+    for (const work of userWorks) {
+      try {
+        const workDetail = await fileStorage.getWorkDetail(currentUser.value.id, work.id);
+        if (workDetail) {
+          backupData.works.push({
+            id: workDetail.id,
+            title: workDetail.title,
+            description: workDetail.description,
+            category: workDetail.category,
+            structure_type: workDetail.structure_type,
+            created_at: workDetail.created_at,
+            updated_at: workDetail.updated_at,
+            content: workDetail.content
+          });
+        }
+      } catch (workError) {
+        console.warn(`备份作品 ${work.id} 失败:`, workError);
+      }
+    }
+    
+    // 保存备份到本地存储
+    const backupKey = `cwriter_auto_backup_${currentUser.value.id}_${new Date().toISOString().split('T')[0]}`;
+    uni.setStorageSync(backupKey, backupData);
+    
+    console.log(`自动备份创建成功，备份了 ${backupData.works.length} 个作品`);
+    
+    // 清理旧备份（保留最近7天）
+    const storageKeys = uni.getStorageInfoSync().keys;
+    const backupKeys = storageKeys.filter(key => key.startsWith('cwriter_auto_backup_'));
+    
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    for (const key of backupKeys) {
+      const dateStr = key.split('_').pop();
+      if (dateStr && dateStr.includes('-')) {
+        const backupDate = new Date(dateStr);
+        if (backupDate < sevenDaysAgo) {
+          uni.removeStorageSync(key);
+          console.log(`清理旧备份: ${key}`);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('⚠️ 创建自动备份失败:', error);
+  }
+};
+
+// 获取分章节作品的字数统计
+const getChapterizedWorkWordCount = async (workId) => {
+  if (!currentUser.value || !workId) return 0;
+  
+  try {
+    const workPath = fileStorage.getWorkPath(currentUser.value.id, workId);
+    const chaptersPath = `${workPath}/chapters/chapters.json`;
+    const chaptersList = await fileStorage.readFile(chaptersPath);
+    
+    if (!Array.isArray(chaptersList)) {
+      console.warn(`作品 ${workId} 章节列表格式不正确`);
+      return 0;
+    }
+    
+    let totalWordCount = 0;
+    
+    // 遍历所有章节，累加字数
+    for (const chapter of chaptersList) {
+      if (chapter.word_count) {
+        totalWordCount += chapter.word_count;
+      } else {
+        // 如果章节没有字数统计，尝试从章节文件中获取
+        try {
+          const chapterPath = `${workPath}/chapters/${chapter.id}.json`;
+          const chapterData = await fileStorage.readFile(chapterPath);
+          if (chapterData && chapterData.word_count) {
+            totalWordCount += chapterData.word_count;
+          } else if (chapterData && chapterData.content) {
+            totalWordCount += chapterData.content.replace(/\s/g, "").length;
+          }
+        } catch (chapterError) {
+          console.warn(`读取章节 ${chapter.id} 失败:`, chapterError);
+        }
+      }
+    }
+    
+    return totalWordCount;
+  } catch (error) {
+    console.error(`获取作品 ${workId} 章节字数失败:`, error);
+    return 0;
+  }
+};
+
+// 获取分章节作品的章节数量
+const getChapterCount = async (workId) => {
+  if (!currentUser.value || !workId) return "0章";
+  
+  try {
+    const workPath = fileStorage.getWorkPath(currentUser.value.id, workId);
+    const chaptersPath = `${workPath}/chapters/chapters.json`;
+    const chaptersList = await fileStorage.readFile(chaptersPath);
+    
+    if (Array.isArray(chaptersList)) {
+      const chapterCount = chaptersList.filter(ch => ch.is_active !== false).length;
+      return `${chapterCount}章`;
+    }
+  } catch (error) {
+    console.warn(`获取作品 ${workId} 章节数量失败:`, error);
+  }
+  
+  return "0章";
 };
 
 // 创建新作品
@@ -519,32 +662,32 @@ const createNewWork = () => {
 };
 
 // 处理作品创建成功
-const handleWorkCreated = (newWork) => {
+const handleWorkCreated = async (newWork) => {
+  // 所有作品都使用分章节字数获取逻辑
+  const wordCount = await getChapterizedWorkWordCount(newWork.id);
+
   // 添加到作品列表
   const formattedWork = {
     id: newWork.id,
     title: newWork.title,
     modifiedTime: formatTime(newWork.updated_at),
-    chapter: newWork.structure_type === "chapterized" ? "第1章" : "整体作品",
-    wordCount: newWork.content?.manuscript?.word_count || 0,
+    chapter: await getChapterCount(newWork.id),
+    wordCount: wordCount,
+    structure_type: newWork.structure_type,
     type: "recent",
   };
 
   works.value.unshift(formattedWork);
 
-  // 更新统计数据 - 添加错误处理
-  if (currentUser.value) {
-    try {
-      const stats = fileStorage.getStorageStats(currentUser.value.id);
-      statsData.value = {
-        totalWorks: stats?.totalWorks || 0,
-        totalCharacters: stats?.totalCharacters || 0,
-        totalMaps: stats?.totalMaps || 0,
-      };
-    } catch (statsError) {
-      console.error("获取统计数据失败:", statsError);
-    }
-  }
+  // 更新统计数据
+  statsData.value = {
+    totalWorks: works.value.length,
+    totalCharacters: works.value.reduce(
+      (sum, work) => sum + work.wordCount,
+      0
+    ),
+    totalMaps: statsData.value.totalMaps || 0,
+  };
 };
 
 // 格式化时间显示
@@ -965,6 +1108,12 @@ const getIconPath = (iconClass) => {
   transform: translateY(1px);
 }
 
+.work-item-hover {
+  background: rgba(64, 64, 64, 0.3);
+  transform: translateY(-1px);
+  transition: all 0.1s ease;
+}
+
 .work-content {
   display: flex;
   justify-content: space-between;
@@ -1088,5 +1237,78 @@ const getIconPath = (iconClass) => {
   width: 20px;
   height: 20px;
   filter: brightness(0) invert(1);
+}
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 107, 53, 0.3);
+  border-top: 3px solid #FF6B35;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 16px;
+  color: #B3B3B3;
+}
+
+.light-theme .loading-text {
+  color: #666666;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  opacity: 0.5;
+  margin-bottom: 16px;
+}
+
+.empty-text {
+  font-size: 16px;
+  color: #B3B3B3;
+  margin-bottom: 20px;
+}
+
+.light-theme .empty-text {
+  color: #666666;
+}
+
+.empty-btn {
+  padding: 12px 24px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
+}
+
+.empty-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
 }
 </style>

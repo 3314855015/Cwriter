@@ -32,6 +32,9 @@
               <view class="menu-item" @tap="loadLocalWorks">
                 <text class="menu-text">加载</text>
               </view>
+              <view class="menu-item" @tap="manualBackup">
+                <text class="menu-text">备份数据</text>
+              </view>
               <view class="menu-item" @tap="deleteSelected">
                 <text class="menu-text">删除</text>
               </view>
@@ -46,9 +49,14 @@
       <!-- 作品列表 -->
       <view class="works-section">
         <view class="section-header">
-          <text class="section-title">{{
-            currentWork ? currentWork.title : "作品列表"
-          }}</text>
+          <view class="section-header-left">
+            <view v-if="currentWork" class="inline-back-btn" @tap="backToList">
+              <text class="back-icon">←</text>
+            </view>
+            <text class="section-title">{{
+              currentWork ? currentWork.title : "作品列表"
+            }}</text>
+          </view>
           <text class="work-count" v-if="!currentWork"
             >共 {{ works.length }} 部作品</text
           >
@@ -292,12 +300,6 @@
           </view>
         </view>
       </view>
-
-      <!-- 悬浮返回按钮 -->
-      <view v-if="currentWork" class="floating-back-btn" @tap="backToList">
-        <text class="back-icon">←</text>
-        <text class="back-label">返回</text>
-      </view>
     </view>
 
     <!-- 批量操作栏 -->
@@ -327,6 +329,155 @@
       @switch-nav="handleNavSwitch"
       @toggle-theme="toggleTheme"
     />
+
+    <!-- 通用编辑模态框 -->
+    <view v-if="showEditModal" class="edit-modal-overlay" @tap="closeEditModal">
+      <view class="edit-modal-content" @tap.stop>
+        <view class="edit-modal-header">
+          <text class="edit-modal-title">{{ editModalTitle }}</text>
+          <text class="edit-modal-close" @tap="closeEditModal">×</text>
+        </view>
+
+        <view class="edit-modal-body">
+          <!-- 人物编辑 -->
+          <template v-if="editModalType === 'character'">
+            <view class="edit-field">
+              <text class="field-label required">姓名</text>
+              <input
+                class="field-input"
+                v-model="editItemData.name"
+                placeholder="请输入人物姓名"
+                maxlength="50"
+              />
+            </view>
+
+            <view class="edit-field">
+              <text class="field-label">描述</text>
+              <textarea
+                class="field-textarea"
+                v-model="editItemData.description"
+                placeholder="人物特征和描述"
+                maxlength="500"
+                :auto-height="true"
+              ></textarea>
+            </view>
+
+            <view class="edit-field">
+              <text class="field-label">头像</text>
+              <view class="avatar-upload vertical" @tap="chooseAvatar">
+                <view class="avatar-box">
+                  <image
+                    v-if="editItemData.avatar"
+                    :src="editItemData.avatar"
+                    class="avatar-preview"
+                    mode="aspectFill"
+                  ></image>
+                  <view v-else class="avatar-placeholder">暂无头像</view>
+                </view>
+                <text class="avatar-hint">点击选择相册</text>
+              </view>
+            </view>
+
+            <view class="edit-field">
+              <text class="field-label">标签</text>
+              <view class="tags-row">
+                <view
+                  v-for="(tag, index) in editItemData.tags || []"
+                  :key="index"
+                  class="tag-chip"
+                  @tap.stop="removeTag(index)"
+                >
+                  {{ tag }} ×
+                </view>
+                <view class="tag-add placeholder" @tap.stop="openTagPicker">
+                  + 添加标签
+                </view>
+              </view>
+            </view>
+
+            <view class="edit-field">
+              <text class="field-label">关系链接</text>
+              <view class="relations-box">
+                <view
+                  v-for="(rel, index) in editItemData.relationships || []"
+                  :key="index"
+                  class="relation-item"
+                  @tap.stop="removeRelation(index)"
+                >
+                  {{ rel.name || rel.target || "未命名人物" }} ·
+                  {{ rel.relation || rel.desc || "关系未填写" }} ×
+                </view>
+                <view
+                  class="relation-add placeholder"
+                  @tap.stop="openRelationPicker"
+                >
+                  + 添加关系
+                </view>
+              </view>
+            </view>
+          </template>
+
+          <!-- 设定/术语编辑 -->
+          <template v-else-if="editModalType === 'term'">
+            <view class="edit-field">
+              <text class="field-label required">名称</text>
+              <input
+                class="field-input"
+                v-model="editItemData.name"
+                placeholder="请输入设定/术语名称"
+                maxlength="80"
+              />
+            </view>
+            <view class="edit-field">
+              <text class="field-label">描述</text>
+              <textarea
+                class="field-textarea"
+                v-model="editItemData.description"
+                placeholder="详细描述或定义"
+                maxlength="600"
+                :auto-height="true"
+              ></textarea>
+            </view>
+          </template>
+
+          <!-- 地图编辑 -->
+          <template v-else-if="editModalType === 'map'">
+            <view class="edit-field">
+              <text class="field-label">地图名称</text>
+              <input
+                class="field-input"
+                v-model="editItemData.name"
+                placeholder="请输入地图名称"
+                maxlength="50"
+              />
+            </view>
+            <view class="edit-field">
+              <text class="field-label">描述</text>
+              <textarea
+                class="field-textarea"
+                v-model="editItemData.description"
+                placeholder="地图的背景和用途说明"
+                maxlength="200"
+                :auto-height="true"
+              ></textarea>
+            </view>
+            <view class="edit-field">
+              <text class="field-label">节点数量</text>
+              <input
+                class="field-input disabled-input"
+                :value="(editItemData.nodes?.length || 0) + '个'"
+                disabled
+              />
+            </view>
+          </template>
+        </view>
+
+        <view class="edit-modal-footer">
+          <button class="modal-btn cancel" @tap="closeEditModal">取消</button>
+          <button class="modal-btn save" @tap="saveEditModal">保存</button>
+        </view>
+      </view>
+    </view>
 
     <!-- 创建作品弹窗 -->
     <CreateWorkModal
@@ -369,6 +520,12 @@ const chapters = ref([]);
 const characters = ref([]);
 const terms = ref([]);
 const maps = ref([]);
+
+// 编辑模态框状态
+const showEditModal = ref(false);
+const editModalType = ref(""); // "character", "term", "map"
+const editModalTitle = ref("编辑内容");
+const editItemData = ref({});
 
 // 页面初始化
 onMounted(async () => {
@@ -425,244 +582,91 @@ onMounted(async () => {
   }
 });
 
-// 原生插件调试脚本 - 在页面加载完成后执行
-setTimeout(() => {
-  console.log("=== 原生插件调试开始 ===");
-
-  // 1. 检查运行环境
-  console.log(
-    "当前运行环境:",
-    (typeof process !== "undefined" &&
-      process.env &&
-      process.env.UNI_PLATFORM) ||
-      "unknown"
-  );
-  console.log("是否在APP中:", typeof uni !== "undefined");
-  console.log("plus对象可用:", typeof plus !== "undefined");
-
-  // 2. 检查所有可用的原生插件
-  if (typeof plus !== "undefined" && plus.nativeObj) {
-    console.log("可用原生插件列表:", Object.keys(plus.nativeObj));
-  }
-
-  // 3. 尝试加载插件 - 使用直接Android类实例方式
+// 初始化原生插件
+const initNativePlugin = () => {
   try {
-    console.log("--- 开始加载插件 ---");
+    let plugin = uni.requireNativePlugin("export-native");
 
-    let plugin = null;
-    let pluginName = "直接Android实例";
-
-    // 首先尝试标准插件注册方式
-    try {
-      plugin = uni.requireNativePlugin("export-native");
-      console.log("标准插件加载:", plugin);
-      if (plugin && Object.keys(plugin).length > 0) {
-        pluginName = "标准插件";
-        console.log("✅ 使用标准插件注册方式");
+    if (plugin && Object.keys(plugin).length > 0) {
+      // 标准插件注册成功
+      if (typeof window !== "undefined") {
+        window.exportNativePlugin = plugin;
       }
-    } catch (e) {
-      console.log("标准插件加载失败:", e.message);
+      return;
     }
 
-    // 如果标准方式失败，使用直接Android类实例
-    if (!plugin || Object.keys(plugin).length === 0) {
-      console.log("--- 尝试直接Android类实例方式 ---");
+    // 如果标准方式失败，尝试Android直接实例
+    if (typeof plus !== "undefined" && plus.android) {
+      const ExportModule = plus.android.importClass(
+        "com.cwriter.export.ExportModule"
+      );
+      if (ExportModule) {
+        const instance = new ExportModule();
 
-      if (typeof plus !== "undefined" && plus.android) {
-        const mainActivity = plus.android.runtimeMainActivity();
-        console.log("MainActivity:", mainActivity);
+        plugin = {
+          exportToPDF: function (options, callback) {
+            try {
+              const result = instance.exportToPDFSync(
+                plus.android.newObject(
+                  "com.alibaba.fastjson.JSONObject",
+                  JSON.stringify(options)
+                )
+              );
 
-        // 获取ExportModule类
-        const ExportModule = plus.android.importClass(
-          "com.cwriter.export.ExportModule"
-        );
-        console.log("ExportModule类:", ExportModule);
-
-        if (ExportModule) {
-          // 创建实例
-          const instance = new ExportModule();
-          console.log("✅ ExportModule直接实例创建成功:", instance);
-
-          // 包装为uni-app插件对象
-          plugin = {
-            exportToPDF: function (options, callback) {
-              try {
-                console.log("🔄 调用Android exportToPDFSync方法...");
-                console.log("📝 PDF导出参数:", options);
-
-                const startTime = Date.now();
-
-                const result = instance.exportToPDFSync(
-                  plus.android.newObject(
-                    "com.alibaba.fastjson.JSONObject",
-                    JSON.stringify(options)
-                  )
-                );
-
-                    const endTime = Date.now();
-                    console.log(`⏱️ PDF导出耗时: ${endTime - startTime}ms`);
-                console.log("📤 同步返回结果:", result);
-
-                    if (callback) {
-                  let finalResult = result;
-                      try {
-                    if (typeof result === "string") {
-                      finalResult = JSON.parse(result);
-                        }
-                      } catch (parseError) {
-                    finalResult = {
-                          success: false,
-                      error: "结果解析失败: " + String(parseError),
-                    };
-                    }
-                  callback(finalResult);
+              if (callback) {
+                let finalResult = result;
+                if (typeof result === "string") {
+                  try {
+                    finalResult = JSON.parse(result);
+                  } catch (parseError) {
+                    finalResult = { success: false, error: "结果解析失败" };
                   }
-              } catch (error) {
-                console.error("❌ exportToPDFSync 调用失败:", error);
-                if (callback)
-                  callback({ success: false, error: error.message });
+                }
+                callback(finalResult);
               }
-            },
+            } catch (error) {
+              if (callback) callback({ success: false, error: error.message });
+            }
+          },
 
-            exportToDOCX: function (options, callback) {
-              try {
-                console.log("🔄 调用Android exportToDOCXSync方法...");
-                console.log("📝 DOCX导出参数:", options);
+          exportToDOCX: function (options, callback) {
+            try {
+              const result = instance.exportToDOCXSync(
+                plus.android.newObject(
+                  "com.alibaba.fastjson.JSONObject",
+                  JSON.stringify(options)
+                )
+              );
 
-                const startTime = Date.now();
-
-                const result = instance.exportToDOCXSync(
-                  plus.android.newObject(
-                    "com.alibaba.fastjson.JSONObject",
-                    JSON.stringify(options)
-                  )
-                );
-
-                    const endTime = Date.now();
-                    console.log(`⏱️ DOCX导出耗时: ${endTime - startTime}ms`);
-                console.log("📤 同步返回结果:", result);
-
-                    if (callback) {
-                  let finalResult = result;
-                      try {
-                    if (typeof result === "string") {
-                      finalResult = JSON.parse(result);
-                        }
-                      } catch (parseError) {
-                    finalResult = {
-                          success: false,
-                      error: "结果解析失败: " + String(parseError),
-                    };
-                    }
-                  callback(finalResult);
+              if (callback) {
+                let finalResult = result;
+                if (typeof result === "string") {
+                  try {
+                    finalResult = JSON.parse(result);
+                  } catch (parseError) {
+                    finalResult = { success: false, error: "结果解析失败" };
                   }
-              } catch (error) {
-                console.error("❌ exportToDOCXSync 调用失败:", error);
-                if (callback)
-                  callback({ success: false, error: error.message });
+                }
+                callback(finalResult);
               }
-            },
-          };
+            } catch (error) {
+              if (callback) callback({ success: false, error: error.message });
+            }
+          },
+        };
 
-          pluginName = "Android直接实例";
-          console.log("✅ 使用Android直接实例方式");
+        if (typeof window !== "undefined") {
+          window.exportNativePlugin = plugin;
         }
       }
     }
-
-    console.log("最终插件对象:", plugin);
-    console.log("插件对象类型:", typeof plugin);
-
-    if (plugin) {
-      console.log("插件对象键值:", Object.keys(plugin));
-      console.log("使用方式:", pluginName);
-
-      // 测试插件方法
-      console.log("exportToPDF方法:", typeof plugin.exportToPDF);
-      console.log("exportToDOCX方法:", typeof plugin.exportToDOCX);
-
-      // 如果方法可用，进行简单测试
-      if (typeof plugin.exportToPDF === "function") {
-        console.log("✅ exportToPDF方法可用");
-
-        // 进行简单测试调用
-        console.log("🧪 执行exportToPDF测试...");
-        plugin.exportToPDF(
-          {
-            title: "测试PDF文档",
-            content:
-              "这是一个测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
-            savePath: "/storage/emulated/0/Download/test_export.pdf"
-          },
-          (result) => {
-            console.log("📋 exportToPDF测试结果:", result);
-            if (result && result.success) {
-              console.log("🎉 PDF导出测试成功！文件路径:", result.path);
-            } else {
-              console.log("❌ PDF导出测试失败:", result?.error);
-            }
-          }
-        );
-
-        // 也测试DOCX导出
-        setTimeout(() => {
-          console.log("🧪 执行exportToDOCX测试...");
-          plugin.exportToDOCX(
-            {
-              title: "测试DOCX文档",
-              content:
-                "这是一个DOCX测试文档，验证Android直接实例方式是否正常工作。\n\n测试内容包括：\n1. 中文字符支持\n2. 英文字符支持: Hello World!\n3. 数字: 123456\n4. 特殊符号: @#$%^&*()",
-              savePath: "/storage/emulated/0/Download/test_export.docx"
-            },
-            (result) => {
-              console.log("📋 exportToDOCX测试结果:", result);
-              if (result && result.success) {
-                console.log("🎉 DOCX导出测试成功！文件路径:", result.path);
-              } else {
-                console.log("❌ DOCX导出测试失败:", result?.error);
-              }
-            }
-          );
-        }, 1000);
-      } else {
-        console.log("❌ exportToPDF方法不可用");
-      }
-
-      // 将插件对象保存到全局，供其他页面使用
-      if (typeof window !== "undefined") {
-        window.exportNativePlugin = plugin;
-        console.log("✅ 插件已保存到 window.exportNativePlugin");
-      }
-    } else {
-      console.log("❌ 插件加载失败 - 所有方式都失败");
-    }
   } catch (error) {
-    console.error("❌ 插件加载出错:", error);
-    console.error("错误堆栈:", error.stack);
+    console.error("插件初始化失败:", error);
   }
+};
 
-  // 6. 检查manifest配置
-  console.log(
-    "manifest.json中的插件配置:",
-    plus && plus.runtime && plus.runtime.appid
-  );
-
-  // 7. 检查插件是否在Plus中注册
-  if (typeof plus !== "undefined") {
-    try {
-      const pluginInfo = plus.navigator.getInstallWidget
-        ? plus.navigator.getInstallWidget()
-        : "不可用";
-      console.log("Plus插件信息:", pluginInfo);
-    } catch (e) {
-      console.log("无法获取Plus插件信息:", e.message);
-    }
-  }
-
-  console.log("=== 原生插件调试结束 ===");
-}, 3000); // 延迟3秒执行，确保页面完全加载
-
-
+// 页面加载完成后初始化插件
+setTimeout(initNativePlugin, 1000);
 
 // 加载作品列表
 const loadWorks = async () => {
@@ -717,14 +721,8 @@ const loadWorks = async () => {
 
     // 等待所有作品数据处理完成
     works.value = await Promise.all(worksPromises);
-
-    console.log(
-      "✅ 管理页面作品列表加载完成，共",
-      works.value.length,
-      "个作品"
-    );
   } catch (error) {
-    console.error("❌ 管理页面加载作品列表失败:", error);
+    console.error("管理页面加载作品列表失败:", error);
     console.error("错误详情:", error.stack);
     works.value = [];
   }
@@ -969,7 +967,6 @@ const loadChapters = async () => {
       currentWork.value.id
     );
     chapters.value = Array.isArray(result) ? result : [];
-    console.log("章节数据:", chapters.value);
   } catch (error) {
     console.error("加载章节数据失败:", error);
     chapters.value = [];
@@ -984,7 +981,6 @@ const loadCharacters = async () => {
       currentWork.value.id
     );
     characters.value = Array.isArray(result) ? result : [];
-    console.log("人物数据:", characters.value);
   } catch (error) {
     console.error("加载人物数据失败:", error);
     characters.value = [];
@@ -999,7 +995,6 @@ const loadTerms = async () => {
       currentWork.value.id
     );
     terms.value = Array.isArray(result) ? result : [];
-    console.log("术语数据:", terms.value);
   } catch (error) {
     console.error("加载术语数据失败:", error);
     terms.value = [];
@@ -1071,9 +1066,7 @@ const addCharacter = () => {
 };
 
 const editCharacter = (character) => {
-  uni.navigateTo({
-    url: `/pages/create?type=character&workId=${currentWork.value.id}&characterId=${character.id}`,
-  });
+  openEditModal("character", character);
 };
 
 const deleteCharacter = (characterId) => {
@@ -1108,14 +1101,12 @@ const deleteCharacter = (characterId) => {
 // 术语操作
 const addTerm = () => {
   uni.navigateTo({
-    url: `/pages/create?type=term&workId=${currentWork.value.id}`,
+    url: `/pages/create?type=setting&workId=${currentWork.value.id}`,
   });
 };
 
 const editTerm = (term) => {
-  uni.navigateTo({
-    url: `/pages/create?type=term&workId=${currentWork.value.id}&termId=${term.id}`,
-  });
+  openEditModal("term", term);
 };
 
 const deleteTerm = (termId) => {
@@ -1160,9 +1151,7 @@ const editMap = (map) => {
 };
 
 const editMapDirectly = (map) => {
-  uni.navigateTo({
-    url: `/pages/create?type=map&workId=${currentWork.value.id}&mapId=${map.id}`,
-  });
+  openEditModal("map", map);
 };
 
 const deleteMap = (mapId) => {
@@ -1219,6 +1208,236 @@ const formatTime = (timestamp) => {
   }
 };
 
+// 编辑模态框相关方法
+const openEditModal = (type, data) => {
+  editModalType.value = type;
+  editModalTitle.value = getModalTitle(type);
+  const baseData = { ...data };
+
+  if (type === "character") {
+    baseData.avatar = baseData.avatar || "";
+    baseData.tags = Array.isArray(baseData.tags) ? baseData.tags : [];
+    baseData.relationships = Array.isArray(baseData.relationships)
+      ? baseData.relationships
+      : [];
+    baseData.attributes = baseData.attributes || {};
+    baseData.description = baseData.description || "";
+  }
+
+  if (type === "term") {
+    baseData.description = baseData.description || baseData.definition || "";
+  }
+
+  editItemData.value = baseData; // 深拷贝与默认值补齐
+  showEditModal.value = true;
+};
+
+// 头像上传（App 环境优先 plus.io）
+const chooseAvatar = () => {
+  if (editModalType.value !== "character" || !currentWork.value) return;
+  uni.chooseImage({
+    count: 1,
+    sizeType: ["compressed"],
+    sourceType: ["album"],
+    success: (res) => {
+      const srcPath = res.tempFilePaths?.[0];
+      if (!srcPath) return;
+      try {
+        const workPath = fileStorage.getWorkPath(
+          currentUser.value.id,
+          currentWork.value.id
+        );
+        const avatarDir = `${workPath}/characters/avatars`;
+        fileStorage.mkdirIfNotExists(avatarDir);
+        const target = `${avatarDir}/${
+          editItemData.value.id || Date.now()
+        }.png`;
+
+        if (
+          typeof plus !== "undefined" &&
+          plus.io &&
+          plus.io.resolveLocalFileSystemURL
+        ) {
+          plus.io.resolveLocalFileSystemURL(
+            srcPath,
+            (entry) => {
+              plus.io.resolveLocalFileSystemURL(
+                avatarDir,
+                (dstDir) => {
+                  entry.copyTo(
+                    dstDir,
+                    target.split("/").pop(),
+                    () => {
+                      editItemData.value.avatar = target;
+                      uni.showToast({ title: "已更新头像", icon: "success" });
+                    },
+                    (e) => {
+                      console.error("copyTo 失败", e);
+                      uni.showToast({ title: "保存头像失败", icon: "error" });
+                    }
+                  );
+                },
+                (e) => {
+                  console.error("resolve avatarDir 失败", e);
+                  uni.showToast({ title: "保存头像失败", icon: "error" });
+                }
+              );
+            },
+            (e) => {
+              console.error("resolve srcPath 失败", e);
+              uni.showToast({ title: "保存头像失败", icon: "error" });
+            }
+          );
+        } else {
+          const fs = uni.getFileSystemManager && uni.getFileSystemManager();
+          if (fs && fs.copyFileSync) {
+            fs.copyFileSync(srcPath, target);
+            editItemData.value.avatar = target;
+            uni.showToast({ title: "已更新头像", icon: "success" });
+          } else {
+            uni.showToast({ title: "当前平台不支持文件操作", icon: "none" });
+          }
+        }
+      } catch (error) {
+        console.error("保存头像失败:", error);
+        uni.showToast({ title: "保存头像失败", icon: "error" });
+      }
+    },
+    fail: () => {
+      uni.showToast({ title: "未选择图片", icon: "none" });
+    },
+  });
+};
+
+// 标签选择
+const openTagPicker = () => {
+  if (!currentWork.value || !currentUser.value) return;
+  const selected = encodeURIComponent(
+    JSON.stringify(editItemData.value.tags || [])
+  );
+  const url = `/pages/manage/tag-picker?userId=${currentUser.value.id}&workId=${currentWork.value.id}&selected=${selected}`;
+  uni.navigateTo({
+    url,
+    events: {
+      tagsSelected: (data) => {
+        editItemData.value.tags = data?.tags || [];
+      },
+    },
+  });
+};
+
+// 关系选择
+const openRelationPicker = () => {
+  if (!currentWork.value || !currentUser.value) return;
+  const selected = encodeURIComponent(
+    JSON.stringify(editItemData.value.relationships || [])
+  );
+  const url = `/pages/manage/relation-picker?userId=${
+    currentUser.value.id
+  }&workId=${currentWork.value.id}&selfId=${
+    editItemData.value.id || ""
+  }&selected=${selected}`;
+  uni.navigateTo({
+    url,
+    events: {
+      relationSelected: (data) => {
+        if (!data || !data.relation) return;
+        const list = Array.isArray(editItemData.value.relationships)
+          ? editItemData.value.relationships
+          : [];
+        list.push(data);
+        editItemData.value.relationships = list;
+      },
+    },
+  });
+};
+
+const removeTag = (index) => {
+  if (!Array.isArray(editItemData.value.tags)) return;
+  editItemData.value.tags.splice(index, 1);
+};
+
+const removeRelation = (index) => {
+  if (!Array.isArray(editItemData.value.relationships)) return;
+  editItemData.value.relationships.splice(index, 1);
+};
+
+const closeEditModal = () => {
+  showEditModal.value = false;
+  editModalType.value = "";
+  editItemData.value = {};
+};
+
+const getModalTitle = (type) => {
+  const titles = {
+    character: "编辑人物",
+    term: "编辑设定/术语",
+    map: "编辑地图",
+  };
+  return titles[type] || "编辑内容";
+};
+
+const saveEditModal = async () => {
+  try {
+    const type = editModalType.value;
+    const data = editItemData.value;
+
+    if (!data.name || !data.name.trim()) {
+      uni.showToast({
+        title: "请输入名称",
+        icon: "none",
+      });
+      return;
+    }
+
+    // 确保有ID（编辑时已有，新建时生成）
+    if (!data.id) {
+      data.id = Date.now().toString();
+    }
+
+    // 添加时间戳
+    data.updated_at = new Date().toISOString();
+    if (!data.created_at) {
+      data.created_at = data.updated_at;
+    }
+
+    if (type === "character") {
+      await fileStorage.saveCharacter(
+        currentUser.value.id,
+        currentWork.value.id,
+        data
+      );
+      await loadCharacters();
+    } else if (type === "term") {
+      await fileStorage.saveTerm(
+        currentUser.value.id,
+        currentWork.value.id,
+        data
+      );
+      await loadTerms();
+    } else if (type === "map") {
+      await fileStorage.saveMapData(
+        currentUser.value.id,
+        currentWork.value.id,
+        data
+      );
+      await loadMaps();
+    }
+
+    uni.showToast({
+      title: "保存成功",
+      icon: "success",
+    });
+    closeEditModal();
+  } catch (error) {
+    console.error("保存编辑失败:", error);
+    uni.showToast({
+      title: "保存失败",
+      icon: "error",
+    });
+  }
+};
+
 // 处理管理选项点击（保留原有功能）
 const handleManagement = (type) => {
   if (type === "drafts") {
@@ -1228,6 +1447,30 @@ const handleManagement = (type) => {
     });
   } else {
     startManagement(type);
+  }
+};
+
+// 手动备份数据
+const manualBackup = async () => {
+  try {
+    const app = getApp();
+    if (app && app.manualBackup) {
+      const result = await app.manualBackup();
+      if (result.success) {
+        closeMoreMenu();
+      }
+    } else {
+      uni.showToast({
+        title: "备份功能不可用",
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    console.error("手动备份失败:", error);
+    uni.showToast({
+      title: "备份失败",
+      icon: "error",
+    });
   }
 };
 
@@ -1244,15 +1487,47 @@ const closeMoreMenu = () => {
 
 <style scoped>
 .page-container {
+  --accent: #ff6b35;
+  --accent-strong: #ff8d5c;
+  --accent-soft: rgba(255, 107, 53, 0.14);
+  --surface-1: #151515;
+  --surface-2: #1f1f1f;
+  --border: rgba(255, 255, 255, 0.08);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.72);
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  color: #ffffff;
+  background: radial-gradient(
+      circle at 20% 20%,
+      rgba(255, 138, 45, 0.08),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 80% 10%,
+      rgba(255, 138, 45, 0.06),
+      transparent 30%
+    ),
+    linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+  color: var(--text-primary);
   padding-bottom: 120rpx;
 }
 
 .page-container.light-theme {
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-  color: #333333;
+  --accent: #ff6b35;
+  --accent-strong: #ff8d5c;
+  --accent-soft: rgba(255, 107, 53, 0.12);
+  --surface-1: #ffffff;
+  --surface-2: #f7f7f7;
+  --border: rgba(0, 0, 0, 0.06);
+  --text-primary: #1c1c1c;
+  --text-secondary: rgba(0, 0, 0, 0.62);
+  background: radial-gradient(
+      circle at 20% 20%,
+      rgba(255, 138, 45, 0.07),
+      transparent 34%
+    ),
+    radial-gradient(circle at 80% 0%, rgba(255, 138, 45, 0.05), transparent 30%),
+    linear-gradient(135deg, #ffffff 0%, #f3f3f3 100%);
+  color: var(--text-primary);
 }
 
 /* 管理内容 */
@@ -1273,17 +1548,11 @@ const closeMoreMenu = () => {
 
 .management-title {
   font-size: 48rpx;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 1rpx;
   display: block;
   margin-bottom: 16rpx;
-  background: linear-gradient(135deg, #ffffff, #f0f0f0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.light-theme .management-title {
-  background: linear-gradient(135deg, #333333, #666666);
+  background: linear-gradient(135deg, var(--accent-strong), #ffd9b1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -1291,21 +1560,23 @@ const closeMoreMenu = () => {
 
 .management-subtitle {
   font-size: 28rpx;
-  opacity: 0.7;
+  color: var(--text-secondary);
   display: block;
 }
 
 .management-body {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 24rpx;
   padding: 30rpx;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10rpx);
+  border: 1px solid var(--border);
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12rpx);
 }
 
 .light-theme .management-body {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.08);
 }
 
 /* 管理选项页面 */
@@ -1315,24 +1586,7 @@ const closeMoreMenu = () => {
 
 /* 悬浮返回按钮 */
 .floating-back-btn {
-  position: fixed;
-  bottom: 140rpx; /* 底部导航栏高度 + 间隔 */
-  right: 30rpx;
-  background: linear-gradient(135deg, #007aff, #5ac8fa);
-  border-radius: 50rpx;
-  padding: 20rpx 30rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
-  backdrop-filter: blur(10rpx);
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  z-index: 999;
-  transition: all 0.3s ease;
-}
-
-.floating-back-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.4);
+  display: none; /* inline back button now in header */
 }
 
 .back-icon {
@@ -1344,7 +1598,7 @@ const closeMoreMenu = () => {
 .back-label {
   color: #ffffff;
   font-size: 28rpx;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* 空状态 */
@@ -1368,24 +1622,25 @@ const closeMoreMenu = () => {
 
 /* 添加按钮 */
 .add-btn {
-  background: linear-gradient(135deg, #34c759, #32d74b);
-  border-radius: 16rpx;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-radius: 18rpx;
   padding: 30rpx;
   text-align: center;
   margin-top: 30rpx;
-  box-shadow: 0 6rpx 20rpx rgba(52, 199, 89, 0.3);
-  transition: all 0.3s ease;
+  box-shadow: 0 8rpx 22rpx rgba(255, 138, 45, 0.32);
+  transition: all 0.28s ease;
 }
 
 .add-btn:active {
   transform: scale(0.98);
-  box-shadow: 0 3rpx 10rpx rgba(52, 199, 89, 0.4);
+  box-shadow: 0 4rpx 12rpx rgba(255, 138, 45, 0.45);
 }
 
 .add-text {
   color: #ffffff;
   font-size: 32rpx;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 1rpx;
 }
 
 /* 章节列表 */
@@ -1396,28 +1651,23 @@ const closeMoreMenu = () => {
 }
 
 .chapter-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
+  background: var(--surface-2);
+  border-radius: 18rpx;
   padding: 30rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   transition: all 0.2s ease;
 }
 
 .light-theme .chapter-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--surface-2);
 }
 
 .chapter-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .chapter-item:active {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 138, 45, 0.08);
+  transform: scale(0.99);
 }
 
 .chapter-info {
@@ -1444,51 +1694,66 @@ const closeMoreMenu = () => {
   gap: 15rpx;
 }
 
-/* 人物网格 */
+/* 人物列表 - 改为一行显示一个 */
 .characters-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
 
 .character-card {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  padding: 30rpx;
+  background: var(--surface-2);
+  border-radius: 20rpx;
+  padding: 24rpx 30rpx;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
+  gap: 24rpx;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .light-theme .character-card {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--surface-2);
 }
 
 .character-card:active {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 138, 45, 0.08);
   transform: scale(0.98);
 }
 
-.light-theme .character-card:active {
-  background: rgba(0, 0, 0, 0.04);
+.character-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6rpx;
+  background: linear-gradient(135deg, var(--accent), #ffb774);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.character-card:active::before {
+  opacity: 1;
 }
 
 .character-avatar {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff9500, #ff5f6d);
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, var(--accent), #ffb774);
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(255, 138, 45, 0.25);
+  flex-shrink: 0;
 }
 
 .avatar-text {
   color: #ffffff;
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: bold;
 }
 
@@ -1496,24 +1761,35 @@ const closeMoreMenu = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 6rpx;
+  min-width: 0; /* 允许文字截断 */
 }
 
 .character-name {
-  font-size: 30rpx;
+  font-size: 32rpx;
   font-weight: 600;
   display: block;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .character-role {
   font-size: 26rpx;
   opacity: 0.7;
   display: block;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
 }
 
 .character-actions {
   display: flex;
-  gap: 15rpx;
+  gap: 12rpx;
+  flex-shrink: 0;
 }
 
 /* 术语列表 */
@@ -1524,28 +1800,23 @@ const closeMoreMenu = () => {
 }
 
 .term-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
+  background: var(--surface-2);
+  border-radius: 18rpx;
   padding: 30rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   transition: all 0.2s ease;
 }
 
 .light-theme .term-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--surface-2);
 }
 
 .term-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .term-item:active {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 138, 45, 0.08);
+  transform: scale(0.99);
 }
 
 .term-info {
@@ -1585,28 +1856,23 @@ const closeMoreMenu = () => {
 }
 
 .map-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
+  background: var(--surface-2);
+  border-radius: 18rpx;
   padding: 30rpx;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   transition: all 0.2s ease;
 }
 
 .light-theme .map-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--surface-2);
 }
 
 .map-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .map-item:active {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 138, 45, 0.08);
+  transform: scale(0.99);
 }
 
 .map-info {
@@ -1653,18 +1919,18 @@ const closeMoreMenu = () => {
 }
 
 .action-btn.edit {
-  background: rgba(0, 122, 255, 0.2);
-  color: #007aff;
+  background: rgba(255, 138, 45, 0.18);
+  color: var(--accent);
 }
 
 .action-btn.delete {
-  background: rgba(255, 67, 54, 0.2);
+  background: rgba(255, 67, 54, 0.15);
   color: #ff4336;
 }
 
 .action-btn:active {
   transform: scale(0.95);
-  background: rgba(255, 67, 54, 0.3);
+  background: rgba(255, 138, 45, 0.28);
 }
 
 /* 作品列表 */
@@ -1678,19 +1944,41 @@ const closeMoreMenu = () => {
   align-items: center;
   margin-bottom: 30rpx;
   padding: 25rpx 30rpx;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--surface-2);
   backdrop-filter: blur(15rpx);
   border-radius: 20rpx;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--border);
+  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.18);
   position: relative;
   overflow: hidden;
 }
 
+.section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.inline-back-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: var(--accent-soft);
+  border: 1px solid rgba(255, 107, 53, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 18rpx rgba(0, 0, 0, 0.18);
+  transition: all 0.22s ease;
+}
+
+.inline-back-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.24);
+}
+
 .light-theme .section-header {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.06);
 }
 
 .section-header::before {
@@ -1711,48 +1999,30 @@ const closeMoreMenu = () => {
 
 .section-title {
   font-size: 34rpx;
-  font-weight: 700;
-  background: linear-gradient(135deg, #ffffff, #f0f0f0);
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent-strong), #ffd8ac);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 2rpx 8rpx rgba(255, 255, 255, 0.3);
-}
-
-.light-theme .section-title {
-  background: linear-gradient(135deg, #333333, #666666);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+  text-shadow: 0 2rpx 10rpx rgba(255, 138, 45, 0.4);
 }
 
 .work-count {
   font-size: 26rpx;
-  opacity: 0.8;
-  font-weight: 500;
-  padding: 8rpx 16rpx;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12rpx;
-  backdrop-filter: blur(5rpx);
-}
-
-.light-theme .work-count {
-  background: rgba(0, 0, 0, 0.05);
-  opacity: 0.7;
+  font-weight: 600;
+  padding: 10rpx 20rpx;
+  background: var(--accent-soft);
+  border-radius: 14rpx;
+  border: 1px solid rgba(255, 138, 45, 0.3);
+  color: var(--accent);
 }
 
 .works-list {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   border-radius: 20rpx;
   overflow: hidden;
   backdrop-filter: blur(10rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.light-theme .works-list {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
 }
 
 .work-item {
@@ -1772,7 +2042,8 @@ const closeMoreMenu = () => {
 }
 
 .work-item.selected {
-  background: rgba(0, 122, 255, 0.1);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 45, 0.35);
 }
 
 .work-checkbox {
@@ -1793,8 +2064,8 @@ const closeMoreMenu = () => {
 }
 
 .checkbox.checked {
-  background: #007aff;
-  border-color: #007aff;
+  background: var(--accent);
+  border-color: var(--accent);
   position: relative;
 }
 
@@ -1838,13 +2109,13 @@ const closeMoreMenu = () => {
 
 .delete-btn {
   padding: 10rpx 15rpx;
-  border-radius: 8rpx;
-  background: rgba(255, 67, 54, 0.1);
+  border-radius: 10rpx;
+  background: rgba(255, 67, 54, 0.12);
   transition: all 0.2s ease;
 }
 
 .delete-btn:active {
-  background: rgba(255, 67, 54, 0.2);
+  background: rgba(255, 67, 54, 0.22);
   transform: scale(0.95);
 }
 
@@ -1860,31 +2131,27 @@ const closeMoreMenu = () => {
 }
 
 .management-cell {
-  background: linear-gradient(135deg, #007aff, #5ac8fa);
-  border-radius: 20rpx;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  border-radius: 22rpx;
   padding: 40rpx 30rpx;
   margin-bottom: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
-  transition: all 0.3s ease;
+  box-shadow: 0 10rpx 26rpx rgba(255, 138, 45, 0.32);
+  transition: all 0.25s ease;
   backdrop-filter: blur(10rpx);
-}
-
-.light-theme .management-cell {
-  background: linear-gradient(135deg, #007aff, #5ac8fa);
-  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.25);
 }
 
 .management-cell:active {
   transform: translateY(2rpx);
-  box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.4);
+  box-shadow: 0 6rpx 16rpx rgba(255, 138, 45, 0.45);
 }
 
 .cell-text {
   color: #ffffff;
   font-size: 32rpx;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
   display: block;
+  letter-spacing: 0.5rpx;
 }
 
 .back-btn {
@@ -1924,10 +2191,10 @@ const closeMoreMenu = () => {
   bottom: 120rpx;
   left: 0;
   right: 0;
-  background: rgba(30, 30, 30, 0.95);
+  background: rgba(18, 18, 18, 0.94);
   backdrop-filter: blur(20rpx);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 20rpx 30rpx;
+  border-top: 1px solid var(--border);
+  padding: 22rpx 30rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1935,8 +2202,8 @@ const closeMoreMenu = () => {
 }
 
 .light-theme .batch-toolbar {
-  background: rgba(255, 255, 255, 0.95);
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--border);
 }
 
 .selected-count {
@@ -1953,8 +2220,10 @@ const closeMoreMenu = () => {
   align-items: center;
   gap: 10rpx;
   padding: 15rpx 20rpx;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20rpx;
+  background: var(--accent-soft);
+  border: 1px solid rgba(255, 138, 45, 0.28);
+  border-radius: 18rpx;
+  color: var(--accent);
 }
 
 .batch-btn image {
@@ -1965,8 +2234,6 @@ const closeMoreMenu = () => {
 .batch-btn text {
   font-size: 26rpx;
 }
-
-
 
 /* 页面标题 */
 .page-header {
@@ -2001,12 +2268,12 @@ const closeMoreMenu = () => {
 }
 
 .modern-manage-btn {
-  background: linear-gradient(135deg, #ff6b35, #f7931e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   border: none;
-  border-radius: 25rpx;
+  border-radius: 26rpx;
   padding: 20rpx 30rpx;
-  box-shadow: 0 8rpx 24rpx rgba(255, 107, 53, 0.3);
-  transition: all 0.3s ease;
+  box-shadow: 0 10rpx 26rpx rgba(255, 138, 45, 0.32);
+  transition: all 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2015,7 +2282,7 @@ const closeMoreMenu = () => {
 
 .modern-manage-btn:active {
   transform: translateY(2rpx);
-  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.4);
+  box-shadow: 0 6rpx 14rpx rgba(255, 138, 45, 0.45);
 }
 
 .btn-text {
@@ -2032,33 +2299,24 @@ const closeMoreMenu = () => {
 
 .more-btn {
   padding: 15rpx 20rpx;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 15rpx;
+  background: var(--surface-2);
+  border-radius: 16rpx;
   backdrop-filter: blur(10rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
-}
-
-.light-theme .more-btn {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
+  transition: all 0.25s ease;
 }
 
 .more-btn:active {
   transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 138, 45, 0.08);
 }
 
 .more-dots {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 32rpx;
-  font-weight: bold;
+  font-weight: 800;
   line-height: 1;
   letter-spacing: 8rpx;
-}
-
-.light-theme .more-dots {
-  color: #333333;
 }
 
 /* 菜单遮罩 */
@@ -2078,15 +2336,15 @@ const closeMoreMenu = () => {
   top: 100%;
   right: 0;
   margin-top: 10rpx;
-  background: rgba(30, 30, 30, 0.95);
+  background: var(--surface-2);
   backdrop-filter: blur(20rpx);
   border-radius: 20rpx;
   overflow: hidden;
-  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
   z-index: 1000;
-  min-width: 160rpx;
-  animation: slideDown 0.3s ease-out;
+  min-width: 180rpx;
+  animation: slideDown 0.25s ease-out;
 }
 
 @keyframes slideDown {
@@ -2108,12 +2366,8 @@ const closeMoreMenu = () => {
 
 .menu-item {
   padding: 25rpx 30rpx;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border);
   transition: all 0.2s ease;
-}
-
-.light-theme .menu-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .menu-item:last-child {
@@ -2121,435 +2375,18 @@ const closeMoreMenu = () => {
 }
 
 .menu-item:active {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.light-theme .menu-item:active {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 138, 45, 0.08);
 }
 
 .menu-text {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 28rpx;
   text-align: center;
   display: block;
-}
-
-.light-theme .menu-text {
-  color: #333333;
 }
 
 /* 管理内容 */
-.manage-content {
-  padding: 0 30rpx;
-  padding-bottom: 140rpx; /* 为悬浮返回按钮留出空间 */
-}
-
-/* 管理区域 */
-.management-section {
-  min-height: 60vh;
-}
-
-.management-header {
-  text-align: center;
-  margin-bottom: 40rpx;
-}
-
-.management-title {
-  font-size: 48rpx;
-  font-weight: 700;
-  display: block;
-  margin-bottom: 16rpx;
-  background: linear-gradient(135deg, #ffffff, #f0f0f0);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.light-theme .management-title {
-  background: linear-gradient(135deg, #333333, #666666);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.management-subtitle {
-  font-size: 28rpx;
-  opacity: 0.7;
-  display: block;
-}
-
-.management-body {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 24rpx;
-  padding: 30rpx;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10rpx);
-}
-
-.light-theme .management-body {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-/* 管理选项页面 */
-.management-options {
-  padding: 30rpx 0;
-}
-
-/* 悬浮返回按钮 */
-.floating-back-btn {
-  position: fixed;
-  bottom: 140rpx; /* 底部导航栏高度 + 间隔 */
-  right: 30rpx;
-  background: linear-gradient(135deg, #007aff, #5ac8fa);
-  border-radius: 50rpx;
-  padding: 20rpx 30rpx;
-  box-shadow: 0 8rpx 24rpx rgba(0, 122, 255, 0.3);
-  backdrop-filter: blur(10rpx);
-  display: flex;
-  align-items: center;
-  gap: 10rpx;
-  z-index: 999;
-  transition: all 0.3s ease;
-}
-
-.floating-back-btn:active {
-  transform: scale(0.95);
-  box-shadow: 0 4rpx 12rpx rgba(0, 122, 255, 0.4);
-}
-
-.back-icon {
-  color: #ffffff;
-  font-size: 32rpx;
-  font-weight: bold;
-}
-
-.back-label {
-  color: #ffffff;
-  font-size: 28rpx;
-  font-weight: 500;
-}
-
-/* 空状态 */
-.empty-state {
-  text-align: center;
-  padding: 80rpx 40rpx;
-}
-
-.empty-text {
-  font-size: 32rpx;
-  opacity: 0.8;
-  display: block;
-  margin-bottom: 16rpx;
-}
-
-.empty-hint {
-  font-size: 28rpx;
-  opacity: 0.5;
-  display: block;
-}
-
-/* 添加按钮 */
-.add-btn {
-  background: linear-gradient(135deg, #34c759, #32d74b);
-  border-radius: 16rpx;
-  padding: 30rpx;
-  text-align: center;
-  margin-top: 30rpx;
-  box-shadow: 0 6rpx 20rpx rgba(52, 199, 89, 0.3);
-  transition: all 0.3s ease;
-}
-
-.add-btn:active {
-  transform: scale(0.98);
-  box-shadow: 0 3rpx 10rpx rgba(52, 199, 89, 0.4);
-}
-
-.add-text {
-  color: #ffffff;
-  font-size: 32rpx;
-  font-weight: 600;
-}
-
-/* 章节列表 */
-.chapters-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.chapter-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  padding: 30rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
-
-.light-theme .chapter-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.chapter-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .chapter-item:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.chapter-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.chapter-title {
-  font-size: 32rpx;
-  font-weight: 600;
-  display: block;
-}
-
-.chapter-word-count {
-  font-size: 26rpx;
-  opacity: 0.7;
-  display: block;
-}
-
-.chapter-actions {
-  display: flex;
-  gap: 15rpx;
-}
-
-/* 人物网格 */
-.characters-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
-}
-
-.character-card {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  padding: 30rpx;
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
-
-.light-theme .character-card {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.character-card:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .character-card:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.character-avatar {
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ff9500, #ff5f6d);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.avatar-text {
-  color: #ffffff;
-  font-size: 32rpx;
-  font-weight: bold;
-}
-
-.character-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.character-name {
-  font-size: 30rpx;
-  font-weight: 600;
-  display: block;
-}
-
-.character-role {
-  font-size: 26rpx;
-  opacity: 0.7;
-  display: block;
-}
-
-.character-actions {
-  display: flex;
-  gap: 15rpx;
-}
-
-/* 术语列表 */
-.terms-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.term-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  padding: 30rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
-
-.light-theme .term-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.term-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .term-item:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.term-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.term-name {
-  font-size: 32rpx;
-  font-weight: 600;
-  display: block;
-}
-
-.term-definition {
-  font-size: 26rpx;
-  opacity: 0.7;
-  display: block;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  box-orient: vertical;
-  overflow: hidden;
-}
-
-.term-actions {
-  display: flex;
-  gap: 15rpx;
-}
-
-/* 地图列表 */
-.maps-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.map-item {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  padding: 30rpx;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
-}
-
-.light-theme .map-item {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.map-item:active {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(0.98);
-}
-
-.light-theme .map-item:active {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.map-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.map-name {
-  font-size: 32rpx;
-  font-weight: 600;
-  display: block;
-}
-
-.map-desc {
-  font-size: 26rpx;
-  opacity: 0.7;
-  display: block;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  box-orient: vertical;
-  overflow: hidden;
-}
-
-.map-meta {
-  font-size: 24rpx;
-  opacity: 0.5;
-  display: block;
-}
-
-.map-actions {
-  display: flex;
-  gap: 15rpx;
-}
-
-/* 通用操作按钮 */
-.action-btn {
-  padding: 12rpx 20rpx;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  transition: all 0.2s ease;
-}
-
-.action-btn.edit {
-  background: rgba(0, 122, 255, 0.2);
-  color: #007aff;
-}
-
-.action-btn.delete {
-  background: rgba(255, 67, 54, 0.2);
-  color: #ff4336;
-}
-
-.action-btn:active {
-  transform: scale(0.95);
-  background: rgba(255, 67, 54, 0.3);
-}
+/* 下方旧的重复样式块已被上方橙黑/橙白主题替换，保留结构无需重复 */
 
 /* 统计卡片 */
 .stats-section {
@@ -2557,18 +2394,14 @@ const closeMoreMenu = () => {
 }
 
 .stats-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--surface-2);
   border-radius: 20rpx;
   padding: 30rpx;
   display: flex;
   justify-content: space-around;
   backdrop-filter: blur(10rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.light-theme .stats-card {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  box-shadow: 0 10rpx 26rpx rgba(0, 0, 0, 0.16);
 }
 
 .stats-item {
@@ -2595,9 +2428,13 @@ const closeMoreMenu = () => {
 
 .section-title {
   font-size: 32rpx;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 20rpx;
   display: block;
+  background: linear-gradient(135deg, var(--accent-strong), #ffd8ac);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .action-grid {
@@ -2607,21 +2444,17 @@ const closeMoreMenu = () => {
 }
 
 .action-item {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   border-radius: 15rpx;
   padding: 30rpx 20rpx;
   text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
-}
-
-.light-theme .action-item {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
+  transition: all 0.25s ease;
 }
 
 .action-item:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
+  background: rgba(255, 138, 45, 0.08);
 }
 
 .action-icon {
@@ -2654,21 +2487,16 @@ const closeMoreMenu = () => {
 
 .view-all {
   font-size: 28rpx;
-  color: #007aff;
-  opacity: 0.8;
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .file-list {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--surface-2);
   border-radius: 20rpx;
   overflow: hidden;
   backdrop-filter: blur(10rpx);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.light-theme .file-list {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
 }
 
 .file-item {
@@ -2718,16 +2546,394 @@ const closeMoreMenu = () => {
   gap: 20rpx;
 }
 
-.action-btn {
+.file-actions .action-btn {
   width: 36rpx;
   height: 36rpx;
   padding: 8rpx;
-  border-radius: 8rpx;
-  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10rpx;
+  background: var(--accent-soft);
+  border: 1px solid rgba(255, 138, 45, 0.26);
 }
 
-.action-btn image {
+.file-actions .action-btn image {
   width: 100%;
   height: 100%;
+}
+
+/* 编辑模态框样式 */
+.edit-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 40rpx;
+}
+
+.edit-modal-content {
+  background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+  border-radius: 24rpx;
+  width: 100%;
+  max-width: 600rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 2px solid rgba(255, 107, 53, 0.3);
+  box-shadow: 0 30rpx 80rpx rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40rpx) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.edit-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 107, 53, 0.05);
+  border-radius: 24rpx 24rpx 0 0;
+}
+
+.edit-modal-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.edit-modal-close {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  font-size: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.edit-modal-close:active {
+  transform: scale(0.9);
+  background: rgba(255, 107, 53, 0.2);
+  border-color: rgba(255, 107, 53, 0.4);
+}
+
+.edit-modal-body {
+  padding: 32rpx;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.edit-field {
+  margin-bottom: 32rpx;
+}
+
+.field-label {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #ff6b35;
+  margin-bottom: 12rpx;
+}
+
+.field-input {
+  width: 100%;
+  height: 88rpx;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 30rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.field-input:focus {
+  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.field-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.field-textarea {
+  width: 100%;
+  min-height: 120rpx;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-size: 30rpx;
+  padding: 20rpx 24rpx;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  line-height: 1.5;
+}
+
+.field-textarea:focus {
+  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.field-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.avatar-upload.vertical {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.avatar-preview {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 16rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.15);
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 16rpx;
+  border: 2rpx dashed rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 26rpx;
+}
+
+.upload-btn {
+  flex: 1;
+  height: 88rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+}
+
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.tag-chip {
+  padding: 10rpx 16rpx;
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 26rpx;
+}
+
+.tag-add,
+.relation-add {
+  padding: 10rpx 16rpx;
+  border-radius: 12rpx;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 26rpx;
+}
+
+.relations-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 12rpx;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.relation-item {
+  padding: 10rpx 14rpx;
+  border-radius: 10rpx;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 26rpx;
+}
+
+.disabled-input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.edit-modal-footer {
+  display: flex;
+  gap: 20rpx;
+  padding: 24rpx 32rpx 32rpx;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 0 0 24rpx 24rpx;
+}
+
+.modal-btn {
+  flex: 1;
+  height: 88rpx;
+  border-radius: 16rpx;
+  border: none;
+  font-size: 32rpx;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.modal-btn.cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.modal-btn.cancel:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.modal-btn.save {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 8rpx 20rpx rgba(255, 107, 53, 0.4);
+}
+
+.modal-btn.save:active {
+  transform: scale(0.96);
+  box-shadow: 0 4rpx 12rpx rgba(255, 107, 53, 0.5);
+}
+
+.modal-btn:disabled {
+  opacity: 0.5;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 亮色主题适配 */
+.light-theme .edit-modal-overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.light-theme .edit-modal-content {
+  background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
+  border: 2px solid rgba(255, 107, 53, 0.2);
+  box-shadow: 0 30rpx 80rpx rgba(0, 0, 0, 0.15);
+}
+
+.light-theme .edit-modal-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(255, 107, 53, 0.03);
+}
+
+.light-theme .edit-modal-title {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.light-theme .edit-modal-close {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #333333;
+}
+
+.light-theme .edit-modal-close:active {
+  background: rgba(255, 107, 53, 0.1);
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+.light-theme .edit-modal-body {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.light-theme .field-label {
+  color: #ff6b35;
+}
+
+.light-theme .field-input {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+  color: #333333;
+}
+
+.light-theme .field-input:focus {
+  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+}
+
+.light-theme .field-input::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.light-theme .field-textarea {
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.02);
+  color: #333333;
+}
+
+.light-theme .field-textarea:focus {
+  border-color: #ff6b35;
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
+}
+
+.light-theme .field-textarea::placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+.light-theme .disabled-input {
+  background: rgba(0, 0, 0, 0.03) !important;
+  color: rgba(0, 0, 0, 0.3) !important;
+}
+
+.light-theme .edit-modal-footer {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.light-theme .modal-btn.cancel {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333333;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .modal-btn.cancel:active {
+  background: rgba(0, 0, 0, 0.1);
 }
 </style>

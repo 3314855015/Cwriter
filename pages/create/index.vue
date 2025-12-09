@@ -6,7 +6,7 @@
     <view class="header">
       <view class="header-titles">
         <text class="title">辅助创建</text>
-        <text class="subtitle">统一新增人物 / 设定 / 伏笔 / 地图</text>
+        <text class="subtitle">统一新增人物 / 设定 / 伏笔 / 场景</text>
       </view>
       <button class="back-link" @tap="goBack"><</button>
     </view>
@@ -59,27 +59,27 @@
       </view>
     </view>
 
-    <!-- 地图类型选择和编辑 -->
+    <!-- 场景类型选择和编辑 -->
     <view v-if="selectedType === 'map'" class="map-section">
-      <!-- 地图选择界面 -->
+      <!-- 场景选择界面 -->
       <view v-if="!isEditingExistingMap" class="map-selection">
         <view class="section-header">
-          <text class="section-title">地图管理</text>
-          <text class="section-subtitle">选择现有地图或创建新地图</text>
+          <text class="section-title">场景管理</text>
+          <text class="section-subtitle">选择现有场景或创建新场景</text>
         </view>
         
-        <!-- 创建新地图按钮 -->
+        <!-- 创建新场景按钮 -->
         <view class="action-card create-new" @tap="createNewMap">
           <view class="action-icon">+</view>
           <view class="action-content">
-            <text class="action-title">创建新地图</text>
-            <text class="action-desc">开始创建一个全新的地图</text>
+            <text class="action-title">创建新场景</text>
+            <text class="action-desc">开始创建一个全新的场景</text>
           </view>
         </view>
         
-        <!-- 现有地图列表 -->
+        <!-- 现有场景列表 -->
         <view v-if="mapList.length > 0" class="existing-maps">
-          <text class="list-title">现有地图</text>
+          <text class="list-title">现有场景</text>
           <view 
             v-for="map in mapList" 
             :key="map.id"
@@ -98,8 +98,8 @@
         </view>
         
         <view v-else-if="!worksLoading && selectedWorkId" class="empty-state">
-          <text class="empty-text">该作品暂无地图</text>
-          <text class="empty-hint">点击上方按钮创建第一个地图</text>
+          <text class="empty-text">该作品暂无场景</text>
+          <text class="empty-hint">点击上方按钮创建第一个场景</text>
         </view>
       </view>
       
@@ -108,7 +108,7 @@
         <view class="editor-header">
           <view class="editor-info">
             <text class="editor-title">{{ isEditingExistingMap ? '编辑地图' : '创建地图' }}</text>
-            <text v-if="isEditingExistingMap" class="editor-subtitle">{{ mapData?.name || '未命名地图' }}</text>
+            <text v-if="isEditingExistingMap" class="editor-subtitle">{{ mapData?.name || '未命名场景' }}</text>
           </view>
           <view class="editor-actions">
             <button class="action-btn secondary" @tap="exitMapEditor">返回</button>
@@ -172,9 +172,9 @@
 
     <view v-if="selectedType === 'map' && isEditingExistingMap" class="actions">
       <button class="primary-btn" @tap="handleSubmit" :disabled="!selectedWorkId">
-        <text>保存地图</text>
+        <text>保存场景</text>
       </button>
-      <text class="actions-hint">编辑完成后点击保存地图到作品</text>
+      <text class="actions-hint">编辑完成后点击保存场景到作品</text>
     </view>
     
     <view v-else-if="selectedType !== 'map'" class="actions">
@@ -188,29 +188,29 @@
     <view v-if="showSaveModal" class="modal-overlay" @tap="closeSaveModal">
       <view class="modal-content" @tap.stop>
         <view class="modal-header">
-          <text class="modal-title">保存地图</text>
+          <text class="modal-title">保存场景</text>
         </view>
         
         <view v-if="showNameWarning" class="warning-section">
-          <text class="warning-text">⚠️ 地图名称已存在，是否覆盖保存？</text>
+          <text class="warning-text">⚠️ 场景名称已存在，是否覆盖保存？</text>
         </view>
         
         <view class="modal-body">
           <view class="modal-field">
-            <text class="modal-label">地图名称</text>
+            <text class="modal-label">场景名称</text>
             <textarea
               class="modal-textarea name-textarea"
               v-model="modalMapName"
-              placeholder="请输入地图名称"
+              placeholder="请输入场景名称"
               maxlength="20"
             ></textarea>
           </view>
           <view class="modal-field">
-            <text class="modal-label">地图描述</text>
+            <text class="modal-label">场景描述</text>
             <textarea
               class="modal-textarea"
               v-model="modalMapDescription"
-              placeholder="补充地图背景、关键用途等信息"
+              placeholder="补充场景背景、关键用途等信息"
               :auto-height="true"
               maxlength="50"
               style="min-height: 80px;"
@@ -664,15 +664,15 @@ watch(modalMapName, (newName) => {
 <style scoped>
 .create-page {
   min-height: 100vh;
-  background: #111;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
   padding: 16px;
   box-sizing: border-box;
-  color: #f4f4f4;
+  color: #e0e0e0;
 }
 
 .create-page.light-theme {
-  background: #f7f7f7;
-  color: #222;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  color: #333;
 }
 
 .header {
@@ -696,64 +696,63 @@ watch(modalMapName, (newName) => {
   font-weight: 700;
   letter-spacing: 0.5px;
   line-height: 1.2;
+  color: inherit;
 }
 
 .subtitle {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.6;
   line-height: 1.5;
   font-weight: 400;
   letter-spacing: 0.2px;
+  color: inherit;
 }
 
 .back-link {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 18px;
-  font-weight: 500;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: inherit;
+  font-size: 16px;
   padding: 8px 16px;
-  border-radius: 20px;
+  border-radius: 16px;
+  min-width: 44px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  height: 40px;
-  transition: all 0.3s ease;
+  font-weight: 500;
 }
 
 .create-page.light-theme .back-link {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  color: inherit;
 }
 
 .back-link:active {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
   transform: scale(0.95);
 }
 
 .create-page.light-theme .back-link:active {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
+  transform: scale(0.95);
 }
 
 
 
 .form-card,
 .content-card {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(26, 26, 26, 0.7);
   border-radius: 16px;
   padding: 16px;
   margin-bottom: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
 }
 
 .create-page.light-theme .form-card,
 .create-page.light-theme .content-card {
-  background: #fff;
-  border-color: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(20px);
 }
 
 .section + .section {
@@ -770,17 +769,19 @@ watch(modalMapName, (newName) => {
 .label {
   font-size: 14px;
   font-weight: 500;
+  color: inherit;
 }
 
 .badge {
   font-size: 12px;
   padding: 2px 6px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 107, 53, 0.2);
+  font-weight: 500;
 }
 
 .badge.required {
-  color: #ff9b4a;
+  color: #ff6b35;
 }
 
 .picker-field {
@@ -849,7 +850,7 @@ watch(modalMapName, (newName) => {
 }
 
 .type-chip.active {
-  background: linear-gradient(135deg, #ff8a4c, #ff5f6d);
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
   border-color: transparent;
   color: #fff;
 }
@@ -873,11 +874,13 @@ watch(modalMapName, (newName) => {
 .content-title {
   font-size: 16px;
   font-weight: 600;
+  color: inherit;
 }
 
 .content-hint {
   font-size: 12px;
   opacity: 0.6;
+  color: inherit;
 }
 
 .fields-grid {
@@ -1232,15 +1235,29 @@ watch(modalMapName, (newName) => {
 
 .primary-btn {
   height: 48px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #ff8a4c, #ff5f6d);
-  color: #fff;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  color: #ffffff;
   font-size: 15px;
+  font-weight: 500;
   border: none;
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
+}
+
+.primary-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
 }
 
 .primary-btn:disabled {
   opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+.create-page.light-theme .primary-btn {
+  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
 }
 
 .actions-hint {

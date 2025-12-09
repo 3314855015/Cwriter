@@ -2,7 +2,7 @@
   <view class="page-container" :class="{ 'light-theme': !isDarkMode }">
     <!-- 头部占位栏 - 防止内容与手机状态栏重叠 -->
     <HeaderPlaceholder />
-    
+
     <!-- 顶部工具栏 -->
     <view
       class="top-toolbar"
@@ -12,7 +12,7 @@
       }"
       :style="{
         position: isToolbarPinned && showTopToolbar ? 'fixed' : 'relative',
-        top: isToolbarPinned && showTopToolbar ? '0' : 'auto',
+        top: isToolbarPinned && showTopToolbar ? statusBarHeight : 'auto',
         left: isToolbarPinned && showTopToolbar ? '0' : 'auto',
         right: isToolbarPinned && showTopToolbar ? '0' : 'auto',
         zIndex: isToolbarPinned && showTopToolbar ? 998 : 'auto',
@@ -43,17 +43,21 @@
       :class="{
         'edit-mode': isEditMode,
         'has-toolbar-pinned': isToolbarPinned && showTopToolbar,
+        'keyboard-active': keyboardHeight > 0,
       }"
     >
       <!-- 只读内容区域 -->
       <scroll-view
         v-if="!isEditMode"
         class="content-container"
+        :class="{ 'phone-adapt-mode': isPhoneAdaptMode }"
         @tap="toggleToolbars"
         scroll-y="true"
         @scroll="handleContentScroll"
+        @touchstart="onTouchStart"
+        @touchmove="onTouchMove"
+        @touchend="onTouchEnd"
         @scrolltoupper="onScrollToUpper"
-        :style="{ height: '100vh' }"
       >
         <view class="chapter-header">
           <text class="chapter-title">{{ chapterInfo.title }}</text>
@@ -63,8 +67,8 @@
           >
         </view>
 
-        <view class="chapter-content">
-          <view class="content-text">{{
+        <view class="chapter-content" :style="phoneAdaptStyle">
+          <view class="content-text" :style="contentTextStyle">{{
             formattedContent || "暂无内容..."
           }}</view>
         </view>
@@ -77,10 +81,21 @@
         @tap.stop
         scroll-y="true"
         @scroll="handleContentScroll"
+        @touchstart="onTouchStart"
+        @touchmove="onTouchMove"
+        @touchend="onTouchEnd"
         @scrolltoupper="onScrollToUpper"
-        :style="{ height: '100vh' }"
+        :style="{ 
+          height: computedScrollViewHeight + 'px', 
+          transition: keyboardHeight > 0 ? 'height 0.1s ease-out' : 'none' 
+        }"
         :scroll-top="scrollTop"
+        :scroll-with-animation="false"
+        :enhanced="true"
+        :show-scrollbar="false"
         ref="editScrollViewRef"
+        :scroll-anchoring="false"
+        :bounces="false"
       >
         <view class="edit-title-section">
           <input
@@ -93,15 +108,7 @@
           />
         </view>
 
-        <view
-          class="edit-content-section"
-          :style="{
-            'padding-bottom': computedPaddingBottom + 'px',
-            transition: 'padding-bottom 0.1s ease-out',
-          }"
-        >
-          <!-- 调试：padding-bottom计算 -->
-          <!-- keyboardHeight={{ keyboardHeight }}, padding={{ computedPaddingBottom }} -->
+        <view class="edit-content-section">
           <textarea
             ref="contentRef"
             class="edit-content-input"
@@ -112,7 +119,19 @@
             @input="onEditInput"
             @focus="onInputFocus"
             @blur="onInputBlur"
+            @click="onInputClick"
+            @selectionchange="onSelectionChange"
+            cursor-spacing="0"
           />
+          <!-- 键盘弹出时的占位空白区域，用于确保内容可以滚动 -->
+          <view
+            v-if="keyboardHeight > 0"
+            class="keyboard-spacer"
+            :style="{
+              height: keyboardHeight + 'px',
+              transition: 'height 0.1s ease-out',
+            }"
+          ></view>
         </view>
       </scroll-view>
     </view>
@@ -127,7 +146,7 @@
           <text class="btn-text">工具</text>
         </view>
         <view class="tool-item text-btn" @tap="adaptToPhone">
-          <text class="btn-text">适应手机</text>
+          <text class="btn-text">{{ isPhoneAdaptMode ? '退出适应' : '适应手机' }}</text>
         </view>
         <view class="tool-item text-btn" @tap="shareChapter">
           <text class="btn-text">分享</text>
@@ -142,13 +161,12 @@
       :style="{
         bottom: computedButtonBottom + 'px',
         right: '20px',
-        transition: 'bottom 0.15s ease-out',
+        transition: keyboardHeight > 0 ? 'bottom 0.15s ease-out' : 'none',
+        zIndex: 1000,
       }"
       @tap="openWritingBoard"
     >
       <text class="writing-board-icon">+</text>
-      <!-- 调试信息（开发时可见） -->
-      <!-- bottom: {{ computedButtonBottom }}px, keyboardHeight: {{ keyboardHeight }} -->
     </view>
 
     <!-- 写作板模态框 -->
@@ -219,7 +237,7 @@
             </view>
           </view>
 
-          <!-- 地图列表 -->
+          <!-- 场景列表 -->
           <view v-if="currentWritingTab === 'map'" class="writing-board-list">
             <view
               v-for="map in mapsList"
@@ -227,20 +245,20 @@
               class="writing-board-item"
               @tap="showMapDetail(map)"
             >
-              <text class="item-name">{{ map.name || "未命名地图" }}</text>
+              <text class="item-name">{{ map.name || "未命名场景" }}</text>
               <text v-if="map.description" class="item-desc">{{
                 map.description
               }}</text>
             </view>
             <view v-if="mapsList.length === 0" class="writing-board-empty">
-              <text>暂无地图数据</text>
+              <text>暂无场景数据</text>
             </view>
           </view>
         </scroll-view>
       </view>
     </view>
 
-    <!-- 地图详情模态框 -->
+    <!-- 场景详情模态框 -->
     <view
       v-if="showMapDetailModal"
       class="map-detail-overlay"
@@ -249,7 +267,7 @@
       <view class="map-detail-modal" @tap.stop>
         <view class="map-detail-header">
           <text class="map-detail-title">{{
-            currentMapData?.name || "地图详情"
+            currentMapData?.name || "场景详情"
           }}</text>
           <view class="map-detail-close" @tap="closeMapDetail">
             <text>返回</text>
@@ -353,9 +371,80 @@ const editorRef = ref(null);
 
 // 键盘高度控制
 const keyboardHeight = ref(0);
+const usableHeight = ref(0); // 当前可用高度，随键盘变化
 
 // 滚动控制
 const scrollTop = ref(0);
+
+// 触摸事件处理
+const onTouchStart = (e) => {
+  lastUserScrollTime = Date.now();
+  
+  // 只在只读模式和适应手机模式下处理双指缩放
+  if (!isEditMode.value && isPhoneAdaptMode.value && e.touches && e.touches.length === 2) {
+    e.preventDefault(); // 阻止双指事件触发滚动
+    // 计算两指距离
+    const touch1 = e.touches[0];
+    const touch2 = e.touches[1];
+    const distance = Math.sqrt(
+      Math.pow(touch2.clientX - touch1.clientX, 2) + 
+      Math.pow(touch2.clientY - touch1.clientY, 2)
+    );
+    touchStartDistance.value = distance;
+    lastTouchTime.value = Date.now();
+  }
+};
+
+const onTouchMove = (e) => {
+  lastUserScrollTime = Date.now();
+  
+  // 在适应手机模式下优先处理触摸事件
+  if (!isEditMode.value && isPhoneAdaptMode.value) {
+    if (e.touches && e.touches.length === 2) {
+      // 双指操作：只处理缩放，完全阻止滚动
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const currentDistance = Math.sqrt(
+        Math.pow(touch2.clientX - touch1.clientX, 2) + 
+        Math.pow(touch2.clientY - touch1.clientY, 2)
+      );
+      
+      if (touchStartDistance.value > 0) {
+        const scale = currentDistance / touchStartDistance.value;
+        const newScale = phoneAdaptScale.value * scale;
+        
+        // 限制缩放范围
+        if (newScale >= 0.8 && newScale <= 2.0) {
+          phoneAdaptScale.value = newScale;
+        }
+      }
+      
+      touchStartDistance.value = currentDistance;
+      return; // 双指操作直接返回，不继续处理
+    }
+  }
+};
+
+const onTouchEnd = (e) => {
+  lastUserScrollTime = Date.now();
+  
+  // 如果键盘弹出且容器不在顶部，尝试强制滚动到顶部
+  if (keyboardHeight.value > 0) {
+    const query = uni.createSelectorQuery();
+    query.select(".edit-container").boundingClientRect();
+    query.exec((res) => {
+      if (res && res[0] && res[0].top > 10) {
+        forceScrollToTop();
+      }
+    });
+  }
+  
+  // 重置双指缩放状态
+  touchStartDistance.value = 0;
+};
 
 // 撤销重做栈
 const undoStack = ref([]);
@@ -367,6 +456,12 @@ const showQuickMenu = ref(false);
 const isFullscreen = ref(false);
 const isScrolled = ref(false);
 const isToolbarHidden = ref(false);
+
+// 适应手机模式相关
+const isPhoneAdaptMode = ref(false);
+const phoneAdaptScale = ref(1);
+const touchStartDistance = ref(0);
+const lastTouchTime = ref(0);
 
 // 写作板相关
 const showWritingBoard = ref(false);
@@ -391,34 +486,93 @@ let mapCanvasContext = null;
 
 // 视口高度
 const viewportHeight = ref(0);
+const currentFocusPosition = ref(null);
+const statusBarHeight = ref(0);
 
 // 计算属性
 const formattedContent = computed(() => {
   return formatContentIndent(chapterContent.value);
 });
 
-// 计算 padding-bottom 值（优化版本）
-const computedPaddingBottom = computed(() => {
-  // 优化逻辑：只添加必要的padding，避免过度填充
-  const padding = keyboardHeight.value > 0 ? Math.min(keyboardHeight.value + 50, 400) : 0;
-
-  // 只在值变化时输出日志，避免computed的频繁调用
-  if (padding !== (computedPaddingBottom._lastValue || -1)) {
-    computedPaddingBottom._lastValue = padding;
-  }
-
-  return padding;
+// 适应手机模式的样式计算
+const phoneAdaptStyle = computed(() => {
+  if (!isPhoneAdaptMode.value) return {};
+  
+  const scale = phoneAdaptScale.value;
+  const baseFontSize = 18; // 基础字体大小
+  const baseLineHeight = 1.8; // 基础行高
+  const basePadding = 30; // 基础内边距
+  
+  return {
+    fontSize: `${baseFontSize * scale}px`,
+    lineHeight: baseLineHeight,
+    padding: `${basePadding * scale}px`,
+  };
 });
 
-// 计算按钮 bottom 值（优化版本）
-const computedButtonBottom = computed(() => {
-  // 优化逻辑：使用固定偏移量，确保按钮在键盘上方合适位置
-  // 调整按钮位置，使其更靠近键盘（缩小16px）
-  const bottom = keyboardHeight.value > 0 ? keyboardHeight.value + 3 : 80;
+// 内容文本的动态样式
+const contentTextStyle = computed(() => {
+  const baseStyle = {
+    fontSize: '18px',
+    lineHeight: '1.8',
+  };
+  
+  if (isPhoneAdaptMode.value) {
+    return {
+      ...baseStyle,
+      fontSize: `${18 * phoneAdaptScale.value}px`,
+      transform: `scale(${phoneAdaptScale.value})`,
+      transformOrigin: 'top left',
+      width: isPhoneAdaptMode.value ? `${100 / phoneAdaptScale.value}%` : '100%',
+    };
+  }
+  
+  return baseStyle;
+});
 
-  // 只在值变化时输出日志，避免computed的频繁调用
-  if (bottom !== (computedButtonBottom._lastValue || -1)) {
-    computedButtonBottom._lastValue = bottom;
+
+
+
+
+// 计算 scroll-view 的正确高度
+const computedScrollViewHeight = computed(() => {
+  let height = viewportHeight.value; // 默认使用全屏高度
+  
+  // 减去状态栏高度
+  if (statusBarHeight.value > 0) {
+    height -= statusBarHeight.value;
+  }
+  
+  // 减去顶部工具栏高度（编辑模式下工具栏总是显示且固定）
+  if (isEditMode.value && showTopToolbar.value) {
+    height -= 44; // 工具栏高度
+  }
+  
+  // 减去键盘高度
+  if (keyboardHeight.value > 0) {
+    height -= keyboardHeight.value;
+  }
+  
+  // 确保最小高度
+  height = Math.max(height, 200);
+  
+  return height;
+});
+
+// 计算按钮 bottom 值
+const computedButtonBottom = computed(() => {
+  const keyboardH = keyboardHeight.value;
+  let bottom = 80; // 默认位置
+
+  if (keyboardH > 0) {
+    // 直接设置按钮在键盘上方10px处
+    bottom = keyboardH + 10;
+
+    // 确保按钮不会超出屏幕，至少保留80px的安全距离
+    const maxBottom = viewportHeight.value - 80;
+    if (bottom > maxBottom) {
+      bottom = maxBottom;
+    }
   }
 
   return bottom;
@@ -439,11 +593,18 @@ let autoSaveTimer = null;
 
 // 滚动监听
 const handleContentScroll = (e) => {
-  const scrollTop = e.detail.scrollTop;
+  const currentScrollTop = e.detail.scrollTop;
   const threshold = 44; // 工具栏高度
 
+  // 记录用户手动滚动时间
+  lastUserScrollTime = Date.now();
+
   // 只要工具栏显示且滚动超过阈值，就启用固定模式
-  if (showTopToolbar.value && scrollTop > threshold && !isToolbarPinned.value) {
+  if (
+    showTopToolbar.value &&
+    currentScrollTop > threshold &&
+    !isToolbarPinned.value
+  ) {
     isToolbarPinned.value = true;
   }
 };
@@ -509,7 +670,13 @@ const enterEditMode = () => {
   // 启用固定模式
   isToolbarPinned.value = true;
 
+  // 显示写作板按钮
+  showWritingBoardBtn.value = true;
+
   nextTick(() => {
+    // 强制滚动到顶部
+    forceScrollToTop();
+    
     // 聚焦标题输入框
     titleRef.value?.focus();
     setTimeout(() => {
@@ -587,19 +754,62 @@ const onBlur = (e) => {
 let keyboardHeightChangeCallback = null;
 let keyboardHeightTimer = null;
 let lastReportedKeyboardHeight = -1; // 记录上一次报告的键盘高度，防止重复处理
+let lastUserScrollTime = 0; // 记录用户最后一次手动滚动的时间
+
+// 保存光标位置的变量
+let currentCursorPosition = 0;
 
 const onInputFocus = (e) => {
-  // 显示写作板按钮
+  // 立即显示写作板按钮，确保键盘弹出时按钮可见
   showWritingBoardBtn.value = true;
+  
+  // 阻止默认的自动滚动行为
+  e.preventDefault && e.preventDefault();
 
-  // 获取视口高度
-  try {
-    const systemInfo = uni.getSystemInfoSync();
-    viewportHeight.value =
-      systemInfo.windowHeight || systemInfo.screenHeight || 0;
-  } catch (e) {
-    console.warn("获取系统信息失败:", e);
+  // 使用你发现的正确方式获取光标位置
+  if (e.target && typeof e.target.cursor !== "undefined") {
+    currentCursorPosition = e.target.cursor;
+  } else if (e.detail && typeof e.detail.cursor !== "undefined") {
+    currentCursorPosition = e.detail.cursor;
+  } else {
+    // 尝试使用官方API
+    uni.getSelectedTextRange({
+      success: (res) => {
+        currentCursorPosition = res.start || 0;
+      },
+      fail: () => {
+        currentCursorPosition = editContent.value.length;
+      },
+    });
   }
+
+  // 延迟一小段时间确保按钮渲染完成，再获取位置信息
+  setTimeout(() => {
+    // 获取当前焦点元素的位置信息
+    try {
+      const query = uni.createSelectorQuery();
+      // 根据ref类型选择正确的元素
+      if (e.target?.classList?.contains?.("edit-title-input")) {
+        query.select(".edit-title-input").boundingClientRect();
+      } else {
+        query.select(".edit-content-input").boundingClientRect();
+      }
+      query.selectViewport().scrollOffset();
+      query.exec((res) => {
+        if (res && res[0] && res[1]) {
+          // 保存当前焦点元素位置和视口信息
+          currentFocusPosition.value = {
+            ...res[0],
+            scrollTop: res[1].scrollTop,
+            cursorPosition: currentCursorPosition, // 保存光标位置
+          };
+          console.log(`[焦点位置] 获取成功:`, currentFocusPosition.value);
+        }
+      });
+    } catch (e) {
+      console.warn("获取焦点元素位置失败:", e);
+    }
+  }, 50); // 增加延迟确保DOM更新完成
 
   // 先移除之前的监听（如果存在）
   if (keyboardHeightChangeCallback) {
@@ -634,14 +844,27 @@ const onInputFocus = (e) => {
       ) {
         // 更新记录和实际值
         lastReportedKeyboardHeight = newHeight;
-        keyboardHeight.value = newHeight;
 
-        // 键盘弹出时，进行适度的光标滚动
-        if (newHeight > 0) {
+        // 使用 nextTick 确保 DOM 更新后再设置键盘高度
+        nextTick(() => {
+          keyboardHeight.value = newHeight;
+
+          // 键盘弹出时重置滚动位置到顶部，避免被锁定在中部
+          if (newHeight > 0) {
+            setTimeout(() => {
+              scrollTop.value = 0;
+            }, 100);
+          }
+
+          // 强制触发按钮位置重新计算
           setTimeout(() => {
-            scrollToCursor();
-          }, 100);
-        }
+            // 强制触发重新渲染
+            showWritingBoardBtn.value = false;
+            nextTick(() => {
+              showWritingBoardBtn.value = true;
+            });
+          }, 50);
+        });
       }
     }
   };
@@ -652,9 +875,31 @@ const onInputFocus = (e) => {
   } catch (error) {
     console.warn("监听键盘高度变化失败:", error);
   }
+};
 
-  // 不再设置预估高度，直接等待实际键盘高度事件
-  // 这样可以避免重复设置导致的双重填充问题
+// 处理输入框点击事件
+const onInputClick = (e) => {
+  // 阻止uni-app的自动滚动行为
+  e.preventDefault && e.preventDefault();
+  
+  // 立即重置滚动位置，防止自动滚动
+  if (keyboardHeight.value > 0) {
+    scrollTop.value = 0;
+  }
+  
+  // 使用你发现的正确方式获取光标位置
+  if (e.target && typeof e.target.cursor !== "undefined") {
+    currentCursorPosition = e.target.cursor;
+  } else if (e.detail && typeof e.detail.cursor !== "undefined") {
+    currentCursorPosition = e.detail.cursor;
+  }
+};
+
+// 处理选择变化事件
+const onSelectionChange = (e) => {
+  if (e.target && typeof e.target.cursor !== "undefined") {
+    currentCursorPosition = e.target.cursor;
+  }
 };
 
 const onInputBlur = (e) => {
@@ -684,6 +929,9 @@ const onInputBlur = (e) => {
     keyboardHeightTimer = null;
   }
 
+  // 键盘收起后重置滚动位置
+  scrollTop.value = 0;
+
   // 确保所有段落都有正确的缩进
   const currentContent = editContent.value;
   const formattedContent = formatContentIndent(currentContent);
@@ -693,33 +941,9 @@ const onInputBlur = (e) => {
   }
 };
 
-// 滚动到光标位置
-const scrollToCursor = () => {
-  if (!contentRef.value) return;
+// 已删除自动滚动功能，现在只使用手动滚动
 
-  // 使用 uni.createSelectorQuery 获取编辑器位置
-  const query = uni.createSelectorQuery();
-  query.select(".edit-content-input").boundingClientRect();
-  query.selectViewport().scrollOffset();
-  query.exec((res) => {
-    if (res && res[0] && res[1]) {
-      const inputRect = res[0];
-      const viewport = res[1];
-      const keyboardH = keyboardHeight.value;
-
-      // 计算编辑器底部位置
-      const inputBottom = inputRect.bottom;
-      const viewportHeight = uni.getSystemInfoSync().windowHeight;
-      const availableHeight = viewportHeight - keyboardH;
-
-      // 如果编辑器底部被键盘遮挡，滚动视图
-      if (inputBottom > availableHeight) {
-        const scrollDistance = inputBottom - availableHeight + 50; // 额外50px的边距，确保完全可见
-        scrollTop.value = viewport.scrollTop + scrollDistance;
-      }
-    }
-  });
-};
+// 已删除智能滚动函数，现在只使用手动滚动
 
 const saveChapterEdit = async () => {
   isSaving.value = true;
@@ -782,9 +1006,15 @@ const saveChapterEdit = async () => {
 
 // 工具栏功能
 const openServiceMenu = () => {
+  // 根据是否是编辑模式显示不同的菜单项
+  const menuItems = isEditMode.value 
+    ? ["复制章节", "导出为文本", "章节统计", "适应手机", "删除章节"]
+    : ["复制章节", "导出为文本", "章节统计", "删除章节"];
+    
   uni.showActionSheet({
-    itemList: ["复制章节", "导出为文本", "章节统计", "删除章节"],
+    itemList: menuItems,
     success: (res) => {
+      // 直接使用tapIndex，不需要调整索引
       switch (res.tapIndex) {
         case 0:
           copyChapter();
@@ -796,7 +1026,17 @@ const openServiceMenu = () => {
           showChapterStats();
           break;
         case 3:
-          deleteChapter();
+          if (isEditMode.value) {
+            // 编辑模式下的适应手机功能
+            adaptToPhoneInEditMode();
+          } else {
+            deleteChapter();
+          }
+          break;
+        case 4:
+          if (isEditMode.value) {
+            deleteChapter();
+          }
           break;
       }
     },
@@ -813,15 +1053,53 @@ const openTools = () => {
 };
 
 const adaptToPhone = () => {
-  uni.showModal({
-    title: "阅读设置",
-    content: "调整字体大小和间距以适应手机阅读",
-    showCancel: true,
-    success: (res) => {
-      if (res.confirm) {
-        // TODO: 实现阅读设置
-      }
-    },
+  if (isPhoneAdaptMode.value) {
+    // 退出适应手机模式
+    exitPhoneAdaptMode();
+  } else {
+    // 进入适应手机模式
+    enterPhoneAdaptMode();
+  }
+};
+
+// 编辑模式下的适应手机功能
+const adaptToPhoneInEditMode = () => {
+  if (isPhoneAdaptMode.value) {
+    // 退出适应手机模式
+    exitPhoneAdaptMode();
+  } else {
+    // 进入适应手机模式
+    enterPhoneAdaptMode();
+    
+    // 显示提示
+    uni.showToast({
+      title: "编辑模式下适应手机仅用于预览效果",
+      icon: "none",
+      duration: 2000,
+    });
+  }
+};
+
+// 进入适应手机模式
+const enterPhoneAdaptMode = () => {
+  isPhoneAdaptMode.value = true;
+  phoneAdaptScale.value = 1.2; // 默认缩放比例
+  
+  uni.showToast({
+    title: "已进入适应手机模式，双指缩放调整",
+    icon: "none",
+    duration: 2000,
+  });
+};
+
+// 退出适应手机模式
+const exitPhoneAdaptMode = () => {
+  isPhoneAdaptMode.value = false;
+  phoneAdaptScale.value = 1;
+  
+  uni.showToast({
+    title: "已退出适应手机模式",
+    icon: "none",
   });
 };
 
@@ -940,6 +1218,20 @@ onLoad(async (options) => {
 
   chapterId.value = options.chapterId;
   userId.value = options.userId || "default_user";
+
+  // 初始化系统信息
+  try {
+    const systemInfo = uni.getSystemInfoSync();
+    statusBarHeight.value = systemInfo.statusBarHeight || 20;
+    viewportHeight.value =
+      systemInfo.windowHeight || systemInfo.screenHeight || 667; // 默认iPhone高度
+    usableHeight.value = viewportHeight.value;
+  } catch (error) {
+    console.warn("获取系统信息失败:", error);
+    statusBarHeight.value = 20;
+    viewportHeight.value = 667;
+    usableHeight.value = viewportHeight.value;
+  }
 
   await loadChapterData();
 
@@ -1303,6 +1595,8 @@ const formatContentIndent = (content) => {
   return formattedLines.join("\n");
 };
 
+
+
 const goBack = () => {
   // 检查是否有未保存的更改
   if (chapterContent.value.trim() && !lastSaveTime.value) {
@@ -1323,6 +1617,13 @@ const goBack = () => {
     uni.navigateBack();
   }
 };
+
+// 强制滚动到真正的顶部
+const forceScrollToTop = () => {
+  scrollTop.value = 0;
+};
+
+
 
 // 写作板相关方法
 const openWritingBoard = async () => {
@@ -1408,7 +1709,8 @@ const loadWritingBoardData = async (tabKey) => {
 // 插入人物名称
 const insertCharacterName = (character) => {
   const name = character.name || character.title || "未命名";
-  insertTextAtCursor(name);
+  // 不重新聚焦，直接在当前光标位置插入
+  insertTextAtCursorDirectly(name);
   // 延迟关闭，确保文本已插入
   setTimeout(() => {
     closeWritingBoard();
@@ -1418,28 +1720,106 @@ const insertCharacterName = (character) => {
 // 插入设定名称
 const insertTermName = (term) => {
   const name = term.name || term.title || "未命名";
-  insertTextAtCursor(name);
+  // 不重新聚焦，直接在当前光标位置插入
+  insertTextAtCursorDirectly(name);
   // 延迟关闭，确保文本已插入
   setTimeout(() => {
     closeWritingBoard();
   }, 100);
 };
 
-// 在光标位置插入文本（由于uni-app限制，插入到文本末尾）
+// 在光标位置插入文本
 const insertTextAtCursor = (text) => {
+  if (!contentRef.value) return;
+
+  // 获取当前光标位置
+  const cursorPosition =
+    contentRef.value.selectionStart || editContent.value.length;
   const currentContent = editContent.value;
 
-  // 直接插入文本，不添加空格
-  editContent.value = currentContent + text;
+  // 在光标位置插入文本
+  const newContent =
+    currentContent.slice(0, cursorPosition) +
+    text +
+    currentContent.slice(cursorPosition);
+  editContent.value = newContent;
 
   // 触发输入事件以更新字数等
   onEditInput();
 
-  // 重新聚焦输入框
+  // 重新聚焦并设置光标位置到插入文本后
   nextTick(() => {
     if (contentRef.value) {
       contentRef.value.focus();
+      // 尝试设置光标位置
+      try {
+        const newCursorPosition = cursorPosition + text.length;
+        contentRef.value.setSelectionRange(
+          newCursorPosition,
+          newCursorPosition
+        );
+      } catch (e) {
+        console.warn("设置光标位置失败:", e);
+      }
     }
+  });
+};
+
+// 直接在光标位置插入文本（不重新聚焦）
+const insertTextAtCursorDirectly = (text) => {
+  if (!contentRef.value) {
+    return;
+  }
+
+  // 优先使用保存的光标位置
+  let cursorPosition = currentCursorPosition || editContent.value.length;
+
+  // 再次验证光标位置是否有效
+  uni.getSelectedTextRange({
+    success: (res) => {
+      // 使用API返回的准确位置
+      cursorPosition = res.start || cursorPosition;
+      performInsert(text, cursorPosition);
+    },
+    fail: (err) => {
+      // 使用之前保存的位置
+      performInsert(text, cursorPosition);
+    },
+  });
+};
+
+// 执行插入操作的函数
+const performInsert = (text, cursorPosition) => {
+  const currentContent = editContent.value;
+
+  // 在光标位置插入文本
+  const newContent =
+    currentContent.slice(0, cursorPosition) +
+    text +
+    currentContent.slice(cursorPosition);
+
+  editContent.value = newContent;
+
+  // 更新光标位置到插入文本后
+  currentCursorPosition = cursorPosition + text.length;
+
+  // 触发输入事件以更新字数等
+  onEditInput();
+
+  // 记录插入操作时间，防止智能滚动立即触发
+  lastUserScrollTime = Date.now();
+
+  // 设置光标位置到插入文本后
+  nextTick(() => {
+    // 使用 uniapp 的方式设置光标位置
+    uni.getSelectedTextRange({
+      success: (res) => {nsole.log(
+          `[插入执行] 设置光标前当前位置: start=${res.start}, end=${res.end}`
+        );
+      },
+    });
+
+    console.log(`[插入成功] 文本已插入，新内容长度: ${newContent.length}`);
   });
 };
 
@@ -1628,12 +2008,17 @@ const zoomMapOut = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* 移除固定高度，让内容自适应 */
 }
 
 /* 当工具栏固定时，为内容留出空间 */
 .content-wrapper.has-toolbar-pinned {
   padding-top: 44px;
+}
+
+/* 键盘弹出时移除padding-top，允许滚动到真正的顶部 */
+.content-wrapper.has-toolbar-pinned.keyboard-active {
+  padding-top: 0;
 }
 
 /* 内容区域 */
@@ -1690,6 +2075,16 @@ const zoomMapOut = () => {
   overflow-wrap: break-word;
   word-break: break-word;
   hyphens: auto;
+}
+
+/* 适应手机模式样式 */
+.content-container.phone-adapt-mode {
+  overflow: hidden;
+}
+
+.content-container.phone-adapt-mode .chapter-content {
+  transition: all 0.3s ease;
+  transform-origin: top left;
 }
 
 .content-text {
@@ -1889,7 +2284,13 @@ const zoomMapOut = () => {
   position: relative;
   width: 100%;
   box-sizing: border-box;
-  /* 确保padding-bottom正确应用 */
+  /* 确保内容区域正确布局 */
+}
+
+.keyboard-spacer {
+  width: 100%;
+  flex-shrink: 0;
+  /* 占位元素，用于键盘弹出时提供滚动空间 */
 }
 
 .edit-content-input {

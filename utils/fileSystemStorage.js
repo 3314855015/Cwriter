@@ -1743,6 +1743,189 @@ export class FileSystemStorage {
     }
   }
 
+  // 保存角色数据
+  async saveCharacter(userId, workId, characterData) {
+    if (this.useLocalStorageFallback) {
+      try {
+        const result = await this.saveCharacterFallback(
+          userId,
+          workId,
+          characterData
+        );
+        return result;
+      } catch (error) {
+        console.error("[Fallback] 保存角色数据失败:", error);
+        throw new Error(`保存角色数据失败: ${error.message}`);
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    const charactersPath = `${workDir}/characters/characters.json`;
+
+    try {
+      // 确保characters目录存在
+      this.mkdirIfNotExists(`${workDir}/characters`);
+
+      // 读取现有角色列表
+      let charactersData = await this.readFile(charactersPath);
+      if (!charactersData) {
+        charactersData = [];
+      }
+
+      // 确保是数组
+      if (!Array.isArray(charactersData)) {
+        charactersData = [];
+      }
+
+      // 准备角色数据
+      const characterId = characterData.id || `character_${Date.now()}`;
+      const formattedCharacterData = {
+        id: characterId,
+        name: characterData.name || "新角色",
+        description: characterData.description || "",
+        avatar: characterData.avatar || "",
+        tags: characterData.tags || [],
+        attributes: characterData.attributes || {},
+        relationships: characterData.relationships || [],
+        background: characterData.background || "",
+        personality: characterData.personality || "",
+        appearance: characterData.appearance || "",
+        created_at: characterData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+      };
+
+      // 查找是否已存在该角色
+      const existingIndex = charactersData.findIndex(
+        (character) => character.id === characterId
+      );
+      if (existingIndex >= 0) {
+        // 更新现有角色
+        formattedCharacterData.created_at =
+          charactersData[existingIndex].created_at;
+        charactersData[existingIndex] = formattedCharacterData;
+        console.log(
+          `更新现有角色: ${characterId}, 名称: ${formattedCharacterData.name}`
+        );
+      } else {
+        // 添加新角色
+        charactersData.push(formattedCharacterData);
+        console.log(
+          `添加新角色: ${characterId}, 名称: ${formattedCharacterData.name}`
+        );
+      }
+
+      // 保存角色列表
+      await this.writeFile(charactersPath, charactersData);
+      console.log(`角色列表已保存，当前角色数量: ${charactersData.length}`);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      // 记录操作日志
+      this.logOperation(userId, "save_character", {
+        workId,
+        characterId,
+        characterName: formattedCharacterData.name,
+        isUpdate: existingIndex >= 0,
+      });
+
+      return formattedCharacterData;
+    } catch (error) {
+      console.error("保存角色数据失败:", error);
+      throw new Error(`保存角色数据失败: ${error.message}`);
+    }
+  }
+
+  // 保存术语数据
+  async saveTerm(userId, workId, termData) {
+    if (this.useLocalStorageFallback) {
+      try {
+        const result = await this.saveTermFallback(userId, workId, termData);
+        return result;
+      } catch (error) {
+        console.error("[Fallback] 保存术语数据失败:", error);
+        throw new Error(`保存术语数据失败: ${error.message}`);
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    const termsPath = `${workDir}/settings/custom_settings.json`;
+
+    try {
+      // 确保settings目录存在
+      this.mkdirIfNotExists(`${workDir}/settings`);
+
+      // 读取现有术语列表
+      let termsData = await this.readFile(termsPath);
+      if (!termsData) {
+        termsData = [];
+      }
+
+      // 确保是数组
+      if (!Array.isArray(termsData)) {
+        termsData = [];
+      }
+
+      // 准备术语数据 - 使用正确的格式
+      const termId = termData.id || `setting_${Date.now()}`;
+      const formattedTermData = {
+        id: termId,
+        type: "setting",
+        work_id: workId,
+        user_id: userId,
+        name: termData.name || termData.term || "新术语", // 优先使用 name，向后兼容 term
+        description: termData.description || termData.definition || "", // 优先使用 description，向后兼容 definition
+        reserved_slots: termData.reserved_slots || {
+          slot_alpha: null,
+          slot_beta: null,
+          slot_gamma: null,
+        },
+        created_at: termData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: termData.status || "draft",
+      };
+
+      // 查找是否已存在该术语
+      const existingIndex = termsData.findIndex((term) => term.id === termId);
+      if (existingIndex >= 0) {
+        // 更新现有术语
+        formattedTermData.created_at = termsData[existingIndex].created_at;
+        termsData[existingIndex] = formattedTermData;
+        console.log(`更新现有术语: ${termId}, 名称: ${formattedTermData.name}`);
+      } else {
+        // 添加新术语
+        termsData.push(formattedTermData);
+        console.log(`添加新术语: ${termId}, 名称: ${formattedTermData.name}`);
+      }
+
+      // 保存术语列表
+      await this.writeFile(termsPath, termsData);
+      console.log(`术语列表已保存，当前术语数量: ${termsData.length}`);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      // 记录操作日志
+      this.logOperation(userId, "save_term", {
+        workId,
+        termId,
+        termName: formattedTermData.name,
+        isUpdate: existingIndex >= 0,
+      });
+
+      return formattedTermData;
+    } catch (error) {
+      console.error("保存术语数据失败:", error);
+      throw new Error(`保存术语数据失败: ${error.message}`);
+    }
+  }
+
   // 获取地图列表
   async getMapList(userId, workId) {
     if (this.useLocalStorageFallback) {
@@ -2779,7 +2962,20 @@ export class FileSystemStorage {
       }
     }
 
-    return characters;
+    // 为可选字段提供默认值，避免缺失字段导致 UI 异常
+    return characters.map((character) => ({
+      ...character,
+      avatar: character.avatar || "",
+      tags: Array.isArray(character.tags) ? character.tags : [],
+      relationships: Array.isArray(character.relationships)
+        ? character.relationships
+        : [],
+      attributes: character.attributes || {},
+      description: character.description || "",
+      background: character.background || "",
+      personality: character.personality || "",
+      appearance: character.appearance || "",
+    }));
   }
 
   // 获取术语数据
@@ -2918,7 +3114,23 @@ export class FileSystemStorage {
       // 首先尝试从专门的 characters 数组获取
       let characters = work?.content?.characters || [];
 
-      return characters;
+      if (!Array.isArray(characters)) {
+        characters = [];
+      }
+
+      return characters.map((character) => ({
+        ...character,
+        avatar: character.avatar || "",
+        tags: Array.isArray(character.tags) ? character.tags : [],
+        relationships: Array.isArray(character.relationships)
+          ? character.relationships
+          : [],
+        attributes: character.attributes || {},
+        description: character.description || "",
+        background: character.background || "",
+        personality: character.personality || "",
+        appearance: character.appearance || "",
+      }));
     } catch (error) {
       console.error("Fallback获取人物数据失败:", error);
       return [];
@@ -3009,6 +3221,173 @@ export class FileSystemStorage {
     } catch (error) {
       console.error("Fallback删除术语失败:", error);
       return false;
+    }
+  }
+
+  // Fallback: 保存角色数据
+  async saveCharacterFallback(userId, workId, characterData) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+
+      if (!userConfig.works[workId]) {
+        throw new Error("作品不存在");
+      }
+
+      // 确保作品有content对象
+      if (!userConfig.works[workId].content) {
+        userConfig.works[workId].content = {};
+      }
+
+      // 确保有角色列表
+      if (!userConfig.works[workId].content.characters) {
+        userConfig.works[workId].content.characters = [];
+      }
+
+      const charactersList = userConfig.works[workId].content.characters;
+      const characterId = characterData.id || `character_${Date.now()}`;
+
+      // 准备角色数据
+      const formattedCharacterData = {
+        id: characterId,
+        name: characterData.name || "新角色",
+        description: characterData.description || "",
+        avatar: characterData.avatar || "",
+        tags: characterData.tags || [],
+        attributes: characterData.attributes || {},
+        relationships: characterData.relationships || [],
+        background: characterData.background || "",
+        personality: characterData.personality || "",
+        appearance: characterData.appearance || "",
+        created_at: characterData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+      };
+
+      // 查找是否已存在该角色
+      const existingIndex = charactersList.findIndex(
+        (character) => character.id === characterId
+      );
+      if (existingIndex >= 0) {
+        // 更新现有角色
+        formattedCharacterData.created_at =
+          charactersList[existingIndex].created_at;
+        charactersList[existingIndex] = formattedCharacterData;
+        console.log(
+          `[Fallback] 更新现有角色: ${characterId}, 名称: ${formattedCharacterData.name}`
+        );
+      } else {
+        // 添加新角色
+        charactersList.push(formattedCharacterData);
+        console.log(
+          `[Fallback] 添加新角色: ${characterId}, 名称: ${formattedCharacterData.name}`
+        );
+      }
+
+      // 更新作品修改时间
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+
+      console.log("[Fallback] 角色数据已保存到本地存储:", {
+        workId,
+        characterId,
+        characterName: formattedCharacterData.name,
+        isUpdate: existingIndex >= 0,
+        totalCharacters: charactersList.length,
+      });
+
+      return formattedCharacterData;
+    } catch (error) {
+      console.error("Fallback保存角色数据失败:", error);
+      throw new Error(`保存角色数据失败: ${error.message}`);
+    }
+  }
+
+  // Fallback: 保存术语数据
+  async saveTermFallback(userId, workId, termData) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+
+      if (!userConfig.works[workId]) {
+        throw new Error("作品不存在");
+      }
+
+      // 确保作品有content对象
+      if (!userConfig.works[workId].content) {
+        userConfig.works[workId].content = {};
+      }
+
+      // 确保有settings对象
+      if (!userConfig.works[workId].content.settings) {
+        userConfig.works[workId].content.settings = {};
+      }
+
+      // 确保有术语列表
+      if (!userConfig.works[workId].content.settings.custom_settings) {
+        userConfig.works[workId].content.settings.custom_settings = [];
+      }
+
+      const termsList =
+        userConfig.works[workId].content.settings.custom_settings;
+      const termId = termData.id || `setting_${Date.now()}`;
+
+      // 准备术语数据 - 使用正确的格式
+      const formattedTermData = {
+        id: termId,
+        type: "setting",
+        work_id: workId,
+        user_id: userId,
+        name: termData.name || termData.term || "新术语", // 优先使用 name，向后兼容 term
+        description: termData.description || termData.definition || "", // 优先使用 description，向后兼容 definition
+        reserved_slots: termData.reserved_slots || {
+          slot_alpha: null,
+          slot_beta: null,
+          slot_gamma: null,
+        },
+        created_at: termData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: termData.status || "draft",
+      };
+
+      // 查找是否已存在该术语
+      const existingIndex = termsList.findIndex((term) => term.id === termId);
+      if (existingIndex >= 0) {
+        // 更新现有术语
+        formattedTermData.created_at = termsList[existingIndex].created_at;
+        termsList[existingIndex] = formattedTermData;
+        console.log(
+          `[Fallback] 更新现有术语: ${termId}, 名称: ${formattedTermData.name}`
+        );
+      } else {
+        // 添加新术语
+        termsList.push(formattedTermData);
+        console.log(
+          `[Fallback] 添加新术语: ${termId}, 名称: ${formattedTermData.name}`
+        );
+      }
+
+      // 更新作品修改时间
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+
+      console.log("[Fallback] 术语数据已保存到本地存储:", {
+        workId,
+        termId,
+        termName: formattedTermData.name,
+        isUpdate: existingIndex >= 0,
+        totalTerms: termsList.length,
+      });
+
+      return formattedTermData;
+    } catch (error) {
+      console.error("Fallback保存术语数据失败:", error);
+      throw new Error(`保存术语数据失败: ${error.message}`);
     }
   }
 }
