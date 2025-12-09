@@ -6,15 +6,17 @@ export default {
 		theme: 'dark' // 默认主题
 	},
 	onLaunch: async function() {
-		 
-		// 初始化主题
-		this.initTheme()
-		// 初始化默认用户（离线模式）
-		this.initDefaultUser()
-		// 直接跳转到首页
-		uni.switchTab({
-			url: '/pages/index/index'
-		})
+		// 初始化基础设置
+		this.initDefaultUser();
+		this.initTheme();
+		
+		// 跳转到首页
+		uni.reLaunch({
+			url: '/pages/index/index',
+			fail: (error) => {
+				console.error('首页跳转失败:', error);
+			}
+		});
 	},
 	onShow: function() {
 		 
@@ -25,41 +27,36 @@ export default {
 	methods: {
 		initDefaultUser() {
 			try {
-				// 创建默认用户
 				const defaultUser = {
 					id: 'default_user',
 					username: '离线用户',
 					email: ''
-				}
-				getApp().globalData.user = defaultUser
-				getApp().globalData.isAuthenticated = true
+				};
 				
-				// 初始化用户存储（使用uni-app方式）
-				try {
-					const userData = {
-						id: defaultUser.id,
-						username: defaultUser.username,
-						createdAt: new Date().toISOString()
-					}
-					uni.setStorageSync('user_profile', userData)
-					uni.setStorageSync('current_user_id', defaultUser.id)
-				} catch (storageError) {
-					console.error('初始化用户存储失败:', storageError)
-				}
+				getApp().globalData.user = defaultUser;
+				getApp().globalData.isAuthenticated = true;
+				
+				const userData = {
+					id: defaultUser.id,
+					username: defaultUser.username,
+					createdAt: new Date().toISOString()
+				};
+				
+				uni.setStorageSync('user_profile', userData);
+				uni.setStorageSync('current_user_id', defaultUser.id);
 			} catch (error) {
-				console.error('初始化默认用户失败:', error)
+				console.error('初始化默认用户失败:', error);
 			}
 		},
+		
 		initTheme() {
-			// 主题初始化现在由主题管理器处理
-			// 这里保留作为后备方案
 			try {
-				const theme = uni.getStorageSync('theme')
+				const theme = uni.getStorageSync('theme');
 				if (theme) {
-					getApp().globalData.theme = theme
+					getApp().globalData.theme = theme;
 				}
 			} catch (error) {
-				console.error('获取主题设置失败:', error)
+				console.error('初始化主题失败:', error);
 			}
 		}
 	}
