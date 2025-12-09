@@ -85,9 +85,9 @@
         @touchmove="onTouchMove"
         @touchend="onTouchEnd"
         @scrolltoupper="onScrollToUpper"
-        :style="{ 
-          height: computedScrollViewHeight + 'px', 
-          transition: keyboardHeight > 0 ? 'height 0.1s ease-out' : 'none' 
+        :style="{
+          height: computedScrollViewHeight + 'px',
+          transition: keyboardHeight > 0 ? 'height 0.1s ease-out' : 'none',
         }"
         :scroll-top="scrollTop"
         :scroll-with-animation="false"
@@ -121,6 +121,7 @@
             @blur="onInputBlur"
             @click="onInputClick"
             @selectionchange="onSelectionChange"
+            @longpress="onContentLongPress"
             cursor-spacing="0"
           />
           <!-- 键盘弹出时的占位空白区域，用于确保内容可以滚动 -->
@@ -146,7 +147,9 @@
           <text class="btn-text">工具</text>
         </view>
         <view class="tool-item text-btn" @tap="adaptToPhone">
-          <text class="btn-text">{{ isPhoneAdaptMode ? '退出适应' : '适应手机' }}</text>
+          <text class="btn-text">{{
+            isPhoneAdaptMode ? "退出适应" : "适应手机"
+          }}</text>
         </view>
         <view class="tool-item text-btn" @tap="shareChapter">
           <text class="btn-text">分享</text>
@@ -255,6 +258,72 @@
             </view>
           </view>
         </scroll-view>
+      </view>
+    </view>
+
+    <!-- 选区查找选择模态框 -->
+    <view
+      v-if="showLookupChoiceModal"
+      class="lookup-overlay"
+      @tap="closeLookupChoice"
+    >
+      <view class="lookup-modal" @tap.stop>
+        <text class="lookup-title"
+          >查找 "{{ (selectionText || "").trim() }}"</text
+        >
+        <view class="lookup-actions">
+          <view class="lookup-btn" @tap="handleLookupChoice('character')">
+            <text>人物</text>
+          </view>
+          <view class="lookup-btn" @tap="handleLookupChoice('term')">
+            <text>设定</text>
+          </view>
+        </view>
+        <view class="lookup-cancel" @tap="closeLookupChoice">
+          <text>取消</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 选区查找结果模态框 -->
+    <view
+      v-if="showLookupResultModal"
+      class="lookup-overlay"
+      @tap="closeLookupResult"
+    >
+      <view class="lookup-modal" @tap.stop>
+        <text class="lookup-title">
+          {{
+            lookupLoading
+              ? "查找中..."
+              : lookupResult?.found
+              ? lookupTargetType === "character"
+                ? "人物详情"
+                : "设定详情"
+              : "未找到"
+          }}
+        </text>
+
+        <view v-if="lookupLoading" class="lookup-loading">
+          <text>正在查找...</text>
+        </view>
+        <view v-else>
+          <view v-if="lookupResult?.found" class="lookup-body">
+            <text class="lookup-name">{{
+              lookupResult.item.name || lookupResult.item.title || "未命名"
+            }}</text>
+            <text class="lookup-desc">{{
+              lookupResult.item.description || "暂无介绍"
+            }}</text>
+          </view>
+          <view v-else class="lookup-empty">
+            <text>未找到匹配：{{ (selectionText || "").trim() }}</text>
+          </view>
+        </view>
+
+        <view class="lookup-close" @tap="closeLookupResult">
+          <text>关闭</text>
+        </view>
       </view>
     </view>
 
@@ -379,16 +448,21 @@ const scrollTop = ref(0);
 // 触摸事件处理
 const onTouchStart = (e) => {
   lastUserScrollTime = Date.now();
-  
+
   // 只在只读模式和适应手机模式下处理双指缩放
-  if (!isEditMode.value && isPhoneAdaptMode.value && e.touches && e.touches.length === 2) {
+  if (
+    !isEditMode.value &&
+    isPhoneAdaptMode.value &&
+    e.touches &&
+    e.touches.length === 2
+  ) {
     e.preventDefault(); // 阻止双指事件触发滚动
     // 计算两指距离
     const touch1 = e.touches[0];
     const touch2 = e.touches[1];
     const distance = Math.sqrt(
-      Math.pow(touch2.clientX - touch1.clientX, 2) + 
-      Math.pow(touch2.clientY - touch1.clientY, 2)
+      Math.pow(touch2.clientX - touch1.clientX, 2) +
+        Math.pow(touch2.clientY - touch1.clientY, 2)
     );
     touchStartDistance.value = distance;
     lastTouchTime.value = Date.now();
@@ -397,31 +471,31 @@ const onTouchStart = (e) => {
 
 const onTouchMove = (e) => {
   lastUserScrollTime = Date.now();
-  
+
   // 在适应手机模式下优先处理触摸事件
   if (!isEditMode.value && isPhoneAdaptMode.value) {
     if (e.touches && e.touches.length === 2) {
       // 双指操作：只处理缩放，完全阻止滚动
       e.preventDefault();
       e.stopPropagation();
-      
+
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const currentDistance = Math.sqrt(
-        Math.pow(touch2.clientX - touch1.clientX, 2) + 
-        Math.pow(touch2.clientY - touch1.clientY, 2)
+        Math.pow(touch2.clientX - touch1.clientX, 2) +
+          Math.pow(touch2.clientY - touch1.clientY, 2)
       );
-      
+
       if (touchStartDistance.value > 0) {
         const scale = currentDistance / touchStartDistance.value;
         const newScale = phoneAdaptScale.value * scale;
-        
+
         // 限制缩放范围
         if (newScale >= 0.8 && newScale <= 2.0) {
           phoneAdaptScale.value = newScale;
         }
       }
-      
+
       touchStartDistance.value = currentDistance;
       return; // 双指操作直接返回，不继续处理
     }
@@ -430,7 +504,7 @@ const onTouchMove = (e) => {
 
 const onTouchEnd = (e) => {
   lastUserScrollTime = Date.now();
-  
+
   // 如果键盘弹出且容器不在顶部，尝试强制滚动到顶部
   if (keyboardHeight.value > 0) {
     const query = uni.createSelectorQuery();
@@ -441,7 +515,7 @@ const onTouchEnd = (e) => {
       }
     });
   }
-  
+
   // 重置双指缩放状态
   touchStartDistance.value = 0;
 };
@@ -462,6 +536,15 @@ const isPhoneAdaptMode = ref(false);
 const phoneAdaptScale = ref(1);
 const touchStartDistance = ref(0);
 const lastTouchTime = ref(0);
+
+// 选区查找相关
+const selectionRange = ref({ start: 0, end: 0 });
+const selectionText = ref("");
+const showLookupChoiceModal = ref(false);
+const showLookupResultModal = ref(false);
+const lookupTargetType = ref(null); // 'character' | 'term'
+const lookupResult = ref(null);
+const lookupLoading = ref(false);
 
 // 写作板相关
 const showWritingBoard = ref(false);
@@ -497,12 +580,12 @@ const formattedContent = computed(() => {
 // 适应手机模式的样式计算
 const phoneAdaptStyle = computed(() => {
   if (!isPhoneAdaptMode.value) return {};
-  
+
   const scale = phoneAdaptScale.value;
   const baseFontSize = 18; // 基础字体大小
   const baseLineHeight = 1.8; // 基础行高
   const basePadding = 30; // 基础内边距
-  
+
   return {
     fontSize: `${baseFontSize * scale}px`,
     lineHeight: baseLineHeight,
@@ -513,49 +596,47 @@ const phoneAdaptStyle = computed(() => {
 // 内容文本的动态样式
 const contentTextStyle = computed(() => {
   const baseStyle = {
-    fontSize: '18px',
-    lineHeight: '1.8',
+    fontSize: "18px",
+    lineHeight: "1.8",
   };
-  
+
   if (isPhoneAdaptMode.value) {
     return {
       ...baseStyle,
       fontSize: `${18 * phoneAdaptScale.value}px`,
       transform: `scale(${phoneAdaptScale.value})`,
-      transformOrigin: 'top left',
-      width: isPhoneAdaptMode.value ? `${100 / phoneAdaptScale.value}%` : '100%',
+      transformOrigin: "top left",
+      width: isPhoneAdaptMode.value
+        ? `${100 / phoneAdaptScale.value}%`
+        : "100%",
     };
   }
-  
+
   return baseStyle;
 });
-
-
-
-
 
 // 计算 scroll-view 的正确高度
 const computedScrollViewHeight = computed(() => {
   let height = viewportHeight.value; // 默认使用全屏高度
-  
+
   // 减去状态栏高度
   if (statusBarHeight.value > 0) {
     height -= statusBarHeight.value;
   }
-  
+
   // 减去顶部工具栏高度（编辑模式下工具栏总是显示且固定）
   if (isEditMode.value && showTopToolbar.value) {
     height -= 44; // 工具栏高度
   }
-  
+
   // 减去键盘高度
   if (keyboardHeight.value > 0) {
     height -= keyboardHeight.value;
   }
-  
+
   // 确保最小高度
   height = Math.max(height, 200);
-  
+
   return height;
 });
 
@@ -676,7 +757,7 @@ const enterEditMode = () => {
   nextTick(() => {
     // 强制滚动到顶部
     forceScrollToTop();
-    
+
     // 聚焦标题输入框
     titleRef.value?.focus();
     setTimeout(() => {
@@ -762,7 +843,7 @@ let currentCursorPosition = 0;
 const onInputFocus = (e) => {
   // 立即显示写作板按钮，确保键盘弹出时按钮可见
   showWritingBoardBtn.value = true;
-  
+
   // 阻止默认的自动滚动行为
   e.preventDefault && e.preventDefault();
 
@@ -881,12 +962,12 @@ const onInputFocus = (e) => {
 const onInputClick = (e) => {
   // 阻止uni-app的自动滚动行为
   e.preventDefault && e.preventDefault();
-  
+
   // 立即重置滚动位置，防止自动滚动
   if (keyboardHeight.value > 0) {
     scrollTop.value = 0;
   }
-  
+
   // 使用你发现的正确方式获取光标位置
   if (e.target && typeof e.target.cursor !== "undefined") {
     currentCursorPosition = e.target.cursor;
@@ -897,8 +978,37 @@ const onInputClick = (e) => {
 
 // 处理选择变化事件
 const onSelectionChange = (e) => {
-  if (e.target && typeof e.target.cursor !== "undefined") {
-    currentCursorPosition = e.target.cursor;
+  const detail = e.detail || {};
+  const cursorVal =
+    typeof detail.cursor === "number"
+      ? detail.cursor
+      : e.target && typeof e.target.cursor === "number"
+      ? e.target.cursor
+      : undefined;
+  if (typeof cursorVal === "number") {
+    currentCursorPosition = cursorVal;
+  }
+
+  const start =
+    typeof detail.selectionStart === "number"
+      ? detail.selectionStart
+      : typeof detail.cursor === "number"
+      ? detail.cursor
+      : 0;
+  const end =
+    typeof detail.selectionEnd === "number"
+      ? detail.selectionEnd
+      : typeof detail.cursor === "number"
+      ? detail.cursor
+      : 0;
+
+  if (start >= 0 && end >= start) {
+    selectionRange.value = { start, end };
+    const selected = editContent.value.slice(start, end);
+    selectionText.value = selected;
+  } else {
+    selectionRange.value = { start: 0, end: 0 };
+    selectionText.value = "";
   }
 };
 
@@ -938,6 +1048,101 @@ const onInputBlur = (e) => {
 
   if (formattedContent !== currentContent) {
     editContent.value = formattedContent;
+  }
+};
+
+// 长按触发查找选择
+const onContentLongPress = () => {
+  if (!isEditMode.value) return;
+  // 先尝试读取当前选区，保证第二次长按仍能拿到文本
+  uni.getSelectedTextRange({
+    success: (res) => {
+      const start = typeof res.start === "number" ? res.start : 0;
+      const end = typeof res.end === "number" ? res.end : start;
+      if (end > start) {
+        selectionRange.value = { start, end };
+        selectionText.value = editContent.value.slice(start, end);
+      }
+      const keywordNow = (selectionText.value || "").trim();
+      if (!keywordNow) {
+        uni.showToast({ title: "请先选中文本", icon: "none" });
+        return;
+      }
+      showLookupChoiceModal.value = true;
+      console.log("[Lookup] longpress trigger, text:", keywordNow);
+    },
+    fail: () => {
+      const keywordNow = (selectionText.value || "").trim();
+      if (!keywordNow) {
+        uni.showToast({ title: "请先选中文本", icon: "none" });
+        return;
+      }
+      showLookupChoiceModal.value = true;
+      console.log("[Lookup] longpress trigger (fallback), text:", keywordNow);
+    },
+  });
+
+  const keyword = (selectionText.value || "").trim();
+  if (!keyword) return;
+  showLookupChoiceModal.value = true;
+};
+
+const closeLookupChoice = () => {
+  showLookupChoiceModal.value = false;
+};
+
+const closeLookupResult = () => {
+  showLookupResultModal.value = false;
+  lookupResult.value = null;
+  lookupTargetType.value = null;
+  lookupLoading.value = false;
+};
+
+const ensureLookupData = async (type) => {
+  if (type === "character" && charactersList.value.length === 0) {
+    const list = await fileStorage.getCharacters(userId.value, workId.value);
+    charactersList.value = Array.isArray(list) ? list : [];
+  }
+  if (type === "term" && termsList.value.length === 0) {
+    const list = await fileStorage.getTerms(userId.value, workId.value);
+    termsList.value = Array.isArray(list) ? list : [];
+  }
+};
+
+const handleLookupChoice = async (type) => {
+  if (lookupLoading.value) return;
+  const keyword = (selectionText.value || "").trim();
+  if (!keyword) {
+    uni.showToast({ title: "请先选择文本", icon: "none" });
+    showLookupChoiceModal.value = false;
+    return;
+  }
+
+  lookupTargetType.value = type;
+  showLookupChoiceModal.value = false;
+  showLookupResultModal.value = true;
+  lookupLoading.value = true;
+
+  try {
+    await ensureLookupData(type);
+    const list = type === "character" ? charactersList.value : termsList.value;
+    const matched =
+      Array.isArray(list) &&
+      list.find((item) => {
+        const name = (item.name || item.title || "").trim();
+        return name === keyword;
+      });
+
+    if (matched) {
+      lookupResult.value = { found: true, item: matched };
+    } else {
+      lookupResult.value = { found: false };
+    }
+  } catch (error) {
+    console.error("查找失败:", error);
+    lookupResult.value = { found: false };
+  } finally {
+    lookupLoading.value = false;
   }
 };
 
@@ -1007,10 +1212,10 @@ const saveChapterEdit = async () => {
 // 工具栏功能
 const openServiceMenu = () => {
   // 根据是否是编辑模式显示不同的菜单项
-  const menuItems = isEditMode.value 
+  const menuItems = isEditMode.value
     ? ["复制章节", "导出为文本", "章节统计", "适应手机", "删除章节"]
     : ["复制章节", "导出为文本", "章节统计", "删除章节"];
-    
+
   uni.showActionSheet({
     itemList: menuItems,
     success: (res) => {
@@ -1070,7 +1275,7 @@ const adaptToPhoneInEditMode = () => {
   } else {
     // 进入适应手机模式
     enterPhoneAdaptMode();
-    
+
     // 显示提示
     uni.showToast({
       title: "编辑模式下适应手机仅用于预览效果",
@@ -1084,7 +1289,7 @@ const adaptToPhoneInEditMode = () => {
 const enterPhoneAdaptMode = () => {
   isPhoneAdaptMode.value = true;
   phoneAdaptScale.value = 1.2; // 默认缩放比例
-  
+
   uni.showToast({
     title: "已进入适应手机模式，双指缩放调整",
     icon: "none",
@@ -1096,7 +1301,7 @@ const enterPhoneAdaptMode = () => {
 const exitPhoneAdaptMode = () => {
   isPhoneAdaptMode.value = false;
   phoneAdaptScale.value = 1;
-  
+
   uni.showToast({
     title: "已退出适应手机模式",
     icon: "none",
@@ -1595,8 +1800,6 @@ const formatContentIndent = (content) => {
   return formattedLines.join("\n");
 };
 
-
-
 const goBack = () => {
   // 检查是否有未保存的更改
   if (chapterContent.value.trim() && !lastSaveTime.value) {
@@ -1622,8 +1825,6 @@ const goBack = () => {
 const forceScrollToTop = () => {
   scrollTop.value = 0;
 };
-
-
 
 // 写作板相关方法
 const openWritingBoard = async () => {
@@ -1813,7 +2014,8 @@ const performInsert = (text, cursorPosition) => {
   nextTick(() => {
     // 使用 uniapp 的方式设置光标位置
     uni.getSelectedTextRange({
-      success: (res) => {nsole.log(
+      success: (res) => {
+        console.log(
           `[插入执行] 设置光标前当前位置: start=${res.start}, end=${res.end}`
         );
       },
@@ -2814,6 +3016,117 @@ const zoomMapOut = () => {
 
 .light-theme .map-empty-hint {
   color: rgba(0, 0, 0, 0.5);
+}
+
+.lookup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lookup-modal {
+  width: 82%;
+  max-width: 520px;
+  background: rgba(26, 26, 26, 0.95);
+  border-radius: 16px;
+  padding: 20px;
+  box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.light-theme .lookup-modal {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.lookup-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: inherit;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.lookup-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.lookup-btn {
+  flex: 1;
+  padding: 12px 0;
+  border-radius: 12px;
+  text-align: center;
+  background: rgba(0, 122, 255, 0.15);
+  border: 1px solid rgba(0, 122, 255, 0.35);
+  color: #007aff;
+  font-weight: 600;
+}
+
+.lookup-btn:active {
+  transform: scale(0.98);
+}
+
+.lookup-cancel,
+.lookup-close {
+  margin-top: 8px;
+  padding: 10px 0;
+  text-align: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.light-theme .lookup-cancel,
+.light-theme .lookup-close {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.lookup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.lookup-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.lookup-desc {
+  font-size: 14px;
+  color: inherit;
+  opacity: 0.8;
+  line-height: 1.5;
+}
+
+.lookup-empty {
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  margin-bottom: 10px;
+}
+
+.light-theme .lookup-empty {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.lookup-loading {
+  padding: 12px 0;
+  text-align: center;
+  color: inherit;
+  opacity: 0.8;
 }
 
 .map-zoom-controls {
