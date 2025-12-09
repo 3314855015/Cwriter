@@ -21,7 +21,8 @@
             "FileSystem" : {},
             "Storage" : {},
             "Cache" : {},
-            "JSON" : {}
+            "JSON" : {},
+            "Updater" : {}
         },
         /* 原生插件配置 */
         "nativePlugins" : {
@@ -29,6 +30,9 @@
         },
         /* 应用发布信息 */
         "distribute" : {
+            "sdkConfigs" : {
+                "ad" : {}
+            },
             /* android打包配置 */
             "android" : {
                 "minSdkVersion" : "26",
@@ -56,12 +60,9 @@
                     "<uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\"/>"
                 ]
             },
-            /* ios打包配置 */
             "ios" : {
                 "dSYMs" : false
-            },
-            /* SDK配置 */
-            "sdkConfigs" : {}
+            }
         }
     },
     /* 快应用特有相关 */

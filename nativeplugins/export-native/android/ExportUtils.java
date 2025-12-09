@@ -125,7 +125,6 @@ public class ExportUtils {
             
             // 创建PDF文档（使用测试项目已验证的方法）
             Log.d(TAG, "ExportUtils - 开始创建PDF文档...");
-            FileOutputStream fos = null;
             try {
                 fos = new FileOutputStream(file);
                 Log.d(TAG, "ExportUtils - FileOutputStream创建成功");

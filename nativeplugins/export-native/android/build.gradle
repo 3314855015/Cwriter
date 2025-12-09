@@ -4,9 +4,7 @@ plugins {
 
 android {
     namespace 'com.cwriter.export'
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk 36
 
     defaultConfig {
         minSdk 26  // 提高minSdk到26以支持POI库
@@ -75,35 +73,12 @@ dependencies {
     // FastJSON - uni-app使用
     compileOnly 'com.alibaba:fastjson:1.2.83'
     
-    // Android-compatible PDF library (替换PDFBox)
-    api 'com.itextpdf:itext7-core:7.2.5'
+    // AndroidX权限支持库（不在package.json中声明的依赖）
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
     
-    // DOCX生成库 - 使用版本管理配置
-    api(libs.poi) {
-        exclude group: 'commons-logging', module: 'commons-logging'
-    }
-    api(libs.poi.ooxml) {
-        exclude group: 'commons-logging', module: 'commons-logging'
-        exclude group: 'org.apache.logging.log4j', module: 'log4j-api'
-    }
-    
-    // XML处理（POI依赖）
-    api 'org.apache.xmlbeans:xmlbeans:4.0.0'
-    api 'org.apache.commons:commons-compress:1.21'
-    api 'commons-codec:commons-codec:1.15'
-    
-    // 添加缺失的POI依赖
-    api 'commons-io:commons-io:2.11.0'
-    api 'org.apache.commons:commons-collections4:4.4'
-    api 'org.apache.commons:commons-math3:3.6.1'
-    
-    // 添加SLF4J作为日志框架（避免commons-logging冲突）
-    api 'org.slf4j:slf4j-android:1.7.36'
-    
-    // 注意：不再添加AndroidX核心库，让主项目提供
-    // 移除以下依赖避免冲突：
-    // implementation 'androidx.core:core:1.12.0'
-    // implementation 'androidx.appcompat:appcompat:1.6.1'
+    // 其他依赖由package.json统一管理，避免重复声明
+    // 主要依赖（PDF/DOCX相关）已在package.json中声明
 }
 
 // 简化打包流程，避免依赖冲突

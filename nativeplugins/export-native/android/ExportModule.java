@@ -697,8 +697,6 @@ public class ExportModule extends UniModule {
                 Log.w(TAG, "Error closing DOCX document", closeError);
             }
         }
-        
-        return result;
     }
 
     /**
