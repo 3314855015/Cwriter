@@ -14,6 +14,20 @@
       <button class="tool-btn" @tap="resetView">
         <text>重置</text>
       </button>
+      <view class="shape-toolbar">
+        <text class="shape-label">形状:</text>
+        <view class="shape-btns">
+          <view
+            v-for="shape in shapeOptions.slice(0, 4)"
+            :key="shape.value"
+            class="shape-btn"
+            :class="{ active: defaultShape === shape.value }"
+            @tap="defaultShape = shape.value"
+          >
+            <text>{{ shape.icon }}</text>
+          </view>
+        </view>
+      </view>
     </view>
 
     <!-- 画布容器 -->
@@ -53,6 +67,21 @@
               placeholder="输入节点描述"
               @blur="updateNode"
             ></textarea>
+          </view>
+          <view class="info-item">
+            <text class="info-label">节点形状：</text>
+            <view class="shape-selector">
+              <view
+                v-for="shape in shapeOptions"
+                :key="shape.value"
+                class="shape-option"
+                :class="{ active: selectedNode.shape === shape.value }"
+                @tap="selectedNode.shape = shape.value; updateNode()"
+              >
+                <view class="shape-icon">{{ shape.icon }}</view>
+                <text class="shape-label">{{ shape.label }}</text>
+              </view>
+            </view>
           </view>
           <view class="panel-actions">
             <button class="action-btn primary" @tap="addSiblingNode">
@@ -206,6 +235,19 @@ const routeStartIndex = ref(0);
 const routeEndIndex = ref(0);
 const routePath = ref([]);
 
+// 形状选项配置
+const shapeOptions = [
+  { value: 'circle', label: '圆形', icon: '○' },
+  { value: 'square', label: '方形', icon: '□' },
+  { value: 'triangle', label: '三角形', icon: '△' },
+  { value: 'diamond', label: '菱形', icon: '◇' },
+  { value: 'hexagon', label: '六边形', icon: '⬡' },
+  { value: 'star', label: '五角星', icon: '★' }
+];
+
+// 默认形状
+const defaultShape = ref('circle');
+
 // 计算属性
 const topLevelNodes = computed(() => {
   return nodes.value.filter((node) => !node.parentId);
@@ -277,6 +319,7 @@ const initDefaultData = () => {
       description: "",
       parentId: null,
       collapsed: false,
+      shape: "square",
     },
     {
       id: "2",
@@ -286,9 +329,34 @@ const initDefaultData = () => {
       description: "",
       parentId: null,
       collapsed: false,
+      shape: "circle",
     },
+    {
+      id: "3",
+      name: "教室101",
+      x: Math.max(margin, Math.min(width - margin, width * 0.3 - 60)),
+      y: Math.max(margin, Math.min(height - margin, height * 0.5 + 60)),
+      description: "",
+      parentId: "1",
+      collapsed: false,
+      shape: "triangle",
+    },
+    {
+      id: "4",
+      name: "图书馆",
+      x: Math.max(margin, Math.min(width - margin, width * 0.7 + 60)),
+      y: Math.max(margin, Math.min(height - margin, height * 0.5 + 60)),
+      description: "",
+      parentId: null,
+      collapsed: false,
+      shape: "hexagon",
+    }
   ];
-  edges.value = [{ id: "e1", source: "1", target: "2", type: "sibling" }];
+  edges.value = [
+    { id: "e1", source: "1", target: "2", type: "sibling" },
+    { id: "e2", source: "1", target: "3", type: "parent-child" },
+    { id: "e3", source: "2", target: "4", type: "sibling" }
+  ];
 };
 
 // 加载数据
@@ -395,44 +463,177 @@ const draw = () => {
   ctx.draw();
 };
 
+// 获取节点大小
+const getNodeSize = (node) => {
+  const baseSize = 30;
+  
+  // 父节点比子节点大
+  const hasChildren = nodes.value.some((n) => n.parentId === node.id);
+  if (hasChildren) {
+    return baseSize * 1.4; // 父节点大40%
+  }
+  
+  // 有父节点的子节点
+  if (node.parentId) {
+    return baseSize * 0.8; // 子节点小20%
+  }
+  
+  return baseSize; // 默认大小
+};
+
 // 绘制节点
 const drawNode = (node) => {
   const isSelected = selectedNode.value?.id === node.id;
-  const radius = 30;
+  const size = getNodeSize(node);
+  const hasChildren = nodes.value.some((n) => n.parentId === node.id);
+  
+  // 根据层级确定颜色
+  let fillColor, strokeColor;
+  if (isSelected) {
+    fillColor = "#ff6b35";
+    strokeColor = "#ff8a65";
+  } else if (hasChildren) {
+    // 父节点 - 更深的颜色
+    fillColor = props.isDarkMode ? "#5a5a5a" : "#f0f0f0";
+    strokeColor = props.isDarkMode ? "#888" : "#bbb";
+  } else if (node.parentId) {
+    // 子节点 - 更浅的颜色
+    fillColor = props.isDarkMode ? "#3a3a3a" : "#fafafa";
+    strokeColor = props.isDarkMode ? "#555" : "#eee";
+  } else {
+    // 普通节点
+    fillColor = props.isDarkMode ? "#4a4a4a" : "#ffffff";
+    strokeColor = props.isDarkMode ? "#666" : "#ddd";
+  }
 
-  // 节点背景
-  ctx.setFillStyle(
-    isSelected ? "#ff6b35" : props.isDarkMode ? "#4a4a4a" : "#ffffff"
-  );
-  ctx.beginPath();
-  ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 节点边框
-  ctx.setStrokeStyle(
-    isSelected ? "#ff8a65" : props.isDarkMode ? "#666" : "#ddd"
-  );
-  ctx.setLineWidth(2);
-  ctx.stroke();
+  // 根据节点形状绘制
+  const shape = node.shape || 'circle';
+  drawShape(shape, node.x, node.y, size, fillColor, strokeColor);
 
   // 节点文字
   ctx.setFillStyle(props.isDarkMode ? "#fff" : "#333");
-  ctx.setFontSize(12);
+  ctx.setFontSize(Math.max(10, 12 * (size / 30))); // 根据节点大小调整字体
   ctx.setTextAlign("center");
   ctx.setTextBaseline("middle");
   ctx.fillText(node.name, node.x, node.y);
 
   // 如果有子节点，显示折叠/展开标记
-  const hasChildren = nodes.value.some((n) => n.parentId === node.id);
   if (hasChildren) {
     ctx.setFillStyle(props.isDarkMode ? "#fff" : "#333");
-    ctx.setFontSize(16);
+    ctx.setFontSize(Math.max(12, 14 * (size / 30)));
     ctx.fillText(
       node.collapsed ? "+" : "-",
-      node.x + radius - 8,
-      node.y - radius + 8
+      node.x + size - 8,
+      node.y - size + 8
     );
   }
+};
+
+// 绘制不同形状
+const drawShape = (shape, x, y, size, fillColor, strokeColor) => {
+  ctx.setFillStyle(fillColor);
+  ctx.setStrokeStyle(strokeColor);
+  ctx.setLineWidth(2);
+
+  switch (shape) {
+    case 'circle':
+      drawCircle(x, y, size);
+      break;
+    case 'square':
+      drawSquare(x, y, size);
+      break;
+    case 'triangle':
+      drawTriangle(x, y, size);
+      break;
+    case 'diamond':
+      drawDiamond(x, y, size);
+      break;
+    case 'hexagon':
+      drawHexagon(x, y, size);
+      break;
+    case 'star':
+      drawStar(x, y, size);
+      break;
+    default:
+      drawCircle(x, y, size);
+      break;
+  }
+};
+
+// 绘制圆形
+const drawCircle = (x, y, size) => {
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+};
+
+// 绘制正方形
+const drawSquare = (x, y, size) => {
+  ctx.beginPath();
+  ctx.rect(x - size, y - size, size * 2, size * 2);
+  ctx.fill();
+  ctx.stroke();
+};
+
+// 绘制三角形
+const drawTriangle = (x, y, size) => {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x - size, y + size);
+  ctx.lineTo(x + size, y + size);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+};
+
+// 绘制菱形
+const drawDiamond = (x, y, size) => {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x + size, y);
+  ctx.lineTo(x, y + size);
+  ctx.lineTo(x - size, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+};
+
+// 绘制六边形
+const drawHexagon = (x, y, size) => {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    const px = x + size * Math.cos(angle);
+    const py = y + size * Math.sin(angle);
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+};
+
+// 绘制五角星
+const drawStar = (x, y, size) => {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const angle = (Math.PI / 5) * i;
+    const radius = i % 2 === 0 ? size : size * 0.5;
+    const px = x + radius * Math.cos(angle - Math.PI / 2);
+    const py = y + radius * Math.sin(angle - Math.PI / 2);
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 };
 
 // 绘制边
@@ -1166,6 +1367,7 @@ const addNewNode = () => {
       description: "",
       parentId: null, // 顶级节点
       collapsed: false,
+      shape: defaultShape.value, // 使用工具栏选择的默认形状
     };
 
     nodes.value.push(newNode);
@@ -1198,6 +1400,7 @@ const addSiblingNode = () => {
     description: "",
     parentId: currentNode.parentId,
     collapsed: false,
+    shape: defaultShape.value, // 使用工具栏选择的默认形状
   };
 
   nodes.value.push(newNode);
@@ -1236,6 +1439,7 @@ const addChildNode = () => {
     description: "",
     parentId: currentNode.id,
     collapsed: false,
+    shape: "triangle", // 子节点默认三角形
   };
 
   nodes.value.push(newNode);
@@ -1336,6 +1540,7 @@ const generateFromText = () => {
             description: "",
             parentId: null,
             collapsed: false,
+            shape: "square",
           });
         }
 
@@ -1349,6 +1554,7 @@ const generateFromText = () => {
             description: "",
             parentId: null,
             collapsed: false,
+            shape: "square",
           });
         }
 
@@ -1374,6 +1580,7 @@ const generateFromText = () => {
       description: "",
       parentId: lastNodeId,
       collapsed: false,
+      shape: lastNodeId ? "triangle" : "circle", // 有父节点用三角形，否则圆形
     });
 
     if (lastNodeId) {
@@ -1585,15 +1792,61 @@ onUnmounted(() => {
 
 .toolbar {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.05);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
 }
 
 .map-visualizer.light-theme .toolbar {
   background: rgba(0, 0, 0, 0.02);
   border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.shape-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.shape-label {
+  font-size: 12px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.shape-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.shape-btn {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.map-visualizer.light-theme .shape-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #333;
+}
+
+.shape-btn.active {
+  background: #ff6b35;
+  border-color: #ff6b35;
+}
+
+.shape-btn:active {
+  transform: scale(0.9);
 }
 
 .tool-btn {
@@ -1860,5 +2113,52 @@ onUnmounted(() => {
 
 .map-visualizer.light-theme .result-path {
   color: #333;
+}
+
+/* 形状选择器样式 */
+.shape-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.shape-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.map-visualizer.light-theme .shape-option {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.shape-option.active {
+  border-color: #ff6b35;
+  background: rgba(255, 107, 53, 0.2);
+}
+
+.shape-option:active {
+  transform: scale(0.95);
+}
+
+.shape-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+
+.shape-label {
+  font-size: 10px;
+  opacity: 0.8;
+  text-align: center;
+  line-height: 1.2;
 }
 </style>
