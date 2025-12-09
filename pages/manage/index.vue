@@ -1316,6 +1316,9 @@ const openTagPicker = () => {
     JSON.stringify(editItemData.value.tags || [])
   );
   const url = `/pages/manage/tag-picker?userId=${currentUser.value.id}&workId=${currentWork.value.id}&selected=${selected}`;
+  uni.$once("tagsSelected", (data) => {
+    editItemData.value.tags = data?.tags || [];
+  });
   uni.navigateTo({
     url,
     events: {
@@ -1343,7 +1346,7 @@ const openRelationPicker = () => {
       relationSelected: (data) => {
         if (!data || !data.relation) return;
         const list = Array.isArray(editItemData.value.relationships)
-          ? editItemData.value.relationships
+          ? [...editItemData.value.relationships]
           : [];
         list.push(data);
         editItemData.value.relationships = list;
@@ -1354,12 +1357,16 @@ const openRelationPicker = () => {
 
 const removeTag = (index) => {
   if (!Array.isArray(editItemData.value.tags)) return;
-  editItemData.value.tags.splice(index, 1);
+  const list = [...editItemData.value.tags];
+  list.splice(index, 1);
+  editItemData.value.tags = list;
 };
 
 const removeRelation = (index) => {
   if (!Array.isArray(editItemData.value.relationships)) return;
-  editItemData.value.relationships.splice(index, 1);
+  const list = [...editItemData.value.relationships];
+  list.splice(index, 1);
+  editItemData.value.relationships = list;
 };
 
 const closeEditModal = () => {

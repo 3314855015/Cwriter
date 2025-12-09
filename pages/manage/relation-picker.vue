@@ -14,9 +14,9 @@
         :class="{ active: selectedId === char.id }"
         @tap="select(char)"
       >
-        <text class="name">{{ char.name || '未命名人物' }}</text>
-        <text class="desc">{{ char.description || '暂无描述' }}</text>
-        <text class="check">{{ selectedId === char.id ? '✔' : '' }}</text>
+        <text class="name">{{ char.name || "未命名人物" }}</text>
+        <text class="desc">{{ char.description || "暂无描述" }}</text>
+        <text class="check">{{ selectedId === char.id ? "✔" : "" }}</text>
       </view>
       <view v-if="characters.length === 0" class="empty">暂无人物可选</view>
     </scroll-view>
@@ -77,7 +77,14 @@ onLoad((options) => {
     selectedName.value = first.name || "";
     relationText.value = first.relation || first.desc || "";
   }
-  eventChannel = getOpenerEventChannel && getOpenerEventChannel();
+
+  try {
+    const pages = getCurrentPages();
+    const cur = pages[pages.length - 1];
+    eventChannel = cur?.getOpenerEventChannel?.() || null;
+  } catch (e) {
+    eventChannel = null;
+  }
 });
 
 onMounted(async () => {
@@ -102,11 +109,13 @@ const confirm = () => {
     uni.showToast({ title: "请选择人物并填写关系", icon: "none" });
     return;
   }
-  eventChannel?.emit("relationSelected", {
+  const payload = {
     id: selectedId.value,
     name: selectedName.value,
     relation: relationText.value.trim(),
-  });
+  };
+  eventChannel?.emit("relationSelected", payload);
+  uni.$emit("relationSelected", payload); // 兜底
   goBack();
 };
 
@@ -232,4 +241,3 @@ const goBack = () => {
   color: #fff;
 }
 </style>
-

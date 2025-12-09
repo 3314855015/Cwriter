@@ -14,9 +14,9 @@
         :class="{ active: selectedSet.has(term.name) }"
         @tap="toggle(term.name)"
       >
-        <text class="name">{{ term.name || '未命名设定' }}</text>
-        <text class="desc">{{ term.description || '暂无描述' }}</text>
-        <text class="check">{{ selectedSet.has(term.name) ? '✔' : '' }}</text>
+        <text class="name">{{ term.name || "未命名设定" }}</text>
+        <text class="desc">{{ term.description || "暂无描述" }}</text>
+        <text class="check">{{ selectedSet.has(term.name) ? "✔" : "" }}</text>
       </view>
       <view v-if="terms.length === 0" class="empty">暂无设定可选</view>
     </scroll-view>
@@ -52,7 +52,13 @@ onLoad((options) => {
     : [];
   selectedSet.value = new Set(preSelected);
 
-  eventChannel = getOpenerEventChannel && getOpenerEventChannel();
+  try {
+    const pages = getCurrentPages();
+    const cur = pages[pages.length - 1];
+    eventChannel = cur?.getOpenerEventChannel?.() || null;
+  } catch (e) {
+    eventChannel = null;
+  }
 });
 
 onMounted(async () => {
@@ -76,9 +82,9 @@ const toggle = (name) => {
 };
 
 const confirm = () => {
-  eventChannel?.emit("tagsSelected", {
-    tags: Array.from(selectedSet.value),
-  });
+  const payload = { tags: Array.from(selectedSet.value) };
+  eventChannel?.emit("tagsSelected", payload);
+  uni.$emit("tagsSelected", payload); // 兜底
   goBack();
 };
 
@@ -182,4 +188,3 @@ const goBack = () => {
   color: #fff;
 }
 </style>
-

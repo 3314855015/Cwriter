@@ -70,6 +70,20 @@
         "navigationBarTitleText": "导出作品",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/manage/tag-picker",
+      "style": {
+        "navigationBarTitleText": "选择标签",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/manage/relation-picker",
+      "style": {
+        "navigationBarTitleText": "选择关系",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {
