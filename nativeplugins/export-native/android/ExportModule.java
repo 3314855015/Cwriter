@@ -3,6 +3,7 @@ package com.cwriter.export;
 import android.util.Log;
 
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.JSONArray;
 
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
@@ -205,17 +206,22 @@ public class ExportModule extends UniModule {
             
             Log.d(TAG, "Options received: " + options.toString());
             
+            // 获取结构化数据
             String title = options.getString("title");
-            String content = options.getString("content");
+            String description = options.getString("description");
+            JSONArray chapters = options.getJSONArray("chapters");
             String savePath = options.getString("savePath");
+            JSONObject format = options.getJSONObject("format");
             
             Log.d(TAG, "Start exporting PDF: " + savePath);
             Log.d(TAG, "Title: " + title);
-            Log.d(TAG, "Content length: " + (content != null ? content.length() : 0) + " characters");
+            Log.d(TAG, "Description: " + (description != null ? description.substring(0, Math.min(100, description.length())) : "null"));
+            Log.d(TAG, "Chapters count: " + (chapters != null ? chapters.size() : 0));
 
             // Validate parameters
-            if (title == null) title = "Untitled Document";
-            if (content == null) content = "";
+            if (title == null) title = "未命名作品";
+            if (description == null) description = "";
+            if (chapters == null) chapters = new JSONArray();
             
             // 如果没有提供保存路径，使用默认路径
             if (savePath == null || savePath.isEmpty()) {
@@ -294,16 +300,29 @@ public class ExportModule extends UniModule {
 
             Log.d(TAG, "Creating PDF document with iText...");
             
-            // 创建PDF文档（添加详细日志）
+            // 创建PDF文档（修复流式关闭问题）
             Log.d(TAG, "开始创建FileOutputStream...");
-            try (FileOutputStream fos = new FileOutputStream(file)) {
+            FileOutputStream fos = null;
+            try {
+                fos = new FileOutputStream(file);
                 Log.d(TAG, "FileOutputStream创建成功，开始创建PdfDocument...");
                 pdfDocument = new PdfDocument(new PdfWriter(fos));
                 Log.d(TAG, "PdfDocument创建成功，开始创建Document...");
                 document = new Document(pdfDocument);
                 Log.d(TAG, "Document创建成功");
+                
+                // 不再让fos自动关闭，因为PdfDocument会管理它
+                fos = null; // 防止重复关闭
             } catch (Exception fosError) {
-                Log.e(TAG, "创建FileOutputStream失败", fosError);
+                Log.e(TAG, "创建PDF文档失败", fosError);
+                // 确保fos被正确关闭
+                if (fos != null) {
+                    try {
+                        fos.close();
+                    } catch (Exception e) {
+                        Log.w(TAG, "关闭FileOutputStream失败", e);
+                    }
+                }
                 throw fosError;
             }
             
@@ -336,58 +355,107 @@ public class ExportModule extends UniModule {
             // 设置页边距
             document.setMargins(50, 50, 50, 50);
 
-            // 添加标题 - 使用try-catch确保即使字体失败也能继续
+            // 添加标题 - 根据格式要求：宋体二号，加粗，居中
             try {
                 Paragraph titlePara = new Paragraph(title);
                 if (chineseFont != null) {
                     titlePara.setFont(chineseFont);
                 }
-                titlePara.setFontSize(18)
+                // 使用格式配置或默认值
+                int titleSize = format != null ? format.getIntValue("titleSize") : 22; // 二号字体
+                titlePara.setFontSize(titleSize)
                     .setBold()
                     .setTextAlignment(TextAlignment.CENTER)
                     .setMarginBottom(20);
                 document.add(titlePara);
+                Log.d(TAG, "Title added with size: " + titleSize);
             } catch (Exception e) {
                 Log.w(TAG, "Failed to add title paragraph, continuing", e);
             }
 
-            // 添加导出时间
-            try {
-                Paragraph timePara = new Paragraph("导出时间: " + getCurrentTime());
-                if (chineseFont != null) {
-                    timePara.setFont(chineseFont);
+            // 添加简介（如果存在）- 根据格式要求：宋体三号，加粗，靠左
+            if (description != null && !description.trim().isEmpty()) {
+                try {
+                    // 简介标题
+                    Paragraph descTitlePara = new Paragraph("简介");
+                    if (chineseFont != null) {
+                        descTitlePara.setFont(chineseFont);
+                    }
+                    int headingSize = format != null ? format.getIntValue("headingSize") : 16; // 三号字体
+                    descTitlePara.setFontSize(headingSize)
+                        .setBold()
+                        .setTextAlignment(TextAlignment.LEFT)
+                        .setMarginTop(15)
+                        .setMarginBottom(8);
+                    document.add(descTitlePara);
+                    
+                    // 简介内容 - 根据格式要求：宋体四号
+                    Paragraph descPara = new Paragraph(description);
+                    if (chineseFont != null) {
+                        descPara.setFont(chineseFont);
+                    }
+                    int bodySize = format != null ? format.getIntValue("bodySize") : 14; // 四号字体
+                    descPara.setFontSize(bodySize)
+                        .setTextAlignment(TextAlignment.LEFT)
+                        .setMarginBottom(15);
+                    
+                    // 设置行距（1.5倍）
+                    float lineSpacing = format != null && format.containsKey("lineSpacing") ? format.getFloatValue("lineSpacing") : 1.5f;
+                    descPara.setMultipliedLeading(lineSpacing);
+                    
+                    document.add(descPara);
+                    Log.d(TAG, "Description added with heading size: " + headingSize + ", body size: " + bodySize);
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed to add description, continuing", e);
                 }
-                timePara.setFontSize(12)
-                    .setMarginBottom(15);
-                document.add(timePara);
-            } catch (Exception e) {
-                Log.w(TAG, "Failed to add time paragraph, continuing", e);
             }
 
-            // 添加内容（处理换行）
-            String[] lines = content.split("\n");
-            for (String line : lines) {
-                try {
-                    if (line.trim().length() > 0) {
-                        Paragraph contentPara = new Paragraph(line);
+            // 添加章节内容
+            if (chapters != null) {
+                float lineSpacing = format != null && format.containsKey("lineSpacing") ? format.getFloatValue("lineSpacing") : 1.5f;
+                int headingSize = format != null && format.containsKey("headingSize") ? format.getIntValue("headingSize") : 16;
+                int bodySize = format != null && format.containsKey("bodySize") ? format.getIntValue("bodySize") : 14;
+                
+                for (int i = 0; i < chapters.size(); i++) {
+                    try {
+                        JSONObject chapter = chapters.getJSONObject(i);
+                        String chapterTitle = chapter.getString("title") != null ? chapter.getString("title") : "第" + (i + 1) + "章";
+                        String chapterContent = chapter.getString("content") != null ? chapter.getString("content") : "";
+                        
+                        // 章节标题 - 根据格式要求：宋体三号，加粗，靠左
+                        Paragraph chapterTitlePara = new Paragraph("第" + (i + 1) + "章 " + chapterTitle);
                         if (chineseFont != null) {
-                            contentPara.setFont(chineseFont);
+                            chapterTitlePara.setFont(chineseFont);
                         }
-                        contentPara.setFontSize(12)
-                            .setMarginBottom(5);
-                        document.add(contentPara);
-                    } else {
-                        // 空行
-                        Paragraph emptyPara = new Paragraph(" ");
-                        if (chineseFont != null) {
-                            emptyPara.setFont(chineseFont);
+                        chapterTitlePara.setFontSize(headingSize)
+                            .setBold()
+                            .setTextAlignment(TextAlignment.LEFT)
+                            .setMarginTop(15)
+                            .setMarginBottom(10);
+                        document.add(chapterTitlePara);
+                        
+                        // 章节内容 - 根据格式要求：宋体四号，1.5倍行距
+                        if (!chapterContent.trim().isEmpty()) {
+                            String[] contentLines = chapterContent.split("\n");
+                            for (String line : contentLines) {
+                                if (line.trim().length() > 0) {
+                                    Paragraph contentPara = new Paragraph(line.trim());
+                                    if (chineseFont != null) {
+                                        contentPara.setFont(chineseFont);
+                                    }
+                                    contentPara.setFontSize(bodySize)
+                                        .setTextAlignment(TextAlignment.LEFT)
+                                        .setMarginBottom(5)
+                                        .setMultipliedLeading(lineSpacing); // 1.5倍行距
+                                    document.add(contentPara);
+                                }
+                            }
                         }
-                        emptyPara.setFontSize(12);
-                        document.add(emptyPara);
+                        
+                        Log.d(TAG, "Chapter " + (i + 1) + " added: " + chapterTitle);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to add chapter " + (i + 1) + ", continuing", e);
                     }
-                } catch (Exception e) {
-                    Log.w(TAG, "Failed to add content line, skipping: " + line, e);
-                    // 继续处理下一行
                 }
             }
 
@@ -411,13 +479,22 @@ public class ExportModule extends UniModule {
             result.put("error", "PDF导出失败: " + e.getMessage());
             result.put("duration", endTime - startTime);
             
-            // 确保资源正确关闭
+            // 确保资源正确关闭（避免重复关闭）
             try {
+                // 只关闭尚未关闭的资源
                 if (document != null) {
-                    document.close();
+                    try {
+                        document.close();
+                    } catch (Exception docCloseError) {
+                        Log.w(TAG, "Document already closed or error closing", docCloseError);
+                    }
                 }
                 if (pdfDocument != null) {
-                    pdfDocument.close();
+                    try {
+                        pdfDocument.close();
+                    } catch (Exception pdfCloseError) {
+                        Log.w(TAG, "PdfDocument already closed or error closing", pdfCloseError);
+                    }
                 }
             } catch (Exception closeError) {
                 Log.w(TAG, "Error closing PDF resources", closeError);
@@ -448,17 +525,22 @@ public class ExportModule extends UniModule {
             
             Log.d(TAG, "Options received: " + options.toString());
             
+            // 获取结构化数据
             String title = options.getString("title");
-            String content = options.getString("content");
+            String description = options.getString("description");
+            JSONArray chapters = options.getJSONArray("chapters");
             String savePath = options.getString("savePath");
+            JSONObject format = options.getJSONObject("format");
             
             Log.d(TAG, "Start exporting DOCX: " + savePath);
             Log.d(TAG, "Title: " + title);
-            Log.d(TAG, "Content length: " + (content != null ? content.length() : 0) + " characters");
+            Log.d(TAG, "Description: " + (description != null ? description.substring(0, Math.min(100, description.length())) : "null"));
+            Log.d(TAG, "Chapters count: " + (chapters != null ? chapters.size() : 0));
 
             // Validate parameters
-            if (title == null) title = "Untitled Document";
-            if (content == null) content = "";
+            if (title == null) title = "未命名作品";
+            if (description == null) description = "";
+            if (chapters == null) chapters = new JSONArray();
             
             // 如果没有提供保存路径，使用默认路径
             if (savePath == null || savePath.isEmpty()) {
@@ -605,38 +687,92 @@ public class ExportModule extends UniModule {
                 throw new RuntimeException("Failed to create XWPFDocument: " + e.getMessage(), e);
             }
             
-            // 添加标题
+            // 添加标题 - 根据格式要求：宋体二号，加粗，居中
             XWPFParagraph titlePara = document.createParagraph();
             titlePara.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.CENTER);
+            titlePara.setSpacingAfter(200); // 20磅间距
             XWPFRun titleRun = titlePara.createRun();
             titleRun.setText(title);
             titleRun.setBold(true);
-            titleRun.setFontSize(18);
-            Log.d(TAG, "Title paragraph added");
-            
-            // 添加空行
-            document.createParagraph();
-            
-            // 添加导出时间
-            XWPFParagraph timePara = document.createParagraph();
-            XWPFRun timeRun = timePara.createRun();
-            timeRun.setText("导出时间: " + getCurrentTime());
-            timeRun.setFontSize(12);
-            Log.d(TAG, "Time paragraph added");
-            
-            // 添加空行
-            document.createParagraph();
-            
-            // 添加内容
-            String[] lines = content.split("\n");
-            Log.d(TAG, "Adding content, lines count: " + lines.length);
-            for (String line : lines) {
-                XWPFParagraph para = document.createParagraph();
-                XWPFRun run = para.createRun();
-                run.setText(line.length() > 0 ? line : " ");
-                run.setFontSize(12);
+            titleRun.setFontFamily("宋体");
+            int titleSize = format != null && format.containsKey("titleSize") ? format.getIntValue("titleSize") : 22; // 二号字体
+            titleRun.setFontSize(titleSize);
+            Log.d(TAG, "Title paragraph added with size: " + titleSize);
+
+            // 添加简介（如果存在）- 根据格式要求：宋体三号，加粗，靠左
+            if (description != null && !description.trim().isEmpty()) {
+                // 简介标题
+                XWPFParagraph descTitlePara = document.createParagraph();
+                descTitlePara.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.LEFT);
+                descTitlePara.setSpacingBefore(100);
+                descTitlePara.setSpacingAfter(80);
+                XWPFRun descTitleRun = descTitlePara.createRun();
+                descTitleRun.setText("简介");
+                descTitleRun.setBold(true);
+                descTitleRun.setFontFamily("宋体");
+                int headingSize = format != null && format.containsKey("headingSize") ? format.getIntValue("headingSize") : 16; // 三号字体
+                descTitleRun.setFontSize(headingSize);
+                
+                // 简介内容 - 根据格式要求：宋体四号
+                XWPFParagraph descPara = document.createParagraph();
+                descPara.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.LEFT);
+                descPara.setSpacingAfter(150);
+                XWPFRun descRun = descPara.createRun();
+                descRun.setText(description);
+                descRun.setFontFamily("宋体");
+                int bodySize = format != null && format.containsKey("bodySize") ? format.getIntValue("bodySize") : 14; // 四号字体
+                descRun.setFontSize(bodySize);
+                
+                Log.d(TAG, "Description added with heading size: " + headingSize + ", body size: " + bodySize);
             }
-            Log.d(TAG, "Content paragraphs added");
+
+            // 添加章节内容
+            if (chapters != null) {
+                int headingSize = format != null && format.containsKey("headingSize") ? format.getIntValue("headingSize") : 16;
+                int bodySize = format != null && format.containsKey("bodySize") ? format.getIntValue("bodySize") : 14;
+                double lineSpacing = format != null && format.containsKey("lineSpacing") ? format.getDoubleValue("lineSpacing") : 1.5;
+                
+                for (int i = 0; i < chapters.size(); i++) {
+                    try {
+                        JSONObject chapter = chapters.getJSONObject(i);
+                        String chapterTitle = chapter.getString("title") != null ? chapter.getString("title") : "第" + (i + 1) + "章";
+                        String chapterContent = chapter.getString("content") != null ? chapter.getString("content") : "";
+                        
+                        // 章节标题 - 根据格式要求：宋体三号，加粗，靠左
+                        XWPFParagraph chapterTitlePara = document.createParagraph();
+                        chapterTitlePara.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.LEFT);
+                        chapterTitlePara.setSpacingBefore(150);
+                        chapterTitlePara.setSpacingAfter(100);
+                        XWPFRun chapterTitleRun = chapterTitlePara.createRun();
+                        chapterTitleRun.setText("第" + (i + 1) + "章 " + chapterTitle);
+                        chapterTitleRun.setBold(true);
+                        chapterTitleRun.setFontFamily("宋体");
+                        chapterTitleRun.setFontSize(headingSize);
+                        
+                        // 章节内容 - 根据格式要求：宋体四号，1.5倍行距
+                        if (!chapterContent.trim().isEmpty()) {
+                            String[] contentLines = chapterContent.split("\n");
+                            for (String line : contentLines) {
+                                if (line.trim().length() > 0) {
+                                    XWPFParagraph contentPara = document.createParagraph();
+                                    contentPara.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.LEFT);
+                                    contentPara.setSpacingAfter(150);
+                                    contentPara.setSpacingBetween(lineSpacing); // 1.5倍行距
+                                    XWPFRun contentRun = contentPara.createRun();
+                                    contentRun.setText(line.trim());
+                                    contentRun.setFontFamily("宋体");
+                                    contentRun.setFontSize(bodySize);
+                                }
+                            }
+                        }
+                        
+                        Log.d(TAG, "Chapter " + (i + 1) + " added: " + chapterTitle);
+                    } catch (Exception e) {
+                        Log.w(TAG, "Failed to add chapter " + (i + 1) + ", continuing", e);
+                    }
+                }
+            }
+            Log.d(TAG, "All chapters and content added");
             
             // 保存文件
             Log.d(TAG, "Opening FileOutputStream: " + file.getAbsolutePath());

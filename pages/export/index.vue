@@ -411,13 +411,6 @@ const handleExport = async () => {
   }
 
   try {
-    console.log("🚀 === 开始导出调试 ===");
-    console.log("📋 导出格式:", exportFormat.value);
-    console.log("📋 用户ID:", currentUser.value.id);
-    console.log("📋 作品ID:", selectedWorkId.value);
-    console.log("📋 导出路径:", exportPath.value);
-    console.log("📋 是否可用:", canExport.value);
-
     // 检查并确保权限（如果需要）
     await ensureStoragePermission();
 
@@ -428,21 +421,17 @@ const handleExport = async () => {
     let filePath = "";
 
     if (exportFormat.value === "pdf") {
-      console.log("🔍 开始PDF导出...");
       filePath = await exportAsPDF(
         currentUser.value.id,
         selectedWorkId.value,
         exportPath.value
       );
-      console.log("✅ PDF导出完成:", filePath);
     } else if (exportFormat.value === "docx") {
-      console.log("🔍 开始DOCX导出...");
       filePath = await exportAsDOCX(
         currentUser.value.id,
         selectedWorkId.value,
         exportPath.value
       );
-      console.log("✅ DOCX导出完成:", filePath);
     }
 
     exportedFilePath.value = filePath;

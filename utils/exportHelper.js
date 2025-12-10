@@ -3,6 +3,8 @@ import fileStorage from "./fileSystemStorage.js";
 import {
   nativeExportPDF,
   nativeExportDOCX,
+  nativeExportPDFStructured,
+  nativeExportDOCXStructured,
   isNativeExportAvailable,
 } from "./nativeExport.js";
 import {
@@ -355,31 +357,29 @@ export async function exportAsHTML(userId, workId, savePath) {
  */
 export async function exportAsPDF(userId, workId, savePath) {
   try {
-    // 优先使用混合导出方案（APP环境）
+    // 优先使用原生插件导出方案（APP环境）- 保持章节结构
     // #ifdef APP-PLUS
+    if (isNativeExportAvailable()) {
+      try {
+        const workData = await getFullWorkData(userId, workId);
+        const result = await nativeExportPDFStructured(workData, savePath);
+        return result;
+      } catch (nativeError) {
+        console.error("❌ PDF导出 - 原生插件导出失败:", nativeError);
+        // 继续执行混合导出方案
+      }
+    }
+    
+    // 备选方案：使用混合导出
     if (isHybridExportAvailable()) {
       try {
         const workData = await getFullWorkData(userId, workId);
         const title = workData.title || "未命名作品";
         const textContent = formatWorkAsText(workData);
-
         const result = await hybridExportPDF(title, textContent, savePath);
         return result;
       } catch (hybridError) {
-        // 继续执行原生插件方案
-      }
-    }
-    
-    // 备选方案：使用原生插件
-    if (isNativeExportAvailable()) {
-      try {
-        const workData = await getFullWorkData(userId, workId);
-        const title = workData.title || "未命名作品";
-        const textContent = formatWorkAsText(workData);
-
-        const result = await nativeExportPDF(title, textContent, savePath);
-        return result;
-      } catch (nativeError) {
+        console.error("❌ PDF导出 - 混合导出失败:", hybridError);
         // 继续执行降级方案
       }
     }
@@ -575,31 +575,29 @@ export async function exportAsPDF(userId, workId, savePath) {
  */
 export async function exportAsDOCX(userId, workId, savePath) {
   try {
-    // 优先使用混合导出方案（APP环境）
+    // 优先使用原生插件导出方案（APP环境）- 保持章节结构
     // #ifdef APP-PLUS
+    if (isNativeExportAvailable()) {
+      try {
+        const workData = await getFullWorkData(userId, workId);
+        const result = await nativeExportDOCXStructured(workData, savePath);
+        return result;
+      } catch (nativeError) {
+        console.error("❌ DOCX导出 - 原生插件导出失败:", nativeError);
+        // 继续执行混合导出方案
+      }
+    }
+    
+    // 备选方案：使用混合导出
     if (isHybridExportAvailable()) {
       try {
         const workData = await getFullWorkData(userId, workId);
         const title = workData.title || "未命名作品";
         const textContent = formatWorkAsText(workData);
-
         const result = await hybridExportDOCX(title, textContent, savePath);
         return result;
       } catch (hybridError) {
-        // 继续执行原生插件方案
-      }
-    }
-    
-    // 备选方案：使用原生插件
-    if (isNativeExportAvailable()) {
-      try {
-        const workData = await getFullWorkData(userId, workId);
-        const title = workData.title || "未命名作品";
-        const textContent = formatWorkAsText(workData);
-
-        const result = await nativeExportDOCX(title, textContent, savePath);
-        return result;
-      } catch (nativeError) {
+        console.error("❌ DOCX导出 - 混合导出失败:", hybridError);
         // 继续执行降级方案
       }
     }
