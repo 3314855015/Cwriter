@@ -14,18 +14,7 @@
         }
       ],
       "integrateType": "aar",
-      "dependencies": [
-        "com.itextpdf:itext7-core:7.2.5",
-        "org.apache.poi:poi:5.2.3",
-        "org.apache.poi:poi-ooxml:5.2.3",
-        "org.apache.xmlbeans:xmlbeans:4.0.0",
-        "org.apache.commons:commons-compress:1.21",
-        "commons-codec:commons-codec:1.15",
-        "commons-io:commons-io:2.11.0",
-        "org.apache.commons:commons-collections4:4.4",
-        "org.apache.commons:commons-math3:3.6.1",
-        "org.slf4j:slf4j-android:1.7.36"
-      ]
+      "dependencies": []
     }
   }
 }

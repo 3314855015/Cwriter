@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.android.library)
+    id 'com.android.library'
 }
 
 android {
@@ -73,25 +73,113 @@ dependencies {
     // FastJSON - uni-app使用
     compileOnly 'com.alibaba:fastjson:1.2.83'
     
-    // AndroidX权限支持库（不在package.json中声明的依赖）
+    // Android-compatible PDF library (替换PDFBox)
+    implementation 'com.itextpdf:itext7-core:7.2.5'
+    
+    // DOCX生成库
+    implementation('org.apache.poi:poi:5.2.3') {
+        exclude group: 'commons-logging', module: 'commons-logging'
+    }
+    implementation('org.apache.poi:poi-ooxml:5.2.3') {
+        exclude group: 'commons-logging', module: 'commons-logging'
+        exclude group: 'org.apache.logging.log4j', module: 'log4j-api'
+    }
+    
+    // XML处理（POI依赖）
+    implementation 'org.apache.xmlbeans:xmlbeans:4.0.0'
+    implementation 'org.apache.commons:commons-compress:1.21'
+    implementation 'commons-codec:commons-codec:1.15'
+    
+    // 添加缺失的POI依赖
+    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'org.apache.commons:commons-collections4:4.4'
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+    
+    // 添加SLF4J作为日志框架（避免commons-logging冲突）
+    implementation 'org.slf4j:slf4j-android:1.7.36'
+    
+    // 添加AndroidX权限支持库
     implementation 'androidx.core:core:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     
-    // 其他依赖由package.json统一管理，避免重复声明
-    // 主要依赖（PDF/DOCX相关）已在package.json中声明
+    // 添加文件操作支持
+    implementation 'commons-io:commons-io:2.11.0'
 }
 
-// 简化打包流程，避免依赖冲突
+// 在打包完成后手动处理AAR文件
 tasks.whenTaskAdded { task ->
     if (task.name == 'bundleReleaseAar') {
         task.doLast {
-            println "🔧 AAR 构建完成，使用 api 依赖方式避免冲突"
+            println "🔧 开始处理 AAR 依赖合并..."
             
+            // 找到生成的AAR文件
             def aarFile = file("build/outputs/aar/export-native-release.aar")
-            if (aarFile.exists()) {
-                println "✅ AAR 文件位置: ${aarFile.absolutePath}"
-                println "💡 提示：依赖通过 api 方式传递，主项目会自动解析"
+            if (!aarFile.exists()) {
+                println "❌ 未找到 AAR 文件: ${aarFile.absolutePath}"
+                return
             }
+        
+        def tempDir = new File(project.buildDir, "tmp/fat-aar")
+        tempDir.mkdirs()
+        
+        // 解压AAR
+        copy {
+            from zipTree(aarFile)
+            into tempDir
+        }
+        
+        def classesJarFile = new File(tempDir, "classes.jar")
+        if (classesJarFile.exists()) {
+            println "📦 找到 classes.jar，开始添加依赖库..."
+            
+            def extractDir = new File(tempDir, "classes-extract")
+            extractDir.mkdirs()
+            
+            // 解压原有的classes.jar
+            copy {
+                from zipTree(classesJarFile)
+                into extractDir
+            }
+            
+            // 添加所有依赖库的类
+            def dependencies = configurations.releaseRuntimeClasspath.files.findAll { it.name.endsWith('.jar') }
+            println "📦 找到 ${dependencies.size()} 个依赖库"
+            dependencies.each { dep ->
+                println "📦 添加依赖: ${dep.name}"
+                copy {
+                    from zipTree(dep)
+                    into extractDir
+                    exclude 'META-INF/*.RSA', 'META-INF/*.SF', 'META-INF/*.DSA'
+                    exclude 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*'
+                }
+            }
+            
+            // 重新打包成classes.jar（包含class文件和资源文件）
+            ant.jar(destfile: classesJarFile) {
+                fileset(dir: extractDir, includes: '**/*.class')
+                fileset(dir: extractDir, includes: '**/*.afm')
+                fileset(dir: extractDir, includes: '**/*.ttf')
+                fileset(dir: extractDir, includes: '**/*.otf')
+                fileset(dir: extractDir, includes: '**/*.properties')
+                fileset(dir: extractDir, includes: '**/*.xml')
+            }
+            
+            // 清理临时目录
+            delete extractDir
+            
+            // 重新打包AAR（包含所有文件，包括更新后的classes.jar）
+            ant.jar(destfile: aarFile) {
+                fileset(dir: tempDir, includes: '**/*')
+            }
+            
+            println "✅ AAR 已重新打包，包含所有依赖库"
+            println "📍 文件位置: ${aarFile.absolutePath}"
+        } else {
+            println "❌ 未找到 classes.jar 文件"
+        }
+        
+        // 清理临时目录
+        delete tempDir
         }
     }
 }
