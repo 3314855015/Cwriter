@@ -286,46 +286,13 @@
     </view>
 
     <!-- 选区查找结果模态框 -->
-    <view
+    <LookupDetailModal
       v-if="showLookupResultModal"
-      class="lookup-overlay"
-      @tap="closeLookupResult"
-    >
-      <view class="lookup-modal" @tap.stop>
-        <text class="lookup-title">
-          {{
-            lookupLoading
-              ? "查找中..."
-              : lookupResult?.found
-              ? lookupTargetType === "character"
-                ? "人物详情"
-                : "设定详情"
-              : "未找到"
-          }}
-        </text>
-
-        <view v-if="lookupLoading" class="lookup-loading">
-          <text>正在查找...</text>
-        </view>
-        <view v-else>
-          <view v-if="lookupResult?.found" class="lookup-body">
-            <text class="lookup-name">{{
-              lookupResult.item.name || lookupResult.item.title || "未命名"
-            }}</text>
-            <text class="lookup-desc">{{
-              lookupResult.item.description || "暂无介绍"
-            }}</text>
-          </view>
-          <view v-else class="lookup-empty">
-            <text>未找到匹配：{{ (selectionText || "").trim() }}</text>
-          </view>
-        </view>
-
-        <view class="lookup-close" @tap="closeLookupResult">
-          <text>关闭</text>
-        </view>
-      </view>
-    </view>
+      :show="showLookupResultModal"
+      :type="lookupTargetType || 'character'"
+      :item="lookupResult?.item || {}"
+      @close="closeLookupResult"
+    />
 
     <!-- 场景详情模态框 -->
     <view
@@ -400,6 +367,7 @@
 import { ref, nextTick, watch, computed } from "vue";
 import { onLoad, onUnload } from "@dcloudio/uni-app";
 import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
+import LookupDetailModal from "@/components/LookupDetailModal.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager, {
   isDarkMode as getIsDarkMode,
@@ -1122,6 +1090,7 @@ const handleLookupChoice = async (type) => {
   showLookupChoiceModal.value = false;
   showLookupResultModal.value = true;
   lookupLoading.value = true;
+  lookupResult.value = null;
 
   try {
     await ensureLookupData(type);
@@ -1136,11 +1105,17 @@ const handleLookupChoice = async (type) => {
     if (matched) {
       lookupResult.value = { found: true, item: matched };
     } else {
-      lookupResult.value = { found: false };
+      lookupResult.value = {
+        found: false,
+        item: { name: keyword, description: "" },
+      };
     }
   } catch (error) {
     console.error("查找失败:", error);
-    lookupResult.value = { found: false };
+    lookupResult.value = {
+      found: false,
+      item: { name: keyword, description: "" },
+    };
   } finally {
     lookupLoading.value = false;
   }
