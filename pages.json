@@ -72,6 +72,13 @@
       }
     },
     {
+      "path": "pages/import/index",
+      "style": {
+        "navigationBarTitleText": "导入作品",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/manage/tag-picker",
       "style": {
         "navigationBarTitleText": "选择标签",
