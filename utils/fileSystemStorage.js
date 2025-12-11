@@ -3306,6 +3306,157 @@ export class FileSystemStorage {
     }
   }
 
+  // 创建章节
+  async createChapter(userId, workId, chapterData) {
+    if (this.useLocalStorageFallback) {
+      try {
+        const result = await this.createChapterFallback(
+          userId,
+          workId,
+          chapterData
+        );
+        return result;
+      } catch (error) {
+        console.error("[Fallback] 创建章节失败:", error);
+        throw new Error(`创建章节失败: ${error.message}`);
+      }
+    }
+
+    const workDir = this.getWorkPath(userId, workId);
+    const chaptersPath = `${workDir}/chapters/chapters.json`;
+
+    try {
+      // 确保chapters目录存在
+      this.mkdirIfNotExists(`${workDir}/chapters`);
+
+      // 读取现有章节列表
+      let chapters = await this.readFile(chaptersPath);
+      if (!Array.isArray(chapters)) {
+        chapters = [];
+      }
+
+      // 准备章节数据
+      const chapterId = chapterData.id || `${Date.now()}`;
+
+      // 计算字数
+      const wordCount = chapterData.content
+        ? chapterData.content.split(/\s+/).filter(Boolean).length
+        : 0;
+
+      // 章节列表中的数据（不包含content，加快读取速度）
+      const chapterListItem = {
+        id: chapterId,
+        title: chapterData.title || "新章节",
+        content: "", // chapters.json中content为空，内容只保存在单独的章节文件中
+        created_at: chapterData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+        order: chapters.length, // 章节顺序
+        word_count: wordCount,
+      };
+
+      // 完整的章节数据（保存在单独的章节文件中）
+      const formattedChapterData = {
+        ...chapterListItem,
+        content: chapterData.content || "", // 完整内容保存在单独的章节文件中
+      };
+
+      // 添加到章节列表（不包含content）
+      chapters.push(chapterListItem);
+
+      // 保存章节列表（不包含content，加快读取速度）
+      await this.writeFile(chaptersPath, chapters);
+
+      // 创建单独的章节文件（包含完整内容，适配读取业务）
+      const chapterFilePath = `${workDir}/chapters/${chapterId}.json`;
+      await this.writeFile(chapterFilePath, formattedChapterData);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      // 记录操作日志
+      this.logOperation(userId, "create_chapter", {
+        workId,
+        chapterId,
+        chapterTitle: formattedChapterData.title,
+        wordCount: formattedChapterData.word_count,
+      });
+
+      console.log(
+        `章节创建成功: ${chapterId}, 标题: ${formattedChapterData.title}`
+      );
+      return formattedChapterData;
+    } catch (error) {
+      console.error("创建章节失败:", error);
+      throw new Error(`创建章节失败: ${error.message}`);
+    }
+  }
+
+  // Fallback: 创建章节
+  async createChapterFallback(userId, workId, chapterData) {
+    try {
+      const data = this.getFallbackData();
+      const userConfig = this.getUserConfigFallback(userId);
+
+      if (!userConfig.works[workId]) {
+        throw new Error("作品不存在");
+      }
+
+      // 确保作品有content对象
+      if (!userConfig.works[workId].content) {
+        userConfig.works[workId].content = {};
+      }
+
+      // 确保有chapters数组
+      if (!userConfig.works[workId].content.chapters) {
+        userConfig.works[workId].content.chapters = [];
+      }
+
+      const chaptersList = userConfig.works[workId].content.chapters;
+      const chapterId = chapterData.id || `${Date.now()}`;
+
+      // 准备章节数据
+      const formattedChapterData = {
+        id: chapterId,
+        title: chapterData.title || "新章节",
+        content: chapterData.content || "",
+        created_at: chapterData.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        work_id: workId,
+        user_id: userId,
+        order: chaptersList.length, // 章节顺序
+        word_count: chapterData.content
+          ? chapterData.content.split(/\s+/).filter(Boolean).length
+          : 0,
+      };
+
+      // 添加到章节列表
+      chaptersList.push(formattedChapterData);
+
+      // 更新作品修改时间
+      userConfig.works[workId].updated_at = new Date().toISOString();
+      userConfig.updated_at = new Date().toISOString();
+
+      this.setFallbackData(data);
+
+      console.log("[Fallback] 章节已保存到本地存储:", {
+        workId,
+        chapterId,
+        chapterTitle: formattedChapterData.title,
+        wordCount: formattedChapterData.word_count,
+        totalChapters: chaptersList.length,
+      });
+
+      return formattedChapterData;
+    } catch (error) {
+      console.error("Fallback创建章节失败:", error);
+      throw new Error(`创建章节失败: ${error.message}`);
+    }
+  }
+
   // Fallback: 保存术语数据
   async saveTermFallback(userId, workId, termData) {
     try {
