@@ -18,10 +18,13 @@ import com.itextpdf.layout.element.Text;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -34,6 +37,9 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import androidx.core.content.ContextCompat;
 import androidx.core.app.ActivityCompat;
+import android.content.Intent;
+import android.net.Uri;
+import android.provider.DocumentsContract;
 
 /**
  * Export Module - Provide PDF and DOCX export functions
@@ -45,6 +51,7 @@ public class ExportModule extends UniModule {
 
     private static final String TAG = "ExportModule";
     private static final int REQUEST_WRITE_EXTERNAL_STORAGE = 1001;
+    private static final int REQUEST_PICK_DOCX_FILE = 1002;
     
     // 保存Context引用
     private android.content.Context mContext;
@@ -1168,6 +1175,664 @@ public class ExportModule extends UniModule {
      */
     private String getCurrentTime() {
         return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+    }
+    
+    /**
+     * 内部方法：实际执行DOCX导入逻辑
+     * @param options JSON对象，包含filePath和styleConfig
+     * @return 解析结果JSON对象
+     */
+    private JSONObject doImportDOCX(JSONObject options) {
+        long startTime = System.currentTimeMillis();
+        JSONObject result = new JSONObject();
+        XWPFDocument document = null;
+        FileInputStream fis = null;
+        
+        try {
+            // 检查参数
+            if (options == null) {
+                Log.e(TAG, "Error: options parameter is null");
+                result.put("success", false);
+                result.put("error", "Options parameter is null");
+                return result;
+            }
+            
+            Log.d(TAG, "Options received: " + options.toString());
+            
+            // 获取文件路径
+            String filePath = options.getString("filePath");
+            JSONObject styleConfig = options.getJSONObject("styleConfig");
+            
+            if (filePath == null || filePath.isEmpty()) {
+                result.put("success", false);
+                result.put("error", "文件路径无效");
+                return result;
+            }
+            
+            Log.d(TAG, "Start importing DOCX: " + filePath);
+            
+            // 读取文件
+            File file = new File(filePath);
+            if (!file.exists()) {
+                result.put("success", false);
+                result.put("error", "文件不存在: " + filePath);
+                return result;
+            }
+            
+            // 添加详细的权限和文件访问日志
+            Log.d(TAG, "目标文件路径: " + file.getAbsolutePath());
+            Log.d(TAG, "文件存在: " + file.exists());
+            Log.d(TAG, "文件可读: " + file.canRead());
+            Log.d(TAG, "父目录路径: " + (file.getParentFile() != null ? file.getParentFile().getAbsolutePath() : "null"));
+            
+            // 检查应用包名和权限状态
+            try {
+                android.content.Context context = getSafeContext();
+                if (context != null) {
+                    Log.d(TAG, "应用包名: " + context.getPackageName());
+                    Log.d(TAG, "应用数据目录: " + context.getFilesDir().getAbsolutePath());
+                    Log.d(TAG, "外部缓存目录: " + (context.getExternalCacheDir() != null ? context.getExternalCacheDir().getAbsolutePath() : "null"));
+                    Log.d(TAG, "外部文件目录: " + (context.getExternalFilesDir(null) != null ? context.getExternalFilesDir(null).getAbsolutePath() : "null"));
+                    
+                    // 检查是否为应用私有目录 - 私有目录不需要特殊权限
+                    String appPrivatePath = context.getExternalFilesDir(null).getAbsolutePath();
+                    String appInternalPath = context.getFilesDir().getAbsolutePath();
+                    boolean isAppPrivateFile = filePath.startsWith(appPrivatePath) || filePath.startsWith(appInternalPath);
+                    
+                    Log.d(TAG, "文件路径: " + filePath);
+                    Log.d(TAG, "应用私有目录: " + appPrivatePath);
+                    Log.d(TAG, "应用内部目录: " + appInternalPath);
+                    Log.d(TAG, "文件路径是否以私有目录开头: " + filePath.startsWith(appPrivatePath));
+                    Log.d(TAG, "文件路径是否以内部目录开头: " + filePath.startsWith(appInternalPath));
+                    Log.d(TAG, "是否为应用私有文件: " + isAppPrivateFile);
+                    
+                    if (!isAppPrivateFile) {
+                        // 非私有目录需要检查存储权限
+                        boolean hasPermission = checkStoragePermission();
+                        Log.d(TAG, "存储权限检查结果: " + hasPermission);
+                        
+                        if (!hasPermission) {
+                            Log.w(TAG, "没有存储权限，尝试使用ContentResolver或文件选择器");
+                            // 对于导入，我们需要提示用户使用ContentResolver或者文件选择器
+                            String availableDir = getAvailableExportDirectory();
+                            result.put("success", false);
+                            result.put("error", "存储权限不足，请使用系统文件选择器选择文件，或将文件复制到应用私有目录：" + availableDir);
+                            result.put("suggestedPath", availableDir);
+                            result.put("permissionRequired", true);
+                            return result;
+                        }
+                    } else {
+                        Log.d(TAG, "应用私有文件，跳过权限检查");
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "获取应用上下文信息失败", e);
+            }
+            
+            // 再次检查文件可读性
+            if (!file.canRead()) {
+                Log.w(TAG, "文件不可读: " + filePath);
+                result.put("success", false);
+                result.put("error", "文件不可读，请检查权限或将文件复制到应用可访问的目录");
+                return result;
+            }
+            
+            Log.d(TAG, "开始创建FileInputStream...");
+            fis = new FileInputStream(file);
+            Log.d(TAG, "FileInputStream创建成功，开始创建XWPFDocument...");
+            document = new XWPFDocument(fis);
+            Log.d(TAG, "XWPFDocument创建成功");
+            
+            // 默认样式配置
+            JSONObject defaultStyle = new JSONObject();
+            defaultStyle.put("title", createStyleConfig("宋体", 22, true));
+            defaultStyle.put("descriptionTitle", createStyleConfig("宋体", 16, true));
+            defaultStyle.put("descriptionContent", createStyleConfig("宋体", 14, false));
+            defaultStyle.put("chapterTitle", createStyleConfig("宋体", 16, true));
+            defaultStyle.put("chapterContent", createStyleConfig("宋体", 14, false));
+            
+            // 如果提供了样式配置，合并到默认配置中
+            JSONObject finalStyleConfig = defaultStyle;
+            if (styleConfig != null) {
+                mergeStyleConfig(finalStyleConfig, styleConfig);
+            }
+            
+            // 解析文档
+            String title = "";
+            String description = "";
+            JSONArray chapters = new JSONArray();
+            
+            boolean foundTitle = false;
+            boolean foundDescription = false;
+            boolean inDescription = false;
+            String currentChapterTitle = "";
+            StringBuilder currentChapterContent = new StringBuilder();
+            
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                String text = paragraph.getText();
+                if (text == null || text.trim().isEmpty()) {
+                    continue;
+                }
+                
+                // 获取段落样式
+                JSONObject paraStyle = getParagraphStyle(paragraph);
+                
+                // 检测标题（第一个匹配标题样式的段落）
+                if (!foundTitle && matchesStyle(paraStyle, finalStyleConfig.getJSONObject("title"))) {
+                    title = text.trim();
+                    foundTitle = true;
+                    Log.d(TAG, "Found title: " + title);
+                    continue;
+                }
+                
+                // 检测简介标题
+                if (!foundDescription && text.trim().equals("简介") && 
+                    matchesStyle(paraStyle, finalStyleConfig.getJSONObject("descriptionTitle"))) {
+                    foundDescription = true;
+                    inDescription = true;
+                    Log.d(TAG, "Found description title");
+                    continue;
+                }
+                
+                // 检测简介内容
+                if (inDescription && matchesStyle(paraStyle, finalStyleConfig.getJSONObject("descriptionContent"))) {
+                    description = text.trim();
+                    inDescription = false;
+                    Log.d(TAG, "Found description: " + description.substring(0, Math.min(50, description.length())));
+                    continue;
+                }
+                
+                // 检测章节标题
+                if (matchesStyle(paraStyle, finalStyleConfig.getJSONObject("chapterTitle"))) {
+                    // 保存上一个章节
+                    if (currentChapterTitle != null && !currentChapterTitle.isEmpty()) {
+                        JSONObject chapter = new JSONObject();
+                        chapter.put("title", currentChapterTitle);
+                        chapter.put("content", currentChapterContent.toString());
+                        chapters.add(chapter);
+                        Log.d(TAG, "Added chapter: " + currentChapterTitle);
+                    }
+                    
+                    // 开始新章节
+                    currentChapterTitle = text.trim();
+                    currentChapterContent = new StringBuilder();
+                    Log.d(TAG, "Found chapter title: " + currentChapterTitle);
+                    continue;
+                }
+                
+                // 检测章节正文
+                if (matchesStyle(paraStyle, finalStyleConfig.getJSONObject("chapterContent"))) {
+                    // 获取缩进
+                    String indent = getParagraphIndent(paragraph);
+                    if (currentChapterContent.length() > 0) {
+                        currentChapterContent.append("\n");
+                    }
+                    currentChapterContent.append(indent).append(text.trim());
+                    continue;
+                }
+            }
+            
+            // 保存最后一个章节
+            if (currentChapterTitle != null && !currentChapterTitle.isEmpty()) {
+                JSONObject chapter = new JSONObject();
+                chapter.put("title", currentChapterTitle);
+                chapter.put("content", currentChapterContent.toString());
+                chapters.add(chapter);
+                Log.d(TAG, "Added last chapter: " + currentChapterTitle);
+            }
+            
+            // 如果没有找到标题，使用文件名
+            if (title == null || title.isEmpty()) {
+                String fileName = file.getName();
+                title = fileName.replaceAll("\\.docx$", "").replaceAll("\\.DOCX$", "");
+                Log.d(TAG, "Using filename as title: " + title);
+            }
+            
+            // 构建返回数据
+            JSONObject data = new JSONObject();
+            data.put("title", title);
+            data.put("description", description != null ? description : "");
+            data.put("chapters", chapters);
+            
+            result.put("success", true);
+            result.put("data", data);
+            result.put("duration", System.currentTimeMillis() - startTime);
+            
+            Log.d(TAG, "DOCX import successful, chapters: " + chapters.size());
+            return result;
+            
+        } catch (Exception e) {
+            long endTime = System.currentTimeMillis();
+            Log.e(TAG, "DOCX import failed, time: " + (endTime - startTime) + "ms", e);
+            result.put("success", false);
+            result.put("error", "DOCX导入失败: " + e.getMessage());
+            result.put("duration", endTime - startTime);
+            return result;
+        } finally {
+            // 确保资源正确关闭
+            try {
+                if (fis != null) {
+                    fis.close();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error closing file input stream", e);
+            }
+            
+            try {
+                if (document != null) {
+                    document.close();
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error closing DOCX document", e);
+            }
+        }
+    }
+    
+    /**
+     * 创建样式配置对象
+     */
+    private JSONObject createStyleConfig(String font, int size, boolean bold) {
+        JSONObject style = new JSONObject();
+        style.put("font", font);
+        style.put("size", size);
+        style.put("bold", bold);
+        return style;
+    }
+    
+    /**
+     * 合并样式配置
+     */
+    private void mergeStyleConfig(JSONObject target, JSONObject source) {
+        if (source.containsKey("title")) {
+            target.put("title", source.getJSONObject("title"));
+        }
+        if (source.containsKey("descriptionTitle")) {
+            target.put("descriptionTitle", source.getJSONObject("descriptionTitle"));
+        }
+        if (source.containsKey("descriptionContent")) {
+            target.put("descriptionContent", source.getJSONObject("descriptionContent"));
+        }
+        if (source.containsKey("chapterTitle")) {
+            target.put("chapterTitle", source.getJSONObject("chapterTitle"));
+        }
+        if (source.containsKey("chapterContent")) {
+            target.put("chapterContent", source.getJSONObject("chapterContent"));
+        }
+    }
+    
+    /**
+     * 获取段落样式
+     */
+    private JSONObject getParagraphStyle(XWPFParagraph paragraph) {
+        JSONObject style = new JSONObject();
+        
+        // 获取第一个Run的样式（通常段落中所有Run的样式相同）
+        if (paragraph.getRuns() != null && paragraph.getRuns().size() > 0) {
+            XWPFRun run = paragraph.getRuns().get(0);
+            
+            // 字体
+            String fontFamily = run.getFontFamily();
+            if (fontFamily == null || fontFamily.isEmpty()) {
+                fontFamily = "宋体"; // 默认字体
+            }
+            style.put("font", fontFamily);
+            
+            // 字号
+            int fontSize = run.getFontSize();
+            if (fontSize == -1) {
+                fontSize = 14; // 默认字号
+            }
+            style.put("size", fontSize);
+            
+            // 加粗
+            boolean isBold = run.isBold();
+            style.put("bold", isBold);
+        } else {
+            // 如果没有Run，使用默认值
+            style.put("font", "宋体");
+            style.put("size", 14);
+            style.put("bold", false);
+        }
+        
+        return style;
+    }
+    
+    /**
+     * 检查样式是否匹配
+     */
+    private boolean matchesStyle(JSONObject paraStyle, JSONObject targetStyle) {
+        if (paraStyle == null || targetStyle == null) {
+            return false;
+        }
+        
+        // 检查字体（允许部分匹配，因为可能包含字体族信息）
+        String paraFont = paraStyle.getString("font");
+        String targetFont = targetStyle.getString("font");
+        if (targetFont != null && paraFont != null) {
+            if (!paraFont.contains(targetFont) && !targetFont.contains(paraFont)) {
+                return false;
+            }
+        }
+        
+        // 检查字号（允许±1的误差）
+        int paraSize = paraStyle.getIntValue("size");
+        int targetSize = targetStyle.getIntValue("size");
+        if (Math.abs(paraSize - targetSize) > 1) {
+            return false;
+        }
+        
+        // 检查加粗
+        boolean paraBold = paraStyle.getBooleanValue("bold");
+        boolean targetBold = targetStyle.getBooleanValue("bold");
+        if (paraBold != targetBold) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 获取段落缩进
+     */
+    private String getParagraphIndent(XWPFParagraph paragraph) {
+        try {
+            // 使用反射或直接访问CTP来获取缩进信息
+            // 由于CTPPr和CTInd可能不在标准POI包中，我们使用更安全的方式
+            org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr ppr = 
+                paragraph.getCTP().getPPr();
+            if (ppr != null && ppr.getInd() != null) {
+                org.openxmlformats.schemas.wordprocessingml.x2006.main.CTInd ind = ppr.getInd();
+                // 获取首行缩进（以字符为单位）
+                if (ind.getFirstLine() != null) {
+                    Object firstLineObj = ind.getFirstLine();
+                    long firstLine = 0;
+                    if (firstLineObj instanceof Number) {
+                        firstLine = ((Number) firstLineObj).longValue();
+                    } else if (firstLineObj instanceof String) {
+                        try {
+                            firstLine = Long.parseLong((String) firstLineObj);
+                        } catch (Exception e) {
+                            firstLine = 0;
+                        }
+                    }
+                    // 转换为空格（假设一个字符约等于2个空格）
+                    // Word的缩进单位是twips（1/20 point），200 twips ≈ 1字符
+                    int spaces = (int) (firstLine / 200);
+                    if (spaces > 0) {
+                        // 使用StringBuilder构建空格字符串（兼容Java 8+）
+                        StringBuilder sb = new StringBuilder();
+                        for (int i = 0; i < spaces; i++) {
+                            sb.append(" ");
+                        }
+                        return sb.toString();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Error getting paragraph indent", e);
+        }
+        return "";
+    }
+    
+    /**
+     * 从DOCX文件导入作品（异步回调版本）
+     * @param options JSON对象，包含filePath和styleConfig
+     * @param callback 回调函数
+     */
+    @UniJSMethod(uiThread = false)
+    public void importFromDOCX(JSONObject options, UniJSCallback callback) {
+        JSONObject result = null;
+        try {
+            Log.d(TAG, "importFromDOCX called, starting import...");
+            result = doImportDOCX(options);
+            Log.d(TAG, "importFromDOCX completed, result success: " + (result != null ? result.getBoolean("success") : "null"));
+        } catch (Exception e) {
+            Log.e(TAG, "importFromDOCX exception caught", e);
+            result = new JSONObject();
+            result.put("success", false);
+            result.put("error", "DOCX导入异常: " + e.getMessage());
+        } finally {
+            // 确保回调总是被调用
+            if (callback != null) {
+                try {
+                    if (result == null) {
+                        result = new JSONObject();
+                        result.put("success", false);
+                        result.put("error", "导入结果为空");
+                    }
+                    Log.d(TAG, "Invoking callback with result: " + result.toString());
+                    callback.invoke(result);
+                    Log.d(TAG, "Callback invoked successfully");
+                } catch (Exception callbackError) {
+                    Log.e(TAG, "Failed to invoke callback", callbackError);
+                }
+            } else {
+                Log.w(TAG, "importFromDOCX: callback is null, result not returned");
+            }
+        }
+    }
+    
+    /**
+     * 从DOCX文件导入作品（同步版本）
+     * @param options JSON对象，包含filePath和styleConfig
+     * @return 解析结果JSON对象
+     */
+    @UniJSMethod(uiThread = false)
+    public JSONObject importFromDOCXSync(JSONObject options) {
+        Log.d(TAG, "importFromDOCXSync called");
+        if (options == null) {
+            Log.e(TAG, "importFromDOCXSync: options parameter is null");
+            JSONObject result = new JSONObject();
+            result.put("success", false);
+            result.put("error", "Options parameter is null in importFromDOCXSync");
+            return result;
+        }
+        Log.d(TAG, "importFromDOCXSync: options received, type: " + options.getClass().getName());
+        Log.d(TAG, "importFromDOCXSync: options content: " + options.toString());
+        
+        return doImportDOCX(options);
+    }
+    
+    /**
+     * 打开文件选择器选择DOCX文件导入
+     * @param callback 返回选中的文件路径
+     */
+    @UniJSMethod(uiThread = true)
+    public void pickDOCXFileToImport(UniJSCallback callback) {
+        try {
+            android.content.Context context = getSafeContext();
+            if (context == null) {
+                Log.e(TAG, "Context is null, cannot open file picker");
+                if (callback != null) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", false);
+                    result.put("error", "无法获取上下文");
+                    callback.invoke(result);
+                }
+                return;
+            }
+            
+            if (!(context instanceof android.app.Activity)) {
+                Log.e(TAG, "Context is not an Activity, cannot open file picker");
+                if (callback != null) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", false);
+                    result.put("error", "需要Activity上下文才能打开文件选择器");
+                    callback.invoke(result);
+                }
+                return;
+            }
+            
+            android.app.Activity activity = (android.app.Activity) context;
+            
+            // 创建Intent选择DOCX文件
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.setType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.putExtra(Intent.EXTRA_TITLE, "选择要导入的DOCX文件");
+            
+            // 尝试启动文件选择器
+            try {
+                activity.startActivityForResult(Intent.createChooser(intent, "选择DOCX文件"), REQUEST_PICK_DOCX_FILE);
+                
+                // 保存回调以在结果处理中使用（需要全局变量）
+                // 注意：这里简化处理，实际应用中可能需要更复杂的回调管理
+                if (callback != null) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", true);
+                    result.put("message", "文件选择器已打开，请在onActivityResult中处理结果");
+                    callback.invoke(result);
+                }
+                
+            } catch (android.content.ActivityNotFoundException e) {
+                Log.e(TAG, "找不到可以处理DOCX文件的应用", e);
+                if (callback != null) {
+                    JSONObject result = new JSONObject();
+                    result.put("success", false);
+                    result.put("error", "找不到可以处理DOCX文件的应用");
+                    callback.invoke(result);
+                }
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "打开文件选择器失败", e);
+            if (callback != null) {
+                JSONObject result = new JSONObject();
+                result.put("success", false);
+                result.put("error", "打开文件选择器失败: " + e.getMessage());
+                callback.invoke(result);
+            }
+        }
+    }
+    
+    /**
+     * 从Uri导入DOCX文件
+     * @param uriString 文件URI字符串
+     * @param callback 回调函数
+     */
+    @UniJSMethod(uiThread = false)
+    public void importFromDOCXUri(String uriString, UniJSCallback callback) {
+        JSONObject result = new JSONObject();
+        
+        try {
+            Log.d(TAG, "importFromDOCXUri called with URI: " + uriString);
+            
+            if (uriString == null || uriString.isEmpty()) {
+                result.put("success", false);
+                result.put("error", "URI为空");
+                if (callback != null) callback.invoke(result);
+                return;
+            }
+            
+            android.content.Context context = getSafeContext();
+            if (context == null) {
+                result.put("success", false);
+                result.put("error", "无法获取上下文");
+                if (callback != null) callback.invoke(result);
+                return;
+            }
+            
+            // 解析URI获取文件路径
+            String filePath = getFilePathFromUri(context, Uri.parse(uriString));
+            if (filePath == null) {
+                result.put("success", false);
+                result.put("error", "无法从URI获取文件路径");
+                if (callback != null) callback.invoke(result);
+                return;
+            }
+            
+            // 调用标准导入方法
+            JSONObject options = new JSONObject();
+            options.put("filePath", filePath);
+            // 使用默认样式配置
+            JSONObject styleConfig = new JSONObject();
+            options.put("styleConfig", styleConfig);
+            
+            result = doImportDOCX(options);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "从URI导入DOCX失败", e);
+            result.put("success", false);
+            result.put("error", "从URI导入失败: " + e.getMessage());
+        }
+        
+        if (callback != null) {
+            callback.invoke(result);
+        }
+    }
+    
+    /**
+     * 从URI获取文件路径
+     */
+    private String getFilePathFromUri(android.content.Context context, Uri uri) {
+        try {
+            // 处理file:// URI
+            if ("file".equals(uri.getScheme())) {
+                return uri.getPath();
+            }
+            
+            // 处理content:// URI
+            if ("content".equals(uri.getScheme())) {
+                String[] projection = {android.provider.OpenableColumns.DISPLAY_NAME};
+                try (android.database.Cursor cursor = context.getContentResolver().query(uri, projection, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int columnIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                        if (columnIndex != -1) {
+                            String fileName = cursor.getString(columnIndex);
+                            // 创建临时文件
+                            java.io.File tempFile = new java.io.File(context.getCacheDir(), fileName);
+                            try (java.io.InputStream inputStream = context.getContentResolver().openInputStream(uri);
+                                 java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile)) {
+                                byte[] buffer = new byte[4096];
+                                int bytesRead;
+                                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                                    outputStream.write(buffer, 0, bytesRead);
+                                }
+                                return tempFile.getAbsolutePath();
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 如果无法获取路径，尝试直接打开URI
+            return openUriToTempFile(context, uri);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "从URI获取文件路径失败", e);
+            return null;
+        }
+    }
+    
+    /**
+     * 将URI内容复制到临时文件
+     */
+    private String openUriToTempFile(android.content.Context context, Uri uri) {
+        try {
+            java.io.InputStream inputStream = context.getContentResolver().openInputStream(uri);
+            if (inputStream == null) {
+                return null;
+            }
+            
+            // 创建临时文件
+            String fileName = "temp_import_" + System.currentTimeMillis() + ".docx";
+            java.io.File tempFile = new java.io.File(context.getCacheDir(), fileName);
+            
+            try (java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile)) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+            
+            inputStream.close();
+            return tempFile.getAbsolutePath();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "将URI复制到临时文件失败", e);
+            return null;
+        }
     }
     
 }
