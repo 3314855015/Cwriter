@@ -1554,6 +1554,7 @@ const updateChaptersList = async (updatedChapter) => {
         word_count: updatedChapter.word_count,
         is_completed: updatedChapter.is_completed,
         updated_at: updatedChapter.updated_at,
+        content: "", // chapters.json中content为空，内容只保存在单独的章节文件中
       };
 
       await fileStorage.writeFile(chaptersPath, chaptersList);

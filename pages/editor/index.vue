@@ -101,7 +101,9 @@ import { onLoad, onUnload } from "@dcloudio/uni-app";
 import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import BottomNav from "@/components/BottomNav.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
-import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
+import themeManager, {
+  isDarkMode as getIsDarkMode,
+} from "@/utils/themeManager.js";
 
 const fileStorage = FileSystemStorage;
 
@@ -115,21 +117,21 @@ const userId = ref("");
 
 onLoad((options) => {
   // 初始化主题
-  isDarkMode.value = themeManager.isDarkMode()
-  
+  isDarkMode.value = themeManager.isDarkMode();
+
   // 监听主题变更事件
   try {
-    if (typeof uni !== 'undefined' && uni.$on) {
-      uni.$on('theme-changed', (themeData) => {
+    if (typeof uni !== "undefined" && uni.$on) {
+      uni.$on("theme-changed", (themeData) => {
         try {
-          isDarkMode.value = themeData.isDark
+          isDarkMode.value = themeData.isDark;
         } catch (error) {
-          console.warn('主题变更处理失败:', error);
+          console.warn("主题变更处理失败:", error);
         }
-      })
+      });
     }
   } catch (error) {
-    console.warn('主题监听器设置失败:', error);
+    console.warn("主题监听器设置失败:", error);
   }
   if (!options || !options.workId) {
     console.error("❌ 章节页面缺少必要参数 workId");
@@ -146,8 +148,6 @@ onLoad((options) => {
 
   loadWorkChapters();
 });
-
-
 
 const loadWorkChapters = async () => {
   try {
@@ -209,12 +209,13 @@ const createChapter = async (title) => {
       updated_at: new Date().toISOString(),
     };
 
+    // 添加到章节列表（content为空，加快读取速度）
     chapters.value.push(newChapter);
 
-    // 保存章节列表
+    // 保存章节列表（content为空）
     await saveChaptersList();
 
-    // 创建章节文件
+    // 创建章节文件（包含完整内容）
     const workPath = fileStorage.getWorkPath(userId.value, workId.value);
     const chapterPath = `${workPath}/chapters/${chapterId}.json`;
 
@@ -281,7 +282,13 @@ const saveChaptersList = async () => {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value);
     const chaptersPath = `${workPath}/chapters/chapters.json`;
 
-    await fileStorage.writeFile(chaptersPath, chapters.value);
+    // 保存章节列表时，content 为空（加快读取速度，内容只保存在单独的章节文件中）
+    const chaptersList = chapters.value.map((chapter) => ({
+      ...chapter,
+      content: "", // chapters.json中content为空
+    }));
+
+    await fileStorage.writeFile(chaptersPath, chaptersList);
 
     // 更新作品信息（章节数量和最后修改时间）
     try {
@@ -336,8 +343,8 @@ const goBack = () => {
 };
 
 const toggleTheme = () => {
-  const newTheme = themeManager.toggleTheme()
-  isDarkMode.value = themeManager.isDarkMode()
+  const newTheme = themeManager.toggleTheme();
+  isDarkMode.value = themeManager.isDarkMode();
 };
 
 const handleNavSwitch = (navType) => {
@@ -362,8 +369,6 @@ const handleNavSwitch = (navType) => {
   background-color: #f5f5f5;
   color: #333333;
 }
-
-
 
 .page-header {
   display: flex;

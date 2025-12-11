@@ -24,27 +24,36 @@
         <text class="section-title">章节列表</text>
         <text class="chapter-count">共 {{ chapters.length }} 章</text>
       </view>
-      
+
       <view class="chapters-list">
-        <view 
-          v-for="(chapter, index) in chapters" 
-          :key="chapter.id" 
+        <view
+          v-for="(chapter, index) in chapters"
+          :key="chapter.id"
           class="chapter-item"
           @tap="openChapter(chapter)"
         >
           <view class="chapter-content">
             <view class="chapter-main">
-              <text class="chapter-title">第{{ index + 1 }}章 {{ chapter.title }}</text>
-              <text class="chapter-time">{{ formatTime(chapter.updated_at) }}</text>
+              <text class="chapter-title"
+                >第{{ index + 1 }}章 {{ chapter.title }}</text
+              >
+              <text class="chapter-time">{{
+                formatTime(chapter.updated_at)
+              }}</text>
             </view>
             <view class="chapter-info">
               <text class="chapter-words">{{ chapter.word_count || 0 }}字</text>
-              <view class="chapter-status" :class="{ completed: chapter.is_completed }">
-                <text class="status-text">{{ chapter.is_completed ? '已完成' : '写作中' }}</text>
+              <view
+                class="chapter-status"
+                :class="{ completed: chapter.is_completed }"
+              >
+                <text class="status-text">{{
+                  chapter.is_completed ? "已完成" : "写作中"
+                }}</text>
               </view>
             </view>
           </view>
-          
+
           <!-- 删除按钮 -->
           <view class="chapter-actions" v-if="isEditMode">
             <view class="chapter-action-btn" @tap.stop="deleteChapter(chapter)">
@@ -53,10 +62,14 @@
           </view>
         </view>
       </view>
-      
+
       <!-- 空状态 -->
       <view class="empty-state" v-if="chapters.length === 0">
-        <image class="empty-icon" src="/static/icons/file.svg" mode="aspectFit"></image>
+        <image
+          class="empty-icon"
+          src="/static/icons/file.svg"
+          mode="aspectFit"
+        ></image>
         <text class="empty-text">还没有章节</text>
         <view class="empty-btn" @tap="showCreateModal">
           <text class="btn-text">创建第一章</text>
@@ -65,18 +78,22 @@
     </view>
 
     <!-- 创建章节模态框 -->
-    <view v-if="showCreateChapterModal" class="modal-overlay" @tap="hideCreateModal">
+    <view
+      v-if="showCreateChapterModal"
+      class="modal-overlay"
+      @tap="hideCreateModal"
+    >
       <view class="modal-container" @tap.stop>
         <!-- 关闭按钮 -->
         <view class="modal-close" @tap="hideCreateModal">
           <text class="close-text">×</text>
         </view>
-        
+
         <!-- 标题 -->
         <view class="modal-header">
           <text class="modal-title">创建新章节</text>
         </view>
-        
+
         <!-- 输入区域 -->
         <view class="modal-content">
           <view class="input-group">
@@ -92,14 +109,14 @@
             <text class="input-counter">{{ newChapterTitle.length }}/50</text>
           </view>
         </view>
-        
+
         <!-- 按钮区域 -->
         <view class="modal-actions">
           <button class="action-btn cancel-btn" @tap="hideCreateModal">
             <text class="btn-text">取消</text>
           </button>
-          <button 
-            class="action-btn create-btn" 
+          <button
+            class="action-btn create-btn"
             :class="{ disabled: !newChapterTitle.trim() }"
             :disabled="!newChapterTitle.trim()"
             @tap="handleCreateChapter"
@@ -111,7 +128,7 @@
     </view>
 
     <!-- 底部导航栏 -->
-    <BottomNav 
+    <BottomNav
       :active-nav="'manage'"
       :is-dark-mode="isDarkMode"
       @switch-nav="handleNavSwitch"
@@ -121,319 +138,303 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import HeaderPlaceholder from '@/components/HeaderPlaceholder.vue'
-import BottomNav from '@/components/BottomNav.vue'
-import FileSystemStorage from '@/utils/fileSystemStorage.js'
-import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js'
+import { ref } from "vue";
+import { onLoad, onUnload } from "@dcloudio/uni-app";
+import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
+import BottomNav from "@/components/BottomNav.vue";
+import FileSystemStorage from "@/utils/fileSystemStorage.js";
+import themeManager, {
+  isDarkMode as getIsDarkMode,
+} from "@/utils/themeManager.js";
 
-const fileStorage = FileSystemStorage
+const fileStorage = FileSystemStorage;
 
 // 响应式数据
 
-const isDarkMode = ref(getIsDarkMode())
-const isEditMode = ref(false)
-const workInfo = ref({ title: '加载中...' })
-const chapters = ref([])
-const workId = ref('')
-const userId = ref('')
-const showCreateChapterModal = ref(false)
-const newChapterTitle = ref('')
-
-
-
-
+const isDarkMode = ref(getIsDarkMode());
+const isEditMode = ref(false);
+const workInfo = ref({ title: "加载中..." });
+const chapters = ref([]);
+const workId = ref("");
+const userId = ref("");
+const showCreateChapterModal = ref(false);
+const newChapterTitle = ref("");
 
 onLoad((options) => {
   // 初始化主题
-  isDarkMode.value = themeManager.isDarkMode()
-  
+  isDarkMode.value = themeManager.isDarkMode();
+
   // 监听主题变更事件
   try {
-    if (typeof uni !== 'undefined' && uni.$on) {
-      uni.$on('theme-changed', (themeData) => {
+    if (typeof uni !== "undefined" && uni.$on) {
+      uni.$on("theme-changed", (themeData) => {
         try {
-          isDarkMode.value = themeData.isDark
+          isDarkMode.value = themeData.isDark;
         } catch (error) {
-          console.warn('主题变更处理失败:', error);
+          console.warn("主题变更处理失败:", error);
         }
-      })
+      });
     }
   } catch (error) {
-    console.warn('主题监听器设置失败:', error);
+    console.warn("主题监听器设置失败:", error);
   }
-  
+
   if (!options || !options.workId) {
-    console.error('❌ 章节页面缺少必要参数 workId')
+    console.error("❌ 章节页面缺少必要参数 workId");
     uni.showToast({
-      title: '参数错误',
-      icon: 'error'
-    })
-    setTimeout(() => uni.navigateBack(), 10)
-    return
+      title: "参数错误",
+      icon: "error",
+    });
+    setTimeout(() => uni.navigateBack(), 10);
+    return;
   }
 
-  workId.value = options.workId
-  userId.value = options.userId || 'default_user'
+  workId.value = options.workId;
+  userId.value = options.userId || "default_user";
 
-  loadWorkChapters()
-})
-
-
+  loadWorkChapters();
+});
 
 const loadWorkChapters = async () => {
   try {
-     
-    
     // 读取作品配置
-    const workPath = fileStorage.getWorkPath(userId.value, workId.value)
-    const workConfigPath = `${workPath}/work.config.json`
-    const workConfig = await fileStorage.readFile(workConfigPath)
-    
+    const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+    const workConfigPath = `${workPath}/work.config.json`;
+    const workConfig = await fileStorage.readFile(workConfigPath);
+
     if (workConfig) {
-      workInfo.value = workConfig
-       
+      workInfo.value = workConfig;
     }
-    
+
     // 读取章节列表
-    const chaptersPath = `${workPath}/chapters/chapters.json`
-    const chaptersData = await fileStorage.readFile(chaptersPath) || []
-    
-     
-    
+    const chaptersPath = `${workPath}/chapters/chapters.json`;
+    const chaptersData = (await fileStorage.readFile(chaptersPath)) || [];
+
     // 确保是数组
     if (!Array.isArray(chaptersData)) {
-      console.warn('⚠️ 章节数据不是数组，重置为空数组')
-      chapters.value = []
+      console.warn("⚠️ 章节数据不是数组，重置为空数组");
+      chapters.value = [];
     } else {
       // 按创建时间排序
-      chapters.value = chaptersData.sort((a, b) => 
-        new Date(a.created_at) - new Date(b.created_at)
-      )
+      chapters.value = chaptersData.sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      );
     }
-    
-     
-    
   } catch (error) {
-    console.error('❌ 加载章节失败:', error)
+    console.error("❌ 加载章节失败:", error);
     uni.showToast({
-      title: '加载章节失败',
-      icon: 'error'
-    })
+      title: "加载章节失败",
+      icon: "error",
+    });
   }
-}
+};
 
 const addChapter = () => {
-  showCreateModal()
-}
+  showCreateModal();
+};
 
 const createChapter = async (title) => {
   try {
-    const chapterId = Date.now().toString()
+    const chapterId = Date.now().toString();
     const newChapter = {
       id: chapterId,
       title: title,
-      content: '',
+      content: "",
       word_count: 0,
       is_completed: false,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-    
-    chapters.value.push(newChapter)
-    
-    // 保存章节列表
-    await saveChaptersList()
-    
-    // 创建章节文件
-    const workPath = fileStorage.getWorkPath(userId.value, workId.value)
-    const chapterPath = `${workPath}/chapters/${chapterId}.json`
-    
-    await fileStorage.writeFile(chapterPath, newChapter)
-    
-     
-    
+      updated_at: new Date().toISOString(),
+    };
+
+    // 添加到章节列表（content为空，加快读取速度）
+    chapters.value.push(newChapter);
+
+    // 保存章节列表（content为空）
+    await saveChaptersList();
+
+    // 创建章节文件（包含完整内容）
+    const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+    const chapterPath = `${workPath}/chapters/${chapterId}.json`;
+
+    await fileStorage.writeFile(chapterPath, newChapter);
+
     // 跳转到章节编辑页面（暂时未实现）
     uni.showToast({
-      title: '章节创建成功',
-      icon: 'success'
-    })
-    
+      title: "章节创建成功",
+      icon: "success",
+    });
   } catch (error) {
-    console.error('❌ 创建章节失败:', error)
+    console.error("❌ 创建章节失败:", error);
     uni.showToast({
-      title: '创建章节失败',
-      icon: 'error'
-    })
+      title: "创建章节失败",
+      icon: "error",
+    });
   }
-}
+};
 
 const deleteChapter = (chapter) => {
   uni.showModal({
-    title: '确认删除',
+    title: "确认删除",
     content: `确定要删除"${chapter.title}"吗？此操作不可撤销。`,
     success: (res) => {
       if (res.confirm) {
-        removeChapter(chapter)
+        removeChapter(chapter);
       }
-    }
-  })
-}
+    },
+  });
+};
 
 const removeChapter = async (chapter) => {
   try {
     // 从列表中移除
-    const index = chapters.value.findIndex(c => c.id === chapter.id)
+    const index = chapters.value.findIndex((c) => c.id === chapter.id);
     if (index > -1) {
-      chapters.value.splice(index, 1)
+      chapters.value.splice(index, 1);
     }
-    
+
     // 删除章节文件
-    const workPath = fileStorage.getWorkPath(userId.value, workId.value)
-    const chapterPath = `${workPath}/chapters/${chapter.id}.json`
-    
-    await fileStorage.deleteFile(chapterPath)
-    
+    const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+    const chapterPath = `${workPath}/chapters/${chapter.id}.json`;
+
+    await fileStorage.deleteFile(chapterPath);
+
     // 保存章节列表
-    await saveChaptersList()
-    
-     
-    
+    await saveChaptersList();
+
     uni.showToast({
-      title: '删除成功',
-      icon: 'success'
-    })
-    
+      title: "删除成功",
+      icon: "success",
+    });
   } catch (error) {
-    console.error('❌ 删除章节失败:', error)
+    console.error("❌ 删除章节失败:", error);
     uni.showToast({
-      title: '删除失败',
-      icon: 'error'
-    })
+      title: "删除失败",
+      icon: "error",
+    });
   }
-}
+};
 
 const saveChaptersList = async () => {
   try {
-    const workPath = fileStorage.getWorkPath(userId.value, workId.value)
-    const chaptersPath = `${workPath}/chapters/chapters.json`
-    
-    await fileStorage.writeFile(chaptersPath, chapters.value)
-    
+    const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+    const chaptersPath = `${workPath}/chapters/chapters.json`;
+
+    // 保存章节列表时，content 为空（加快读取速度，内容只保存在单独的章节文件中）
+    const chaptersList = chapters.value.map((chapter) => ({
+      ...chapter,
+      content: "", // chapters.json中content为空
+    }));
+
+    await fileStorage.writeFile(chaptersPath, chaptersList);
+
     // 更新作品信息（章节数量和最后修改时间）
     try {
       await fileStorage.updateWork(userId.value, workId.value, {
         chapter_count: chapters.value.length,
-        updated_at: new Date().toISOString()
-      })
+        updated_at: new Date().toISOString(),
+      });
     } catch (updateError) {
-      console.warn('⚠️ 更新作品信息失败，但章节列表已保存:', updateError)
+      console.warn("⚠️ 更新作品信息失败，但章节列表已保存:", updateError);
     }
-    
-     
-    
   } catch (error) {
-    console.error('❌ 保存章节列表失败:', error)
+    console.error("❌ 保存章节列表失败:", error);
   }
-}
+};
 
 const openChapter = (chapter) => {
   // 跳转到章节编辑页面
   uni.navigateTo({
-    url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${chapter.id}&userId=${userId.value}`
-  })
-}
+    url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${chapter.id}&userId=${userId.value}`,
+  });
+};
 
 const formatTime = (timestamp) => {
-  if (!timestamp) return '未知时间'
-  
+  if (!timestamp) return "未知时间";
+
   try {
-    const now = new Date()
-    const time = new Date(timestamp)
-    
+    const now = new Date();
+    const time = new Date(timestamp);
+
     if (isNaN(time.getTime())) {
-      return '未知时间'
+      return "未知时间";
     }
-    
-    const diff = now.getTime() - time.getTime()
-    
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
-    
-    if (minutes < 60) return `${minutes}分钟前`
-    if (hours < 24) return `${hours}小时前`
-    if (days < 7) return `${days}天前`
-    
-    return time.toLocaleDateString()
+
+    const diff = now.getTime() - time.getTime();
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+
+    return time.toLocaleDateString();
   } catch (error) {
-    return '未知时间'
+    return "未知时间";
   }
-}
+};
 
 const goBack = () => {
-  uni.navigateBack()
-}
+  uni.navigateBack();
+};
 
 // 模态框相关方法
 const showCreateModal = () => {
-  showCreateChapterModal.value = true
-  newChapterTitle.value = ''
-}
+  showCreateChapterModal.value = true;
+  newChapterTitle.value = "";
+};
 
 const hideCreateModal = () => {
-  showCreateChapterModal.value = false
-  newChapterTitle.value = ''
-}
+  showCreateChapterModal.value = false;
+  newChapterTitle.value = "";
+};
 
 const onTitleInput = (e) => {
-  newChapterTitle.value = e.detail.value
-}
+  newChapterTitle.value = e.detail.value;
+};
 
 const handleCreateChapter = () => {
-  const title = newChapterTitle.value.trim()
+  const title = newChapterTitle.value.trim();
   if (!title) {
     uni.showToast({
-      title: '请输入章节标题',
-      icon: 'none'
-    })
-    return
+      title: "请输入章节标题",
+      icon: "none",
+    });
+    return;
   }
-  
-  createChapter(title)
-  hideCreateModal()
-}
+
+  createChapter(title);
+  hideCreateModal();
+};
 
 const toggleTheme = () => {
-  const newTheme = themeManager.toggleTheme()
-  isDarkMode.value = themeManager.isDarkMode()
-}
+  const newTheme = themeManager.toggleTheme();
+  isDarkMode.value = themeManager.isDarkMode();
+};
 
 const handleNavSwitch = (navType) => {
-  if (navType === 'home') {
+  if (navType === "home") {
     uni.switchTab({
-      url: '/pages/index/index'
-    })
+      url: "/pages/index/index",
+    });
   }
-}
+};
 </script>
 
 <style scoped>
 .page-container {
-  background-color: #1A1A1A;
-  color: #FFFFFF;
+  background-color: #1a1a1a;
+  color: #ffffff;
   min-height: 100vh;
   padding-bottom: 80px;
   box-sizing: border-box;
 }
 
 .light-theme {
-  background-color: #F5F5F5;
+  background-color: #f5f5f5;
   color: #333333;
 }
-
-
 
 .page-header {
   display: flex;
@@ -446,10 +447,11 @@ const handleNavSwitch = (navType) => {
 
 .light-theme .page-header {
   background: rgba(255, 255, 255, 0.9);
-  border-bottom: 1px solid #E0E0E0;
+  border-bottom: 1px solid #e0e0e0;
 }
 
-.header-left, .header-right {
+.header-left,
+.header-right {
   width: 60px;
 }
 
@@ -462,7 +464,7 @@ const handleNavSwitch = (navType) => {
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
   text-align: center;
   flex: 1;
 }
@@ -510,7 +512,7 @@ const handleNavSwitch = (navType) => {
 .section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .light-theme .section-title {
@@ -519,7 +521,7 @@ const handleNavSwitch = (navType) => {
 
 .chapter-count {
   font-size: 14px;
-  color: #B3B3B3;
+  color: #b3b3b3;
 }
 
 .light-theme .chapter-count {
@@ -557,7 +559,7 @@ const handleNavSwitch = (navType) => {
 .chapter-title {
   font-size: 14px;
   font-weight: 500;
-  color: #FFFFFF;
+  color: #ffffff;
   display: block;
 }
 
@@ -567,7 +569,7 @@ const handleNavSwitch = (navType) => {
 
 .chapter-time {
   font-size: 11px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   margin-top: 2px;
   display: block;
 }
@@ -584,7 +586,7 @@ const handleNavSwitch = (navType) => {
 
 .chapter-words {
   font-size: 12px;
-  color: #B3B3B3;
+  color: #b3b3b3;
 }
 
 .light-theme .chapter-words {
@@ -595,12 +597,12 @@ const handleNavSwitch = (navType) => {
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 10px;
-  background: #FF6B35;
+  background: #ff6b35;
   color: white;
 }
 
 .chapter-status.completed {
-  background: #4ECDC4;
+  background: #4ecdc4;
 }
 
 .empty-state {
@@ -620,7 +622,7 @@ const handleNavSwitch = (navType) => {
 
 .empty-text {
   font-size: 16px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   margin-bottom: 20px;
 }
 
@@ -690,7 +692,7 @@ const handleNavSwitch = (navType) => {
 }
 
 .modal-container {
-  background: #2A2A2A;
+  background: #2a2a2a;
   border-radius: 16px;
   margin: 20px;
   width: calc(100% - 40px);
@@ -701,7 +703,7 @@ const handleNavSwitch = (navType) => {
 }
 
 .light-theme .modal-container {
-  background: #FFFFFF;
+  background: #ffffff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
@@ -728,7 +730,7 @@ const handleNavSwitch = (navType) => {
 }
 
 .close-text {
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 20px;
   font-weight: 300;
   line-height: 1;
@@ -745,7 +747,7 @@ const handleNavSwitch = (navType) => {
 .modal-title {
   font-size: 18px;
   font-weight: 600;
-  color: #FFFFFF;
+  color: #ffffff;
   text-align: center;
 }
 
@@ -764,7 +766,7 @@ const handleNavSwitch = (navType) => {
 .input-label {
   display: block;
   font-size: 14px;
-  color: #B3B3B3;
+  color: #b3b3b3;
   margin-bottom: 8px;
 }
 
@@ -775,23 +777,23 @@ const handleNavSwitch = (navType) => {
 .modal-input {
   width: 100%;
   padding: 12px 16px;
-  background: #1A1A1A;
+  background: #1a1a1a;
   border: 1px solid #404040;
   border-radius: 8px;
-  color: #FFFFFF;
+  color: #ffffff;
   font-size: 16px;
   box-sizing: border-box;
   transition: all 0.3s ease;
 }
 
 .light-theme .modal-input {
-  background: #F5F5F5;
-  border: 1px solid #E0E0E0;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
   color: #333333;
 }
 
 .modal-input:focus {
-  border-color: #FF6B35;
+  border-color: #ff6b35;
   outline: none;
 }
 
@@ -823,7 +825,7 @@ const handleNavSwitch = (navType) => {
 }
 
 .light-theme .modal-actions {
-  border-top: 1px solid #E0E0E0;
+  border-top: 1px solid #e0e0e0;
 }
 
 .modal-actions .action-btn {
@@ -838,11 +840,11 @@ const handleNavSwitch = (navType) => {
 
 .cancel-btn {
   background: #404040;
-  color: #FFFFFF;
+  color: #ffffff;
 }
 
 .light-theme .cancel-btn {
-  background: #F5F5F5;
+  background: #f5f5f5;
   color: #666666;
 }
 
@@ -851,12 +853,12 @@ const handleNavSwitch = (navType) => {
 }
 
 .light-theme .cancel-btn:active {
-  background: #E0E0E0;
+  background: #e0e0e0;
 }
 
 .create-btn {
-  background: linear-gradient(135deg, #FF6B35 0%, #FF8A65 100%);
-  color: #FFFFFF;
+  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
+  color: #ffffff;
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
 }
 

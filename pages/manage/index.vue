@@ -740,10 +740,11 @@ const toggleTheme = () => {
 
 // 工具栏操作
 const showImport = () => {
-  uni.showToast({
-    title: "导入功能开发中",
-    icon: "none",
+  // 跳转到导入页面
+  uni.navigateTo({
+    url: "/pages/import/index",
   });
+  closeMoreMenu();
 };
 
 const showExport = () => {
