@@ -78,54 +78,17 @@
     </view>
 
     <!-- 创建章节模态框 -->
-    <view
-      v-if="showCreateChapterModal"
-      class="modal-overlay"
-      @tap="hideCreateModal"
-    >
-      <view class="modal-container" @tap.stop>
-        <!-- 关闭按钮 -->
-        <view class="modal-close" @tap="hideCreateModal">
-          <text class="close-text">×</text>
-        </view>
-
-        <!-- 标题 -->
-        <view class="modal-header">
-          <text class="modal-title">创建新章节</text>
-        </view>
-
-        <!-- 输入区域 -->
-        <view class="modal-content">
-          <view class="input-group">
-            <text class="input-label">章节标题</text>
-            <input
-              v-model="newChapterTitle"
-              class="modal-input"
-              placeholder="请输入章节标题"
-              placeholder-class="input-placeholder"
-              :maxlength="50"
-              @input="onTitleInput"
-            />
-            <text class="input-counter">{{ newChapterTitle.length }}/50</text>
-          </view>
-        </view>
-
-        <!-- 按钮区域 -->
-        <view class="modal-actions">
-          <button class="action-btn cancel-btn" @tap="hideCreateModal">
-            <text class="btn-text">取消</text>
-          </button>
-          <button
-            class="action-btn create-btn"
-            :class="{ disabled: !newChapterTitle.trim() }"
-            :disabled="!newChapterTitle.trim()"
-            @tap="handleCreateChapter"
-          >
-            <text class="btn-text">创建</text>
-          </button>
-        </view>
-      </view>
-    </view>
+    <CustomModal
+      v-model:visible="showCreateChapterModal"
+      title="创建新章节"
+      :editable="true"
+      placeholder="请输入章节标题"
+      :maxlength="50"
+      :show-counter="true"
+      confirm-text="创建"
+      @confirm="handleModalConfirm"
+      @cancel="showCreateChapterModal = false"
+    />
 
     <!-- 底部导航栏 -->
     <BottomNav
@@ -142,6 +105,7 @@ import { ref } from "vue";
 import { onLoad, onUnload } from "@dcloudio/uni-app";
 import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import BottomNav from "@/components/BottomNav.vue";
+import CustomModal from "@/components/CustomModal.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager, {
   isDarkMode as getIsDarkMode,
@@ -158,7 +122,6 @@ const chapters = ref([]);
 const workId = ref("");
 const userId = ref("");
 const showCreateChapterModal = ref(false);
-const newChapterTitle = ref("");
 
 onLoad((options) => {
   // 初始化主题
@@ -383,29 +346,15 @@ const goBack = () => {
 const showCreateModal = () => {
   showCreateChapterModal.value = true;
   newChapterTitle.value = "";
+  // 延迟聚焦，确保模态框已渲染
+  showCreateChapterModal.value = true;
 };
 
-const hideCreateModal = () => {
-  showCreateChapterModal.value = false;
-  newChapterTitle.value = "";
-};
-
-const onTitleInput = (e) => {
-  newChapterTitle.value = e.detail.value;
-};
-
-const handleCreateChapter = () => {
-  const title = newChapterTitle.value.trim();
-  if (!title) {
-    uni.showToast({
-      title: "请输入章节标题",
-      icon: "none",
-    });
-    return;
+// 处理模态框确认
+const handleModalConfirm = (res) => {
+  if (res.confirm && res.content?.trim()) {
+    createChapter(res.content.trim());
   }
-
-  createChapter(title);
-  hideCreateModal();
 };
 
 const toggleTheme = () => {
@@ -675,280 +624,5 @@ const handleNavSwitch = (navType) => {
 .chapter-action-btn image {
   width: 16px;
   height: 16px;
-}
-
-/* 创建章节模态框样式 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-}
-
-.modal-container {
-  background: #2a2a2a;
-  border-radius: 16px;
-  margin: 20px;
-  width: calc(100% - 40px);
-  max-width: 400px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  position: relative;
-  overflow: hidden;
-}
-
-.light-theme .modal-container {
-  background: #ffffff;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-}
-
-.modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 32px;
-  height: 32px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.light-theme .modal-close {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.modal-close:active {
-  transform: scale(0.9);
-}
-
-.close-text {
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 300;
-  line-height: 1;
-}
-
-.light-theme .close-text {
-  color: #333333;
-}
-
-.modal-header {
-  padding: 24px 20px 16px;
-}
-
-.modal-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #ffffff;
-  text-align: center;
-}
-
-.light-theme .modal-title {
-  color: #333333;
-}
-
-.modal-content {
-  padding: 0 20px 20px;
-}
-
-.input-group {
-  position: relative;
-}
-
-.input-label {
-  display: block;
-  font-size: 14px;
-  color: #b3b3b3;
-  margin-bottom: 8px;
-}
-
-.light-theme .input-label {
-  color: #666666;
-}
-
-.modal-input {
-  width: 100%;
-  padding: 12px 16px;
-  background: #1a1a1a;
-  border: 1px solid #404040;
-  border-radius: 8px;
-  color: #ffffff;
-  font-size: 16px;
-  box-sizing: border-box;
-  transition: all 0.3s ease;
-}
-
-.light-theme .modal-input {
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  color: #333333;
-}
-
-.modal-input:focus {
-  border-color: #ff6b35;
-  outline: none;
-}
-
-.input-placeholder {
-  color: #666666;
-}
-
-.light-theme .input-placeholder {
-  color: #999999;
-}
-
-.input-counter {
-  position: absolute;
-  right: 16px;
-  bottom: -18px;
-  font-size: 12px;
-  color: #666666;
-}
-
-.light-theme .input-counter {
-  color: #999999;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-  padding: 20px;
-  border-top: 1px solid #404040;
-}
-
-.light-theme .modal-actions {
-  border-top: 1px solid #e0e0e0;
-}
-
-.modal-actions .action-btn {
-  flex: 1;
-  padding: 12px 24px;
-  border-radius: 8px;
-  border: none;
-  font-size: 16px;
-  font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.cancel-btn {
-  background: #404040;
-  color: #ffffff;
-}
-
-.light-theme .cancel-btn {
-  background: #f5f5f5;
-  color: #666666;
-}
-
-.cancel-btn:active {
-  background: #333333;
-}
-
-.light-theme .cancel-btn:active {
-  background: #e0e0e0;
-}
-
-.create-btn {
-  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
-}
-
-.create-btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
-}
-
-.create-btn.disabled {
-  background: #404040;
-  color: #666666;
-  box-shadow: none;
-}
-
-.create-btn.disabled:active {
-  transform: none;
-}
-
-/* 亮色主题适配 */
-.light-theme .modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
-}
-
-.light-theme .modal-container {
-  background: linear-gradient(135deg, #ffffff 0%, #f8f8f8 100%);
-  border: 2px solid rgba(255, 107, 53, 0.2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-}
-
-.light-theme .modal-close {
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.light-theme .modal-close:active {
-  background: rgba(255, 107, 53, 0.1);
-}
-
-.light-theme .close-text {
-  color: #333333;
-}
-
-.light-theme .modal-title {
-  color: #333333;
-  background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.light-theme .input-label {
-  color: #ff6b35;
-}
-
-.light-theme .modal-input {
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  color: #333333;
-}
-
-.light-theme .modal-input:focus {
-  border-color: #ff6b35;
-  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.15);
-}
-
-.light-theme .input-placeholder {
-  color: rgba(0, 0, 0, 0.3);
-}
-
-.light-theme .input-counter {
-  color: #999999;
-}
-
-.light-theme .modal-actions {
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.light-theme .cancel-btn {
-  background: #f5f5f5;
-  color: #666666;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.light-theme .cancel-btn:active {
-  background: #e0e0e0;
-}
-
-.light-theme .create-btn.disabled {
-  background: #f5f5f5;
-  color: #999999;
-  box-shadow: none;
 }
 </style>
