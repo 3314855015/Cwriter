@@ -14,8 +14,8 @@
           <text class="slot-text">{{ currentState === 'C' ? '完成' : '编辑' }}</text>
         </view>
 
-        <!-- B槽位：保存 (占2字符) -->
-        <view class="slot slot-b" @tap="handleSlotB">
+        <!-- B槽位：保存 (占2字符) - 只在C状态显示 -->
+        <view v-if="currentState === 'C'" class="slot slot-b" @tap="handleSlotB">
           <text class="slot-text">保存</text>
         </view>
 
