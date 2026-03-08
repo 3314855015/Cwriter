@@ -25,8 +25,8 @@
         <!-- D槽位：留白 -->
         <view class="slot slot-spacer flex-1"></view>
 
-        <!-- E槽位：图标 (占1字符) -->
-        <view class="slot slot-icon" @tap="handleSlotE">
+        <!-- E槽位：图标 (占1字符) - 只在C状态显示 -->
+        <view v-if="currentState === 'C'" class="slot slot-icon" @tap="handleSlotE">
           <image class="slot-icon-img" src="/static/icons/E.png" mode="aspectFit" />
         </view>
 
@@ -50,7 +50,7 @@
         'with-bottom-bar': currentState === 'B',
         'with-expanded-bar': currentState === 'C'
       }"
-      @tap="handleContentTap"
+      @tap="readMode === 'page' ? null : handleContentTap"
     >
       <!-- 章节标题 -->
       <view class="chapter-header">
@@ -68,13 +68,17 @@
       </view>
 
       <!-- 内容区域 -->
+      <!-- 下拉式阅读模式 / 编辑模式 -->
       <scroll-view
+        v-if="readMode === 'scroll' || currentState === 'C'"
         class="content-scroll"
         :scroll-y="currentState !== 'C'"
+        :scroll-top="scrollTopValue"
         @scroll="onScroll"
+        @tap="handleContentTap"
       >
         <!-- 只读模式 -->
-        <view v-if="currentState !== 'C'" class="content-text">
+        <view v-if="currentState !== 'C'" id="content-text-view" class="content-text">
           {{ formattedContent || '暂无内容...' }}
         </view>
 
@@ -101,6 +105,44 @@
           :style="{ height: keyboardHeight + 'px' }"
         ></view>
       </scroll-view>
+
+      <!-- 翻页式阅读模式 -->
+      <view v-else class="content-page-wrapper">
+        <view
+          v-for="(page, index) in currentPages"
+          :key="index"
+          class="page-view"
+          :class="{
+            'page-slide-left': pageTransition === 'next' && index === currentPageIndex,
+            'page-slide-right': pageTransition === 'prev' && index === currentPageIndex,
+            'page-active': index === currentPageIndex
+          }"
+          v-show="index === currentPageIndex"
+        >
+          <scroll-view class="page-scroll" scroll-y>
+            <view class="page-content">
+              <!-- 只有第一页显示标题 -->
+              <view v-if="index === 0" class="page-header">
+                <text class="page-chapter-title">{{ chapterTitle }}</text>
+                <text class="page-chapter-meta">{{ workTitle }} · {{ wordCount }}字</text>
+              </view>
+              <text class="page-text">{{ page }}</text>
+            </view>
+          </scroll-view>
+        </view>
+
+        <!-- 翻页模式点击区域覆盖层 -->
+        <view v-if="currentState !== 'C'" class="page-touch-overlay">
+          <view class="touch-zone touch-zone-left" @tap.stop="handlePagePrev"></view>
+          <view class="touch-zone touch-zone-center" @tap.stop="handleContentTap"></view>
+          <view class="touch-zone touch-zone-right" @tap.stop="handlePageNext"></view>
+        </view>
+      </view>
+
+      <!-- 翻页指示器 -->
+      <view v-if="readMode === 'page' && currentState !== 'C'" class="page-indicator">
+        <text class="page-indicator-text">{{ currentPageIndex + 1 }} / {{ currentPages.length }}</text>
+      </view>
     </view>
 
     <!-- 底部工具栏 - 深色固定主题 -->
@@ -184,6 +226,16 @@
     >
       <text class="fab-icon">✎</text>
     </view>
+    
+    <!-- 功能E：多级列表面板 -->
+    <NestedListPanel
+      ref="nestedListPanelRef"
+      :is-visible="showNestedListPanel"
+      :work-id="workId"
+      :chapter-id="chapterId"
+      :status-bar-height="statusBarHeight"
+      @close="showNestedListPanel = false"
+    />
   </view>
 </template>
 
@@ -192,12 +244,19 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import FileSystemStorage from '@/utils/fileSystemStorage.js';
 import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
+import NestedListPanel from '@/components/chapter/NestedListPanel.vue';
 
 const fileStorage = FileSystemStorage;
 
 // ============ 状态管理 ============
 // 当前状态：A-纯阅读，B-工具栏模式，C-编辑模式
 const currentState = ref('A');
+
+// 功能E滑出框状态 - 只在C状态可用
+const showNestedListPanel = ref(false);
+
+// NestedListPanel 组件引用
+const nestedListPanelRef = ref(null);
 
 // 主题
 const isDarkMode = ref(getIsDarkMode());
@@ -207,6 +266,16 @@ const localDarkMode = ref(true); // 默认深色
 
 // 工具栏激活状态
 const activeTool = ref('');
+
+// 阅读模式：scroll-下拉式，page-翻页式
+const readMode = ref('scroll');
+
+// 分页相关
+const currentPages = ref([]); // 分页内容数组
+const currentPageIndex = ref(0); // 当前页码
+
+// 翻页动画
+const pageTransition = ref(''); // 'prev' | 'next' | ''
 
 // 作品和章节信息
 const workId = ref('');
@@ -267,6 +336,9 @@ const bottomBarStyle = computed(() => {
   };
 });
 
+// 滚动位置控制
+const scrollTopValue = ref(0);
+
 // ============ 状态切换方法 ============
 
 // A → B：点击内容区域
@@ -289,6 +361,9 @@ const enterEditMode = () => {
   originalContent.value = chapterContent.value;
   undoStack.value = [];
   redoStack.value = [];
+
+  // 编辑模式强制使用下拉式
+  readMode.value = 'scroll';
 
   nextTick(() => {
     // 自动聚焦输入框
@@ -332,9 +407,10 @@ const handleSlotB = async () => {
   }
 };
 
-// E槽位：功能1
+// E槽位：功能E - 多级列表面板
 const handleSlotE = () => {
-  showSnackbarMessage('功能E开发中');
+  if (currentState.value !== 'C') return;
+  showNestedListPanel.value = !showNestedListPanel.value;
 };
 
 // F槽位：功能2
@@ -397,23 +473,42 @@ watch(editContent, (newVal, oldVal) => {
   }
 });
 
+// 监听状态变化，退出编辑模式时重新分页
+watch(currentState, (newState, oldState) => {
+  if (oldState === 'C' && newState !== 'C' && readMode.value === 'page') {
+    calculatePages();
+    currentPageIndex.value = 0;
+  }
+  // 退出C状态时关闭面板
+  if (newState !== 'C') {
+    showNestedListPanel.value = false;
+  }
+});
+
+// 监听章节内容变化，翻页模式下重新分页
+watch(chapterContent, () => {
+  if (readMode.value === 'page' && currentState.value !== 'C') {
+    calculatePages();
+  }
+});
+
 // ============ 工具栏方法 ============
 
 const handleToolTap = (tool) => {
   // 设置激活状态
   activeTool.value = tool;
-  
+
   // 300ms后清除激活状态
   setTimeout(() => {
     activeTool.value = '';
   }, 300);
-  
+
   switch (tool) {
     case 'adapt':
       showSnackbarMessage('适应手机功能开发中');
       break;
     case 'read':
-      showSnackbarMessage('阅读模式功能开发中');
+      toggleReadMode();
       break;
     case 'export':
       showSnackbarMessage('导出文档功能开发中');
@@ -431,6 +526,161 @@ const handleToolTap = (tool) => {
       showSnackbarMessage('写作板开发中');
       break;
   }
+};
+
+// ============ 阅读模式相关 ============
+
+// 切换阅读模式
+const toggleReadMode = () => {
+  // if (currentState.value === 'C') {
+  //   // 编辑模式强制使用下拉式
+  //   showSnackbarMessage('编辑模式下使用下拉式');
+  //   return;
+  // }
+
+  // if (readMode.value === 'scroll') {
+  //   // 下拉式 → 翻页式：计算分页并跳转到第一页
+  //   calculatePages();
+  //   readMode.value = 'page';
+  //   currentPageIndex.value = 0;
+  //   showSnackbarMessage('已切换到翻页模式');
+  // } else {
+  //   // 翻页式 → 下拉式：跳转到顶部
+  //   readMode.value = 'scroll';
+  //   scrollTopValue.value = 0;
+  //   showSnackbarMessage('已切换到下拉模式');
+  // }
+  // 阅读模式功能维护中
+  showSnackbarMessage('该功能维护中');
+};
+
+// 计算分页
+const calculatePages = () => {
+  // 获取原始内容并格式化
+  let content = chapterContent.value || '';
+  if (content) {
+    const lines = content.split('\n');
+    content = lines.map(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('　　')) {
+        return '　　' + trimmed;
+      }
+      return line;
+    }).join('\n');
+  } else {
+    content = '暂无内容...';
+    currentPages.value = [content];
+    return;
+  }
+
+  // 每页固定23行单位
+  const linesPerPage = 23;
+  // 每行18个字
+  const charsPerLine = 18;
+
+  // 按段落分割（保留空段落用于间距）
+  const paragraphs = content.split(/\n+/);
+
+  // 分页：每页最多23行，段落可以跨页截断
+  const pages = [];
+  let currentPageLines = 0;
+  let currentPageContent = '';
+
+  for (let i = 0; i < paragraphs.length; i++) {
+    const para = paragraphs[i];
+
+    // 空段落处理（段落间距）
+    if (!para.trim()) {
+      if (currentPageContent && currentPageLines < linesPerPage) {
+        currentPageLines += 1;
+      }
+      continue;
+    }
+
+    const paraLength = para.length;
+    // 计算这个段落需要多少行
+    const paraLines = Math.ceil(paraLength / charsPerLine);
+
+    // 如果不是第一个段落，先加1行空白（段落间距）
+    if (currentPageContent && currentPageLines < linesPerPage) {
+      currentPageLines += 1;
+    }
+
+    // 计算当前页剩余可用行数
+    const remainingLines = linesPerPage - currentPageLines;
+
+    // 检查段落是否能完整放入当前页
+    if (paraLines <= remainingLines) {
+      // 可以完整放入
+      currentPageContent += (currentPageContent ? '\n\n' : '') + para;
+      currentPageLines += paraLines;
+    } else {
+      // 段落需要跨页截断
+      // 当前页能放多少字
+      const charsInCurrentPage = remainingLines * charsPerLine;
+
+      if (charsInCurrentPage > 0) {
+        // 截断段落，第一部分放入当前页
+        currentPageContent += (currentPageContent ? '\n\n' : '') + para.substring(0, charsInCurrentPage);
+        pages.push(currentPageContent);
+
+        // 剩余部分放入下一页
+        const remainingPara = para.substring(charsInCurrentPage);
+        currentPageContent = remainingPara;
+        currentPageLines = Math.ceil(remainingPara.length / charsPerLine);
+      } else {
+        // 当前页没有空间，整个段落放入新页
+        if (currentPageContent) {
+          pages.push(currentPageContent);
+        }
+        currentPageContent = para;
+        currentPageLines = paraLines;
+      }
+    }
+  }
+
+  // 保存最后一页
+  if (currentPageContent) {
+    pages.push(currentPageContent);
+  }
+
+  // 最多100页
+  if (pages.length > 100) {
+    pages.length = 100;
+  }
+
+  currentPages.value = pages.length > 0 ? pages : [content];
+};
+
+// 上一页
+const handlePagePrev = () => {
+  if (currentPageIndex.value > 0) {
+    pageTransition.value = 'prev';
+    setTimeout(() => {
+      currentPageIndex.value--;
+      setTimeout(() => {
+        pageTransition.value = '';
+      }, 50);
+    }, 150);
+  }
+};
+
+// 下一页
+const handlePageNext = () => {
+  if (currentPageIndex.value < currentPages.value.length - 1) {
+    pageTransition.value = 'next';
+    setTimeout(() => {
+      currentPageIndex.value++;
+      setTimeout(() => {
+        pageTransition.value = '';
+      }, 50);
+    }, 150);
+  }
+};
+
+// 滚动事件
+const onScroll = () => {
+  // 滚动处理
 };
 
 const autoIndent = () => {
@@ -452,13 +702,13 @@ const autoIndent = () => {
 const loadChapterData = async () => {
   try {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value);
-    
+
     // 加载作品信息
     const workConfig = await fileStorage.readFile(`${workPath}/work.config.json`);
     if (workConfig) {
       workTitle.value = workConfig.title || '未知作品';
     }
-    
+
     // 加载章节内容
     const chapterData = await fileStorage.readFile(`${workPath}/chapters/${chapterId.value}.json`);
     if (chapterData) {
@@ -695,6 +945,7 @@ onUnload(() => {
   display: flex;
   flex-direction: column;
   padding: 16px;
+  position: relative;
   transition: padding-top 0.3s ease, padding-bottom 0.3s ease;
 }
 
@@ -746,17 +997,133 @@ onUnload(() => {
 }
 
 .content-text {
-  font-size: 17px;
+  font-size: 20px;
   line-height: 1.8;
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
+/* ============ 翻页式阅读模式 ============ */
+.content-page-wrapper {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.page-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* 下一页动画 - 当前页向左滑出 */
+.page-slide-left {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* 上一页动画 - 当前页向右滑出 */
+.page-slide-right {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.page-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+.page-content {
+  padding: 16px;
+}
+
+/* 翻页模式标题 - 只在第一页显示 */
+.page-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.page-chapter-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: inherit;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.page-chapter-meta {
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.page-text {
+  font-size: 20px;
+  line-height: 1.8;
+  color: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* 翻页模式点击区域 */
+.page-touch-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  z-index: 10;
+}
+
+.touch-zone {
+  flex: 1;
+  height: 100%;
+}
+
+/* 左侧1/3：上一页 */
+.touch-zone-left {
+  cursor: pointer;
+}
+
+/* 中间1/3：切换状态 */
+.touch-zone-center {
+  cursor: pointer;
+}
+
+/* 右侧1/3：下一页 */
+.touch-zone-right {
+  cursor: pointer;
+}
+
+/* 翻页指示器 */
+.page-indicator {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 6px 16px;
+  border-radius: 16px;
+  z-index: 50;
+}
+
+.page-indicator-text {
+  font-size: 12px;
+  color: #fff;
+}
+
 .content-editor {
   width: 100%;
   min-height: 300px;
-  font-size: 17px;
+  font-size: 20px;
   line-height: 1.8;
   background: transparent;
   color: inherit;
