@@ -34,13 +34,13 @@
         <!-- 滚动栏 -->
         <scroll-view class="scroll-list" scroll-y>
           <view
-            v-for="item in parentItems"
+            v-for="item in currentLevelItems"
             :key="item.id"
             class="list-item"
-            :class="{ active: item.id === selectedParentItem?.id }"
+            :class="{ active: item.id === selectedItem?.id }"
             @tap="handleParentItemClick(item)"
           >
-            <text class="item-text" :class="{ active: item.id === selectedParentItem?.id }">
+            <text class="item-text" :class="{ active: item.id === selectedItem?.id }">
               {{ truncateText(item.content) }}
             </text>
           </view>
@@ -56,13 +56,13 @@
         <view class="fixed-header">
           <!-- 当前选中项标题 -->
           <view class="header-title">
-            <text class="title-text">{{ selectedParentItem?.content || '请选择父项' }}</text>
+            <text class="title-text">{{ selectedItem?.content || '请选择父项' }}</text>
           </view>
           
           <!-- 新增子项按钮 -->
           <view
             class="header-btn add-btn"
-            :class="{ disabled: !selectedParentItem }"
+            :class="{ disabled: !selectedItem }"
             @tap="handleAddClick(false)"
           >
             <text class="header-icon add-icon">+</text>
@@ -89,7 +89,7 @@
           </view>
           
           <!-- 空状态 -->
-          <view v-if="childItems.length === 0 && selectedParentItem" class="empty-state">
+          <view v-if="childItems.length === 0 && selectedItem" class="empty-state">
             <text class="empty-text">暂无子项，点击上方新增</text>
           </view>
         </scroll-view>
@@ -100,6 +100,12 @@
     <view v-if="showAddDialog" class="modal-overlay" @tap="closeAddDialog">
       <view class="modal-content" @tap.stop>
         <text class="modal-title">{{ addDialogTitle }}</text>
+        
+        <!-- 重复提示 -->
+        <view v-if="duplicateMessage" class="duplicate-warning">
+          <text class="duplicate-text">{{ duplicateMessage }}</text>
+        </view>
+        
         <input
           v-model="newItemText"
           class="modal-input"
@@ -155,15 +161,17 @@ const emit = defineEmits(['close']);
 
 // ============ 响应式数据 ============
 const isAnimating = ref(false);
-const parentItems = ref([]);
-const childItems = ref([]);
-const selectedParentItem = ref(null);
-const pathHistory = ref([]); // 路径历史，用于回退
+const rootItems = ref([]); // 根级数据
+const currentLevelItems = ref([]); // 当前层级的所有项（显示在父栏）
+const childItems = ref([]); // 当前选中项的子项（显示在子栏）
+const selectedItem = ref(null); // 当前选中的项
+const pathStack = ref([]); // 路径栈，存储每一层的父项列表和选中的索引
 
 // 新增模态框
 const showAddDialog = ref(false);
-const isAddingToParent = ref(true);
+const isAddingToParentColumn = ref(true); // true=父栏新增(当前层级兄弟), false=子栏新增
 const newItemText = ref('');
+const duplicateMessage = ref('');
 
 // 确认对话框
 const showConfirmDialog = ref(false);
@@ -173,10 +181,10 @@ const confirmItem = ref(null);
 const getStorageKey = () => `nested_list_${props.workId}`;
 
 // ============ 计算属性 ============
-const isAtTopLevel = computed(() => pathHistory.value.length === 0);
+const isAtTopLevel = computed(() => pathStack.value.length === 0);
 
 const addDialogTitle = computed(() => 
-  isAddingToParent.value ? '新增父项' : '新增子项'
+  isAddingToParentColumn.value ? '新增' : '新增子项'
 );
 
 const panelStyle = computed(() => {
@@ -203,14 +211,20 @@ const loadData = () => {
   try {
     const key = getStorageKey();
     const data = uni.getStorageSync(key);
-    if (data) {
-      parentItems.value = data.parentItems || [];
-      childItems.value = data.childItems || [];
-      selectedParentItem.value = data.selectedParentItem || null;
-      pathHistory.value = data.pathHistory || [];
+    if (data && data.rootItems) {
+      rootItems.value = data.rootItems.map(item => deepCloneItem(item));
+    } else {
+      rootItems.value = [];
     }
+    // 恢复到顶层状态
+    currentLevelItems.value = rootItems.value;
+    selectedItem.value = null;
+    childItems.value = [];
+    pathStack.value = [];
   } catch (e) {
     console.error('加载数据失败:', e);
+    rootItems.value = [];
+    currentLevelItems.value = [];
   }
 };
 
@@ -218,13 +232,7 @@ const loadData = () => {
 const saveData = () => {
   try {
     const key = getStorageKey();
-    const data = {
-      parentItems: parentItems.value,
-      childItems: childItems.value,
-      selectedParentItem: selectedParentItem.value,
-      pathHistory: pathHistory.value
-    };
-    uni.setStorageSync(key, data);
+    uni.setStorageSync(key, { rootItems: rootItems.value });
   } catch (e) {
     console.error('保存数据失败:', e);
   }
@@ -233,23 +241,42 @@ const saveData = () => {
 // 处理返回点击
 const handleBackClick = () => {
   if (isAtTopLevel.value) return;
+
+  // 弹出路径栈
+  pathStack.value = pathStack.value.slice(0, -1);
   
-  const previousLevel = pathHistory.value[pathHistory.value.length - 1];
-  pathHistory.value = pathHistory.value.slice(0, -1);
-  
-  // 恢复上一层状态
-  parentItems.value = previousLevel.parentItems;
-  selectedParentItem.value = previousLevel.selectedParent;
-  childItems.value = previousLevel.selectedParent?.children || [];
-  
-  saveData();
+  if (pathStack.value.length === 0) {
+    // 回到顶层
+    currentLevelItems.value = rootItems.value;
+    selectedItem.value = null;
+    childItems.value = [];
+  } else {
+    // 回到上一层
+    const parentLevel = pathStack.value[pathStack.value.length - 1];
+    currentLevelItems.value = parentLevel.items;
+    selectedItem.value = parentLevel.selectedItem;
+    childItems.value = parentLevel.selectedItem?.children || [];
+  }
+};
+
+// 检查父栏是否重复
+const isParentDuplicate = (content) => {
+  return currentLevelItems.value.some(item => item.content === content);
+};
+
+// 检查子栏是否重复
+const isChildDuplicate = (content) => {
+  return childItems.value.some(item => item.content === content);
 };
 
 // 处理新增点击
 const handleAddClick = (toParent) => {
-  if (!toParent && !selectedParentItem.value) return;
-  isAddingToParent.value = toParent;
+  // 父栏新增：始终是添加当前层级的兄弟项
+  // 子栏新增：添加选中项的子项
+  if (!toParent && !selectedItem.value) return;
+  isAddingToParentColumn.value = toParent;
   newItemText.value = '';
+  duplicateMessage.value = '';
   showAddDialog.value = true;
 };
 
@@ -257,6 +284,7 @@ const handleAddClick = (toParent) => {
 const closeAddDialog = () => {
   showAddDialog.value = false;
   newItemText.value = '';
+  duplicateMessage.value = '';
 };
 
 // 确认新增
@@ -273,19 +301,32 @@ const confirmAddItem = () => {
     children: []
   };
   
-  if (isAddingToParent.value) {
-    // 添加到父栏
+  // 防重复检测
+  if (isAddingToParentColumn.value) {
+    if (isParentDuplicate(content)) {
+      duplicateMessage.value = `「${content}」已存在于当前列表中`;
+      return;
+    }
+    
+    // 父栏新增：添加到当前层级列表
+    currentLevelItems.value.push(newItem);
+    
+    // 如果是顶层，同时更新rootItems
     if (isAtTopLevel.value) {
-      parentItems.value.push(newItem);
-    } else {
-      // 在非顶层时，添加到当前父项
-      selectedParentItem.value.children.push(newItem);
-      childItems.value = [...selectedParentItem.value.children];
+      rootItems.value = currentLevelItems.value;
     }
   } else {
-    // 添加到子栏
-    selectedParentItem.value.children.push(newItem);
-    childItems.value = [...selectedParentItem.value.children];
+    if (isChildDuplicate(content)) {
+      duplicateMessage.value = `「${content}」已存在于当前子列表中`;
+      return;
+    }
+    
+    // 子栏新增：添加选中项的子项
+    if (!selectedItem.value.children) {
+      selectedItem.value.children = [];
+    }
+    selectedItem.value.children.push(newItem);
+    childItems.value = [...selectedItem.value.children];
   }
   
   saveData();
@@ -294,9 +335,8 @@ const confirmAddItem = () => {
 
 // 处理父栏项点击
 const handleParentItemClick = (item) => {
-  selectedParentItem.value = item;
+  selectedItem.value = item;
   childItems.value = item.children || [];
-  saveData();
 };
 
 // 处理子栏项点击
@@ -311,35 +351,44 @@ const closeConfirmDialog = () => {
   confirmItem.value = null;
 };
 
+// 深拷贝NestedItem
+const deepCloneItem = (item) => {
+  if (!item) return null;
+  return {
+    id: item.id,
+    content: item.content,
+    children: (item.children || []).map(child => deepCloneItem(child))
+  };
+};
+
 // 确认进入子层级
 const confirmEnterChildLevel = () => {
-  if (!confirmItem.value || !selectedParentItem.value) {
+  if (!confirmItem.value || !selectedItem.value) {
     closeConfirmDialog();
     return;
   }
-  
-  // 保存当前层级到历史
-  const currentLevel = {
-    parentItems: [...parentItems.value],
-    selectedParent: { ...selectedParentItem.value }
-  };
-  pathHistory.value = [...pathHistory.value, currentLevel];
-  
+
+  // 保存当前层级到路径栈
+  pathStack.value = [...pathStack.value, {
+    items: currentLevelItems.value,
+    selectedItem: selectedItem.value
+  }];
+
   // 进入子层级：将当前子项列表作为新的父项列表
-  parentItems.value = [...childItems.value];
-  selectedParentItem.value = confirmItem.value;
+  currentLevelItems.value = selectedItem.value.children || [];
+  selectedItem.value = confirmItem.value;
   childItems.value = confirmItem.value.children || [];
-  
-  saveData();
+
   closeConfirmDialog();
 };
 
 // 清空所有数据（用于重置）
 const clearAll = () => {
-  parentItems.value = [];
+  rootItems.value = [];
+  currentLevelItems.value = [];
   childItems.value = [];
-  selectedParentItem.value = null;
-  pathHistory.value = [];
+  selectedItem.value = null;
+  pathStack.value = [];
   saveData();
 };
 
@@ -360,6 +409,15 @@ defineExpose({
   loadData,
   saveData
 });
+
+// 获取当前层级数据引用（用于保存）
+const getCurrentLevelRoot = () => {
+  if (pathStack.value.length === 0) {
+    return rootItems;
+  }
+  // 从路径栈找到根
+  return rootItems;
+};
 </script>
 
 <style scoped>
@@ -371,12 +429,14 @@ defineExpose({
   height: 66.67vh;
   background: #1e1e1e;
   border-bottom-left-radius: 16rpx;
-  z-index: 90;
+  z-index: 200;
   transform: translateX(100%);
   opacity: 0;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+  /* 防止触摸事件穿透 */
+  touch-action: none;
 }
 
 .nested-list-panel.show {
@@ -388,6 +448,8 @@ defineExpose({
   display: flex;
   width: 100%;
   height: 100%;
+  /* 防止触摸事件穿透 */
+  touch-action: none;
 }
 
 /* ============ 父栏（左侧） ============ */
@@ -396,6 +458,8 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* 防止触摸事件穿透 */
+  touch-action: pan-y;
 }
 
 /* ============ 子栏（右侧） ============ */
@@ -404,6 +468,8 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* 防止触摸事件穿透 */
+  touch-action: pan-y;
 }
 
 /* ============ 列分隔线 ============ */
@@ -417,12 +483,14 @@ defineExpose({
 .fixed-header {
   background: #252525;
   padding: 0 12rpx;
+  flex-shrink: 0;
 }
 
 .header-btn {
   display: flex;
   align-items: center;
   height: 96rpx;
+  min-height: 96rpx;
   padding: 0 12rpx;
 }
 
@@ -451,6 +519,7 @@ defineExpose({
 
 .header-title {
   height: 96rpx;
+  min-height: 96rpx;
   display: flex;
   align-items: center;
   padding: 0 12rpx;
@@ -473,6 +542,8 @@ defineExpose({
 /* ============ 滚动列表 ============ */
 .scroll-list {
   flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ============ 列表项 ============ */
@@ -558,6 +629,19 @@ defineExpose({
   color: #e0e0e0;
   margin-bottom: 32rpx;
   display: block;
+}
+
+/* ============ 重复提示 ============ */
+.duplicate-warning {
+  background: rgba(139, 0, 0, 0.8);
+  border-radius: 8rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.duplicate-text {
+  font-size: 28rpx;
+  color: #fff;
 }
 
 .confirm-message {
