@@ -48,7 +48,8 @@
       :class="{
         'with-top-bar': currentState !== 'A',
         'with-bottom-bar': currentState === 'B',
-        'with-expanded-bar': currentState === 'C'
+        'with-expanded-bar': currentState === 'C',
+        'panel-open': showNestedListPanel || showGlossaryPanel
       }"
       @tap="readMode === 'page' ? null : handleContentTap"
     >
@@ -85,6 +86,7 @@
         <!-- 编辑模式 -->
         <textarea
           v-else
+          ref="editorRef"
           class="content-editor"
           v-model="editContent"
           placeholder="开始写作..."
@@ -92,6 +94,8 @@
           :auto-height="true"
           :adjust-position="false"
           :cursor-spacing="0"
+          :focus="editorFocused"
+          :confirm-hold="true"
           @input="onContentInput"
           @focus="onEditorFocus"
           @blur="onEditorBlur"
@@ -236,6 +240,17 @@
       :status-bar-height="statusBarHeight"
       @close="showNestedListPanel = false"
     />
+    
+    <!-- 功能G：词库面板 -->
+    <GlossaryPanel
+      ref="glossaryPanelRef"
+      :is-visible="showGlossaryPanel"
+      :work-id="workId"
+      :chapter-id="chapterId"
+      :status-bar-height="statusBarHeight"
+      @close="showGlossaryPanel = false"
+      @insert-text="handleInsertText"
+    />
   </view>
 </template>
 
@@ -245,6 +260,7 @@ import { onLoad, onUnload } from '@dcloudio/uni-app';
 import FileSystemStorage from '@/utils/fileSystemStorage.js';
 import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
 import NestedListPanel from '@/components/chapter/NestedListPanel.vue';
+import GlossaryPanel from '@/components/chapter/GlossaryPanel.vue';
 
 const fileStorage = FileSystemStorage;
 
@@ -255,8 +271,20 @@ const currentState = ref('A');
 // 功能E滑出框状态 - 只在C状态可用
 const showNestedListPanel = ref(false);
 
+// 功能G滑出框状态 - 只在C状态可用
+const showGlossaryPanel = ref(false);
+
 // NestedListPanel 组件引用
 const nestedListPanelRef = ref(null);
+
+// GlossaryPanel 组件引用
+const glossaryPanelRef = ref(null);
+
+// 编辑器引用
+const editorRef = ref(null);
+
+// 编辑器光标位置
+const editorCursorPosition = ref(0);
 
 // 主题
 const isDarkMode = ref(getIsDarkMode());
@@ -411,23 +439,67 @@ const handleSlotB = async () => {
 const handleSlotE = () => {
   if (currentState.value !== 'C') return;
   showNestedListPanel.value = !showNestedListPanel.value;
+  // E和G互斥：打开E时关闭G
+  if (showNestedListPanel.value) {
+    showGlossaryPanel.value = false;
+  }
 };
 
-// F槽位：功能2
+// F槽位：功能F - 在B和C状态都可用
 const handleSlotF = () => {
   showSnackbarMessage('功能F开发中');
 };
 
-// G槽位：功能3
+// G槽位：功能G - 词库面板
 const handleSlotG = () => {
-  showSnackbarMessage('功能G开发中');
+  if (currentState.value !== 'C') return;
+  showGlossaryPanel.value = !showGlossaryPanel.value;
+  // E和G互斥：打开G时关闭E
+  if (showGlossaryPanel.value) {
+    showNestedListPanel.value = false;
+  }
+};
+
+// 编辑器focus状态
+const editorFocused = ref(false);
+
+// 处理词库插入文本
+const handleInsertText = (text) => {
+  if (currentState.value !== 'C') return;
+  
+  // 使用记录的光标位置
+  const cursorPos = editorCursorPosition.value || editContent.value.length;
+  const before = editContent.value.slice(0, cursorPos);
+  const after = editContent.value.slice(cursorPos);
+  editContent.value = before + text + after;
+  
+  // 更新字数（不包含缩进）
+  wordCount.value = calculateWordCount(editContent.value);
+  hasChanges.value = true;
+  
+  // 更新光标位置
+  const newCursorPos = cursorPos + text.length;
+  editorCursorPosition.value = newCursorPos;
+  
+  // 设置focus状态，触发编辑器聚焦
+  nextTick(() => {
+    editorFocused.value = true;
+    // 150ms后重置，允许下次聚焦
+    setTimeout(() => {
+      editorFocused.value = false;
+    }, 150);
+  });
 };
 
 // ============ 编辑相关方法 ============
 
-const onContentInput = () => {
-  wordCount.value = editContent.value.length;
+const onContentInput = (e) => {
+  wordCount.value = calculateWordCount(editContent.value);
   hasChanges.value = true;
+  // 记录光标位置
+  if (e && e.detail) {
+    editorCursorPosition.value = e.detail.cursor || editContent.value.length;
+  }
 };
 
 const onEditorFocus = () => {
@@ -449,7 +521,7 @@ const handleUndo = () => {
   if (!canUndo.value) return;
   redoStack.value.push(editContent.value);
   editContent.value = undoStack.value.pop();
-  wordCount.value = editContent.value.length;
+  wordCount.value = calculateWordCount(editContent.value);
 };
 
 // 重做
@@ -457,21 +529,85 @@ const handleRedo = () => {
   if (!canRedo.value) return;
   undoStack.value.push(editContent.value);
   editContent.value = redoStack.value.pop();
-  wordCount.value = editContent.value.length;
+  wordCount.value = calculateWordCount(editContent.value);
 };
 
 // 保存更改标记
 const hasChanges = ref(false);
 
+// 标记是否正在处理自动缩进，防止循环
+let isApplyingIndent = false;
+
+// 计算字数（不包含缩进的全角空格）
+const calculateWordCount = (content) => {
+  if (!content) return 0;
+  // 去掉所有缩进的全角空格后计算长度
+  return content.replace(/　　/g, '').length;
+};
+
 // 监听内容变化，加入撤销栈
 watch(editContent, (newVal, oldVal) => {
-  if (oldVal && newVal !== oldVal && currentState.value === 'C') {
+  if (isApplyingIndent) return; // 如果是自动缩进触发的变化，跳过
+  
+  if (oldVal !== undefined && newVal !== oldVal && currentState.value === 'C') {
     undoStack.value.push(oldVal);
     if (undoStack.value.length > 50) {
       undoStack.value.shift();
     }
+    
+    // 检测是否刚刚输入了换行符（行数增加且实际包含换行符）
+    const oldLines = (oldVal || '').split('\n');
+    const newLines = (newVal || '').split('\n');
+    
+    // 只有当行数增加且新内容包含实际的\n换行符时才触发（防止视觉软换行误触发）
+    if (newLines.length > oldLines.length && newVal.includes('\n')) {
+      // 延迟处理，确保textarea已完成更新
+      setTimeout(() => {
+        applyAutoIndentOnNewLine(oldLines, newLines);
+      }, 10);
+    }
   }
 });
+
+// 自动缩进新行（只处理因换行产生的新行和上一行）
+const applyAutoIndentOnNewLine = (oldLines, newLines) => {
+  isApplyingIndent = true;
+  
+  // 结果行数组
+  const resultLines = [...newLines];
+  let hasChanged = false;
+  
+  // 给旧行的最后一行（用户刚刚写完的那行）添加缩进
+  const lastOldLineIndex = oldLines.length - 1;
+  if (lastOldLineIndex >= 0) {
+    const lastOldLine = oldLines[lastOldLineIndex];
+    if (!lastOldLine.startsWith('　　')) {
+      resultLines[lastOldLineIndex] = '　　' + lastOldLine;
+      hasChanged = true;
+    }
+  }
+  
+  // 给所有新增的行添加缩进（从旧行长度开始到新高度的所有行）
+  for (let i = oldLines.length; i < newLines.length; i++) {
+    const line = newLines[i];
+    // 如果当前行没有缩进，添加缩进（包括空行）
+    if (!line.startsWith('　　')) {
+      resultLines[i] = '　　' + line;
+      hasChanged = true;
+    }
+  }
+  
+  if (hasChanged) {
+    editContent.value = resultLines.join('\n');
+    // 使用不含缩进的字数统计
+    wordCount.value = calculateWordCount(editContent.value);
+  }
+  
+  // 延迟重置标记
+  setTimeout(() => {
+    isApplyingIndent = false;
+  }, 50);
+};
 
 // 监听状态变化，退出编辑模式时重新分页
 watch(currentState, (newState, oldState) => {
@@ -479,9 +615,10 @@ watch(currentState, (newState, oldState) => {
     calculatePages();
     currentPageIndex.value = 0;
   }
-  // 退出C状态时关闭面板
+  // 退出C状态时关闭E和G面板
   if (newState !== 'C') {
     showNestedListPanel.value = false;
+    showGlossaryPanel.value = false;
   }
 });
 
@@ -714,7 +851,7 @@ const loadChapterData = async () => {
     if (chapterData) {
       chapterTitle.value = chapterData.title || '未命名章节';
       chapterContent.value = chapterData.content || '';
-      wordCount.value = chapterData.word_count || chapterContent.value.length;
+      wordCount.value = chapterData.word_count || calculateWordCount(chapterContent.value);
     }
   } catch (error) {
     console.error('加载章节数据失败:', error);
@@ -959,6 +1096,12 @@ onUnload(() => {
 
 .content-area.with-expanded-bar {
   padding-bottom: 56px;
+}
+
+/* 滑块打开时，内容区域禁止滚动（防止穿透） */
+.content-area.panel-open {
+  overflow: hidden;
+  touch-action: none;
 }
 
 .chapter-header {
