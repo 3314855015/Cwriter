@@ -79,7 +79,7 @@
         @tap="handleContentTap"
       >
         <!-- 只读模式 -->
-        <view v-if="currentState !== 'C'" id="content-text-view" class="content-text">
+        <view v-if="currentState !== 'C'" id="content-text-view" class="content-text" :style="textStyle">
           {{ formattedContent || '暂无内容...' }}
         </view>
 
@@ -88,6 +88,7 @@
           v-else
           ref="editorRef"
           class="content-editor"
+          :style="textStyle"
           v-model="editContent"
           placeholder="开始写作..."
           :maxlength="-1"
@@ -130,7 +131,7 @@
                 <text class="page-chapter-title">{{ chapterTitle }}</text>
                 <text class="page-chapter-meta">{{ workTitle }} · {{ wordCount }}字</text>
               </view>
-              <text class="page-text">{{ page }}</text>
+              <text class="page-text" :style="textStyle">{{ page }}</text>
             </view>
           </scroll-view>
         </view>
@@ -263,6 +264,26 @@ import NestedListPanel from '@/components/chapter/NestedListPanel.vue';
 import GlossaryPanel from '@/components/chapter/GlossaryPanel.vue';
 
 const fileStorage = FileSystemStorage;
+
+// ============ 字体样式管理 ============
+// 字体大小配置（单位：px）
+const fontSize = ref(19); // 默认四号字约19px
+// 行距配置（倍数）
+const lineHeight = ref(1.8); // 默认1.5倍行距
+
+// 计算实际行高（用于样式绑定）
+const computedLineHeight = computed(() => {
+  return `${lineHeight.value}`;
+});
+
+// 字体样式对象（用于动态绑定）
+const textStyle = computed(() => {
+  return {
+    fontSize: `${fontSize.value}px`,
+    lineHeight: computedLineHeight.value,
+    fontFamily: "'CustomSongTi', 'SimSun', '宋体', serif"
+  };
+});
 
 // ============ 状态管理 ============
 // 当前状态：A-纯阅读，B-工具栏模式，C-编辑模式
@@ -917,9 +938,21 @@ const showSnackbarMessage = (message) => {
 // ============ 生命周期 ============
 
 onLoad((options) => {
+  // 加载自定义字体
+  uni.loadFontFace({
+    family: 'CustomSongTi',
+    source: 'url("/static/fonts/SourceHanSerifSC-Regular.otf")',
+    success: () => {
+      console.log('字体加载成功');
+    },
+    fail: (err) => {
+      console.error('字体加载失败:', err);
+    }
+  });
+
   // 初始化主题
   isDarkMode.value = themeManager.isDarkMode();
-  
+
   // 监听主题变化
   try {
     uni.$on('theme-changed', (data) => {
@@ -928,7 +961,7 @@ onLoad((options) => {
   } catch (e) {
     console.warn('主题监听设置失败');
   }
-  
+
   // 获取系统信息
   try {
     const systemInfo = uni.getSystemInfoSync();
@@ -938,23 +971,23 @@ onLoad((options) => {
   } catch (e) {
     console.warn('获取系统信息失败');
   }
-  
+
   // 监听键盘高度变化
   uni.onKeyboardHeightChange((res) => {
     keyboardHeight.value = res.height;
   });
-  
+
   // 获取页面参数
   if (!options?.workId || !options?.chapterId) {
     showSnackbarMessage('参数错误');
     setTimeout(() => uni.navigateBack(), 1000);
     return;
   }
-  
+
   workId.value = options.workId;
   chapterId.value = options.chapterId;
   userId.value = options.userId || 'default_user';
-  
+
   // 加载数据
   loadChapterData();
 });
@@ -1140,8 +1173,6 @@ onUnload(() => {
 }
 
 .content-text {
-  font-size: 20px;
-  line-height: 1.8;
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -1208,8 +1239,6 @@ onUnload(() => {
 }
 
 .page-text {
-  font-size: 20px;
-  line-height: 1.8;
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -1266,8 +1295,6 @@ onUnload(() => {
 .content-editor {
   width: 100%;
   min-height: 300px;
-  font-size: 20px;
-  line-height: 1.8;
   background: transparent;
   color: inherit;
   border: none;
