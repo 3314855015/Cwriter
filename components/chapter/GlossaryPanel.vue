@@ -163,7 +163,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['close', 'insertText']);
+const emit = defineEmits(['close', 'insertText', 'beforeInsert']);
 
 // ============ 常量 ============
 // 获取存储键名（带作品ID）
@@ -382,7 +382,12 @@ const confirmAddItem = () => {
 
 // 处理子项点击（插入文本）
 const handleChildItemClick = (item) => {
-  emit('insertText', item.name);
+  // 先通知父组件准备插入（让父组件记录光标位置）
+  emit('beforeInsert');
+  // 延迟一点执行插入，确保父组件已记录光标位置
+  setTimeout(() => {
+    emit('insertText', item.name);
+  }, 50);
 };
 
 // 处理子项长按（显示详情）

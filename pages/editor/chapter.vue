@@ -95,6 +95,9 @@
           :auto-height="true"
           :adjust-position="false"
           :cursor-spacing="0"
+          :cursor="editorCursorPosition"
+          :selection-start="editorCursorPosition"
+          :selection-end="editorCursorPosition"
           :focus="editorFocused"
           :confirm-hold="true"
           @input="onContentInput"
@@ -250,6 +253,7 @@
       :chapter-id="chapterId"
       :status-bar-height="statusBarHeight"
       @close="showGlossaryPanel = false"
+      @before-insert="handleBeforeInsert"
       @insert-text="handleInsertText"
     />
   </view>
@@ -405,17 +409,32 @@ const handleContentTap = () => {
 const enterEditMode = () => {
   if (currentState.value !== 'B') return;
 
+  // 标记为正在初始化，跳过自动缩进处理
+  isApplyingIndent = true;
+
   currentState.value = 'C';
   editContent.value = chapterContent.value;
   originalContent.value = chapterContent.value;
   undoStack.value = [];
   redoStack.value = [];
+  
+  // 初始化光标位置
+  editorCursorPosition.value = editContent.value.length;
 
   // 编辑模式强制使用下拉式
   readMode.value = 'scroll';
 
+  // 延迟重置标记，确保watch不会触发自动缩进
+  setTimeout(() => {
+    isApplyingIndent = false;
+  }, 100);
+
   nextTick(() => {
     // 自动聚焦输入框
+    editorFocused.value = true;
+    setTimeout(() => {
+      editorFocused.value = false;
+    }, 150);
   });
 };
 
@@ -474,6 +493,29 @@ const handleSlotF = () => {
 // G槽位：功能G - 词库面板
 const handleSlotG = () => {
   if (currentState.value !== 'C') return;
+  
+  // 如果即将打开面板，先记录当前光标位置
+  if (!showGlossaryPanel.value) {
+    // 尝试获取当前光标位置（通过textarea的selectionStart）
+    const query = uni.createSelectorQuery().in(this);
+    query.select('.content-editor').fields({
+      context: true
+    }, (res) => {
+      if (res && res.context) {
+        // 如果可能，获取光标位置
+        try {
+          const textarea = res.context;
+          if (textarea.selectionStart !== undefined) {
+            editorCursorPosition.value = textarea.selectionStart;
+          }
+        } catch (e) {
+          // 如果无法获取，使用当前内容长度
+          editorCursorPosition.value = editContent.value.length;
+        }
+      }
+    }).exec();
+  }
+  
   showGlossaryPanel.value = !showGlossaryPanel.value;
   // E和G互斥：打开G时关闭E
   if (showGlossaryPanel.value) {
@@ -484,12 +526,49 @@ const handleSlotG = () => {
 // 编辑器focus状态
 const editorFocused = ref(false);
 
+// 处理词库插入前的准备（记录光标位置）
+const handleBeforeInsert = () => {
+  // 尝试通过 selector query 获取 textarea 的光标位置
+  try {
+    const pages = getCurrentPages();
+    const currentPage = pages[pages.length - 1];
+    const query = uni.createSelectorQuery().in(currentPage);
+    query.select('.content-editor').fields({
+      context: true,
+      node: true
+    }, (res) => {
+      if (res && res.node) {
+        // 微信小程序端可以通过节点获取
+        const node = res.node;
+        if (node.selectionStart !== undefined) {
+          editorCursorPosition.value = node.selectionStart;
+        }
+      }
+    }).exec();
+  } catch (e) {
+    // 获取失败时保持当前记录的位置
+    console.log('获取光标位置失败，使用记录值:', editorCursorPosition.value);
+  }
+};
+
 // 处理词库插入文本
 const handleInsertText = (text) => {
   if (currentState.value !== 'C') return;
   
-  // 使用记录的光标位置
-  const cursorPos = editorCursorPosition.value || editContent.value.length;
+  // 标记为正在应用外部插入，跳过自动缩进处理
+  isApplyingIndent = true;
+  
+  // 使用记录的光标位置（如果为0则可能是未初始化，使用末尾）
+  let cursorPos = editorCursorPosition.value;
+  if (!cursorPos || cursorPos <= 0) {
+    cursorPos = editContent.value.length;
+  }
+  
+  // 确保光标位置不超过内容长度
+  if (cursorPos > editContent.value.length) {
+    cursorPos = editContent.value.length;
+  }
+  
   const before = editContent.value.slice(0, cursorPos);
   const after = editContent.value.slice(cursorPos);
   editContent.value = before + text + after;
@@ -501,6 +580,11 @@ const handleInsertText = (text) => {
   // 更新光标位置
   const newCursorPos = cursorPos + text.length;
   editorCursorPosition.value = newCursorPos;
+  
+  // 延迟重置标记
+  setTimeout(() => {
+    isApplyingIndent = false;
+  }, 50);
   
   // 设置focus状态，触发编辑器聚焦
   nextTick(() => {
@@ -517,18 +601,26 @@ const handleInsertText = (text) => {
 const onContentInput = (e) => {
   wordCount.value = calculateWordCount(editContent.value);
   hasChanges.value = true;
-  // 记录光标位置
+  // 记录光标位置（优先使用 detail.cursor，否则通过 target 获取）
   if (e && e.detail) {
-    editorCursorPosition.value = e.detail.cursor || editContent.value.length;
+    editorCursorPosition.value = e.detail.cursor ?? editContent.value.length;
   }
 };
 
-const onEditorFocus = () => {
-  // 编辑器获得焦点
+const onEditorFocus = (e) => {
+  // 编辑器获得焦点时记录光标位置
+  if (e && e.detail) {
+    const pos = e.detail.cursor ?? e.detail.value?.length ?? editContent.value.length;
+    editorCursorPosition.value = pos;
+  }
 };
 
-const onEditorBlur = () => {
-  // 编辑器失去焦点
+const onEditorBlur = (e) => {
+  // 编辑器失去焦点时记录光标位置
+  // 优先使用 detail.cursor，如果没有则尝试其他方式
+  if (e && e.detail) {
+    editorCursorPosition.value = e.detail.cursor ?? editorCursorPosition.value;
+  }
 };
 
 const onKeyboardHeightChange = (e) => {
