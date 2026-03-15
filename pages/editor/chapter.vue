@@ -25,8 +25,8 @@
         <!-- D槽位：留白 -->
         <view class="slot slot-spacer flex-1"></view>
 
-        <!-- E槽位：图标 (占1字符) - 只在C状态显示 -->
-        <view v-if="currentState === 'C'" class="slot slot-icon" @tap="handleSlotE">
+        <!-- E槽位：图标 (占1字符) -->
+        <view class="slot slot-icon" @tap="handleSlotE">
           <image class="slot-icon-img" src="/static/icons/E.png" mode="aspectFit" />
         </view>
 
@@ -538,7 +538,10 @@ const handleSlotB = async () => {
 
 // E槽位：功能E - 多级列表面板
 const handleSlotE = () => {
-  if (currentState.value !== 'C') return;
+  if (currentState.value !== 'C') {
+    showSnackbarMessage('请在编辑模式下使用故事线功能');
+    return;
+  }
   showNestedListPanel.value = !showNestedListPanel.value;
   // E和G互斥：打开E时关闭G
   if (showNestedListPanel.value) {
@@ -720,8 +723,10 @@ const handleDeleteForeshadowing = ({ foreshadowingId }) => {
 
 // G槽位：功能G - 词库面板
 const handleSlotG = () => {
-  if (currentState.value !== 'C') return;
-  
+  if (currentState.value !== 'C') {
+    showSnackbarMessage('请在编辑模式下使用写作板功能');
+    return;
+  }
   // 如果即将打开面板，先记录当前光标位置
   if (!showGlossaryPanel.value) {
     // 尝试获取当前光标位置（通过textarea的selectionStart）
