@@ -78,33 +78,56 @@
         @scroll="onScroll"
         @tap="handleContentTap"
       >
-        <!-- 只读模式 -->
-        <view v-if="currentState !== 'C'" id="content-text-view" class="content-text" :style="textStyle">
-          {{ formattedContent || '暂无内容...' }}
-        </view>
+        <!-- 内容容器 -->
+        <view class="content-container">
+          <!-- 只读模式 - 分段显示 -->
+          <view v-if="currentState !== 'C'" class="content-text-wrapper" id="content-text-wrapper" :style="{ paddingRight: showForeshadowingPanel ? '20px' : '0' }">
+            <view
+              v-for="(paragraph, index) in displayParagraphs"
+              :key="index"
+              :id="'paragraph-' + index"
+              class="content-paragraph"
+              :style="textStyle"
+            >
+              {{ paragraph }}
+            </view>
+            <view v-if="displayParagraphs.length === 0" class="content-text empty" :style="textStyle">
+              暂无内容...
+            </view>
+            
+            <!-- 功能F：伏笔面板 - 只读模式下显示，跟随内容滚动 -->
+            <ForeshadowingPanel
+              v-if="showForeshadowingPanel === true && paragraphBounds.length > 0"
+              :paragraph-bounds="paragraphBounds"
+              :foreshadowings="foreshadowings"
+              :chapter-id="chapterId"
+              @icon-click="handleForeshadowingIconClick"
+            />
+          </view>
 
-        <!-- 编辑模式 -->
-        <textarea
-          v-else
-          ref="editorRef"
-          class="content-editor"
-          :style="textStyle"
-          v-model="editContent"
-          placeholder="开始写作..."
-          :maxlength="-1"
-          :auto-height="true"
-          :adjust-position="false"
-          :cursor-spacing="0"
-          :cursor="editorCursorPosition"
-          :selection-start="editorCursorPosition"
-          :selection-end="editorCursorPosition"
-          :focus="editorFocused"
-          :confirm-hold="true"
-          @input="onContentInput"
-          @focus="onEditorFocus"
-          @blur="onEditorBlur"
-          @keyboardheightchange="onKeyboardHeightChange"
-        />
+          <!-- 编辑模式 -->
+          <textarea
+            v-else
+            ref="editorRef"
+            class="content-editor"
+            :style="textStyle"
+            v-model="editContent"
+            placeholder="开始写作..."
+            :maxlength="-1"
+            :auto-height="true"
+            :adjust-position="false"
+            :cursor-spacing="0"
+            :cursor="editorCursorPosition"
+            :selection-start="editorCursorPosition"
+            :selection-end="editorCursorPosition"
+            :focus="editorFocused"
+            :confirm-hold="true"
+            @input="onContentInput"
+            @focus="onEditorFocus"
+            @blur="onEditorBlur"
+            @keyboardheightchange="onKeyboardHeightChange"
+          />
+        </view>
 
         <!-- 键盘弹出时的底部占位 -->
         <view
@@ -256,16 +279,32 @@
       @before-insert="handleBeforeInsert"
       @insert-text="handleInsertText"
     />
+    
+    <!-- 功能F：伏笔操作弹窗 -->
+    <ForeshadowingBottomSheet
+      :is-visible="showForeshadowingSheet"
+      :paragraph-index="selectedParagraphIndex"
+      :foreshadowings="foreshadowings"
+      :chapter-id="chapterId"
+      :chapters="chapters"
+      @close="showForeshadowingSheet = false"
+      @create="handleCreateForeshadowing"
+      @recycle="handleRecycleForeshadowing"
+      @unrecycle="handleUnrecycleForeshadowing"
+      @delete="handleDeleteForeshadowing"
+    />
   </view>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, provide } from 'vue';
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import FileSystemStorage from '@/utils/fileSystemStorage.js';
 import themeManager, { isDarkMode as getIsDarkMode } from '@/utils/themeManager.js';
 import NestedListPanel from '@/components/chapter/NestedListPanel.vue';
 import GlossaryPanel from '@/components/chapter/GlossaryPanel.vue';
+import ForeshadowingPanel from '@/components/chapter/ForeshadowingPanel.vue';
+import ForeshadowingBottomSheet from '@/components/chapter/ForeshadowingBottomSheet.vue';
 
 const fileStorage = FileSystemStorage;
 
@@ -299,6 +338,14 @@ const showNestedListPanel = ref(false);
 // 功能G滑出框状态 - 只在C状态可用
 const showGlossaryPanel = ref(false);
 
+// 功能F（伏笔）状态 - B状态可开关
+const showForeshadowingSheet = ref(false);
+const showForeshadowingPanel = ref(false);
+const selectedParagraphIndex = ref(0);
+const foreshadowings = ref([]);
+const chapters = ref([]); // 章节列表（用于显示章名）
+const paragraphBounds = ref([]); // 段落位置信息
+
 // NestedListPanel 组件引用
 const nestedListPanelRef = ref(null);
 
@@ -313,6 +360,7 @@ const editorCursorPosition = ref(0);
 
 // 主题
 const isDarkMode = ref(getIsDarkMode());
+provide('isDarkMode', isDarkMode);
 
 // 局部主题（仅影响内容区域）
 const localDarkMode = ref(true); // 默认深色
@@ -374,6 +422,19 @@ const formattedContent = computed(() => {
     }
     return line;
   }).join('\n');
+});
+
+// 分段显示的段落数组（用于伏笔定位）
+const displayParagraphs = computed(() => {
+  if (!chapterContent.value) return [];
+  const lines = chapterContent.value.split('\n');
+  return lines.map(line => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('　　')) {
+      return '　　' + trimmed;
+    }
+    return line;
+  }).filter(line => line.trim()); // 过滤空行
 });
 
 // 底部工具栏样式 - 键盘弹出时跟随
@@ -485,9 +546,176 @@ const handleSlotE = () => {
   }
 };
 
-// F槽位：功能F - 在B和C状态都可用
+// F槽位：功能F - 伏笔功能，在B和C状态都可用
 const handleSlotF = () => {
-  showSnackbarMessage('功能F开发中');
+  if (currentState.value === 'B') {
+    // B状态：切换伏笔面板显示
+    showForeshadowingPanel.value = !showForeshadowingPanel.value;
+    if (showForeshadowingPanel.value) {
+      loadForeshadowings();
+      nextTick(() => {
+        calculateParagraphBounds();
+      });
+    }
+  } else if (currentState.value === 'C') {
+    // C状态：显示提示
+    showSnackbarMessage('请在阅读模式下使用伏笔功能');
+  }
+};
+
+// 计算段落位置
+const calculateParagraphBounds = () => {
+  if (displayParagraphs.value.length === 0) {
+    paragraphBounds.value = [];
+    return;
+  }
+  
+  try {
+    const query = uni.createSelectorQuery();
+    
+    // 先查询内容容器
+    query.select('#content-text-wrapper').boundingClientRect();
+    
+    // 查询所有段落元素
+    displayParagraphs.value.forEach((_, index) => {
+      query.select(`#paragraph-${index}`).boundingClientRect();
+    });
+    
+    query.exec((res) => {
+      if (!res || res.length === 0) return;
+      
+      // 第一个结果是容器的位置
+      const containerRect = res[0];
+      if (!containerRect) return;
+      
+      const containerTop = containerRect.top;
+      const bounds = [];
+      
+      // 后面的结果是段落的位置
+      for (let i = 1; i < res.length; i++) {
+        const rect = res[i];
+        if (rect) {
+          // 计算相对于容器的位置
+          const relativeTop = rect.top - containerTop;
+          const relativeBottom = rect.bottom - containerTop;
+          bounds.push({
+            index: i - 1,
+            top: relativeTop,
+            bottom: relativeBottom,
+            centerY: (relativeTop + relativeBottom) / 2
+          });
+        }
+      }
+      
+      console.log('计算完成，bounds:', bounds);
+      paragraphBounds.value = bounds;
+    });
+  } catch (e) {
+    console.error('计算段落位置失败:', e);
+  }
+};
+
+// 加载伏笔数据和章节列表
+const loadForeshadowings = async () => {
+  try {
+    // 加载伏笔数据
+    const key = `foreshadowing_${workId.value}`;
+    const data = uni.getStorageSync(key);
+    if (data && Array.isArray(data)) {
+      foreshadowings.value = data;
+    } else {
+      foreshadowings.value = [];
+    }
+    
+    // 加载章节列表
+    const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+    const chaptersPath = `${workPath}/chapters/chapters.json`;
+    const chaptersData = await fileStorage.readFile(chaptersPath);
+    if (chaptersData && Array.isArray(chaptersData)) {
+      chapters.value = chaptersData;
+    }
+  } catch (e) {
+    console.error('加载伏笔数据失败:', e);
+    foreshadowings.value = [];
+  }
+};
+
+// 保存伏笔数据
+const saveForeshadowings = () => {
+  try {
+    const key = `foreshadowing_${workId.value}`;
+    uni.setStorageSync(key, foreshadowings.value);
+  } catch (e) {
+    console.error('保存伏笔数据失败:', e);
+  }
+};
+
+// 点击伏笔图标
+const handleForeshadowingIconClick = (paragraphIndex) => {
+  selectedParagraphIndex.value = paragraphIndex;
+  showForeshadowingSheet.value = true;
+};
+
+// 创建伏笔
+const handleCreateForeshadowing = ({ paragraphIndex, content }) => {
+  const foreshadowing = {
+    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+    workId: workId.value,
+    chapterId: chapterId.value,
+    createdParagraphIndex: paragraphIndex,
+    content: content,
+    status: 'PENDING',
+    createdAt: Date.now(),
+    recycledChapterId: null,
+    recycledParagraphIndex: null,
+    recycledAt: null
+  };
+  
+  foreshadowings.value.push(foreshadowing);
+  saveForeshadowings();
+  showSnackbarMessage('伏笔已创建');
+};
+
+// 回收伏笔
+const handleRecycleForeshadowing = ({ foreshadowingId, paragraphIndex }) => {
+  const index = foreshadowings.value.findIndex(f => f.id === foreshadowingId);
+  if (index !== -1) {
+    foreshadowings.value[index] = {
+      ...foreshadowings.value[index],
+      status: 'RECYCLED',
+      recycledChapterId: chapterId.value,
+      recycledParagraphIndex: paragraphIndex,
+      recycledAt: Date.now()
+    };
+    saveForeshadowings();
+    showSnackbarMessage('伏笔已回收');
+  }
+};
+
+// 取消回收伏笔
+const handleUnrecycleForeshadowing = ({ foreshadowingId }) => {
+  const index = foreshadowings.value.findIndex(f => f.id === foreshadowingId);
+  if (index !== -1) {
+    foreshadowings.value[index] = {
+      ...foreshadowings.value[index],
+      status: 'PENDING',
+      recycledChapterId: null,
+      recycledParagraphIndex: null,
+      recycledAt: null
+    };
+    saveForeshadowings();
+    showSnackbarMessage('已取消回收');
+  }
+};
+
+// 删除伏笔
+const handleDeleteForeshadowing = ({ foreshadowingId }) => {
+  const index = foreshadowings.value.findIndex(f => f.id === foreshadowingId);
+  if (index !== -1) {
+    foreshadowings.value.splice(index, 1);
+    saveForeshadowings();
+    showSnackbarMessage('伏笔已删除');
+  }
 };
 
 // G槽位：功能G - 词库面板
@@ -733,6 +961,14 @@ watch(currentState, (newState, oldState) => {
     showNestedListPanel.value = false;
     showGlossaryPanel.value = false;
   }
+  // B状态时加载伏笔数据
+  if (newState === 'B') {
+    loadForeshadowings();
+  }
+  // // A状态时关闭伏笔面板
+  // if (newState === 'A') {
+  //   showForeshadowingPanel.value = false;
+  // }
 });
 
 // 监听章节内容变化，翻页模式下重新分页
@@ -1264,10 +1500,32 @@ onUnload(() => {
   flex: 1;
 }
 
+.content-container {
+  position: relative;
+  min-height: 100%;
+}
+
 .content-text {
   color: inherit;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.content-text-wrapper {
+  position: relative;
+  /* padding-right 由动态绑定控制 */
+}
+
+.content-paragraph {
+  color: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-bottom: 8px;
+}
+
+.content-text.empty {
+  text-align: center;
+  opacity: 0.5;
 }
 
 /* ============ 翻页式阅读模式 ============ */
