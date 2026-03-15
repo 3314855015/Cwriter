@@ -223,35 +223,36 @@ const menuItems = ref([
     action: "createNewWork",
     label: "作品",
     gradient: "linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)",
-  },
-  {
-    id: "character",
-    icon: "icon-user-plus",
-    action: "createNewCharacter",
-    label: "人物",
-    gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
-  },
-  {
-    id: "setting",
-    icon: "icon-cog",
-    action: "createNewSetting",
-    label: "设定",
-    gradient: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
-  },
-  {
-    id: "foreshadowing",
-    icon: "icon-lightbulb",
-    action: "createNewForeshadowing",
-    label: "伏笔",
-    gradient: "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)",
-  },
-  {
-    id: "map",
-    icon: "icon-map-marked-alt",
-    action: "createNewMap",
-    label: "场景",
-    gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-  },
+  }
+  // ,
+  // {
+  //   id: "character",
+  //   icon: "icon-user-plus",
+  //   action: "createNewCharacter",
+  //   label: "人物",
+  //   gradient: "linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)",
+  // },
+  // {
+  //   id: "setting",
+  //   icon: "icon-cog",
+  //   action: "createNewSetting",
+  //   label: "设定",
+  //   gradient: "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
+  // },
+  // {
+  //   id: "foreshadowing",
+  //   icon: "icon-lightbulb",
+  //   action: "createNewForeshadowing",
+  //   label: "伏笔",
+  //   gradient: "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)",
+  // },
+  // {
+  //   id: "map",
+  //   icon: "icon-map-marked-alt",
+  //   action: "createNewMap",
+  //   label: "场景",
+  //   gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  // },
 ]);
 
 // 作品数据 - 初始为空，显示加载状态
@@ -336,21 +337,21 @@ const handleMenuAction = (action) => {
     case "createNewWork":
       createNewWork();
       break;
-    case "createNewCharacter":
-      openCreationPage("character");
-      break;
-    case "createNewSetting":
-      openCreationPage("setting");
-      break;
-    case "createNewForeshadowing":
-      openCreationPage("foreshadowing");
-      break;
-    case "createNewMap":
-      openCreationPage("map");
-      break;
-    default:
-      openCreationPage();
-      break;
+    // case "createNewCharacter":
+    //   openCreationPage("character");
+    //   break;
+    // case "createNewSetting":
+    //   openCreationPage("setting");
+    //   break;
+    // case "createNewForeshadowing":
+    //   openCreationPage("foreshadowing");
+    //   break;
+    // case "createNewMap":
+    //   openCreationPage("map");
+    //   break;
+    // default:
+    //   openCreationPage();
+    //   break;
   }
   isMenuOpen.value = false;
 };
