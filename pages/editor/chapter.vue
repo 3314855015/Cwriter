@@ -310,7 +310,7 @@ const fileStorage = FileSystemStorage;
 
 // ============ 字体样式管理 ============
 // 字体大小配置（单位：px）
-const fontSize = ref(19); // 默认四号字约19px
+const fontSize = ref(16); // 默认四号字约19px
 // 行距配置（倍数）
 const lineHeight = ref(1.8); // 默认1.5倍行距
 
