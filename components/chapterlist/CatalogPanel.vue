@@ -6,6 +6,7 @@
     @tap="closePanel"
     :class="{ 'show': isVisible }"
   ></view>
+  
 
   <!-- 目录栏面板 -->
   <view 
@@ -33,7 +34,7 @@
             :class="{ 'active': activeVolumeId === volume.id }"
             @tap="scrollToVolume(volume.id)"
           >
-            <text class="index-text">{{ volume.title }}</text>
+            <text class="index-text">{{ volume.name || volume.title || '未命名卷' }}</text>
           </view>
         </scroll-view>
       </view>
@@ -59,17 +60,17 @@
         >
           <!-- 卷名 -->
           <view class="volume-header">
-            <text class="volume-title-text">{{ volume.title }}</text>
+            <text class="volume-title-text">{{ volume.name || volume.title || '未命名卷' }}</text>
           </view>
 
           <!-- 卷内章节 -->
           <view 
-            v-for="chapter in volume.chapters" 
+            v-for="(chapter, cIndex) in volume.chapters" 
             :key="chapter.id"
             class="chapter-item"
             @tap="openChapter(chapter)"
           >
-            <text class="chapter-title-text">{{ chapter.title }}</text>
+            <text class="chapter-title-text">第{{ getChapterNumber(volume, cIndex) }}章 {{ chapter.title || '未命名章节' }}</text>
             <view class="chapter-meta">
               <text class="chapter-words">{{ chapter.word_count || 0 }}字</text>
               <view 
@@ -165,6 +166,23 @@ const loadVolumesData = async () => {
 const volumes = computed(() => {
   return volumesData.value;
 });
+
+// 计算章节编号（全局连续编号）
+const getChapterNumber = (volume, chapterIndex) => {
+  let num = 1;
+  
+  // 找到当前卷在列表中的位置
+  for (const v of volumesData.value) {
+    if (v.id === volume.id) {
+      // 当前卷，加上章节在卷内的索引
+      return num + chapterIndex;
+    }
+    // 还没到当前卷，累加前面卷的章节数
+    num += (v.chapters?.length || 0);
+  }
+  
+  return num + chapterIndex;
+};
 
 // 滚动到指定卷
 const scrollToVolume = (volumeId) => {

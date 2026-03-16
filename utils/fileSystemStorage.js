@@ -3550,9 +3550,13 @@ export class FileSystemStorage {
     const volumeId = `volume_${Date.now()}`;
     const now = new Date().toISOString();
 
+    // 支持 name 和 title 两种字段名
+    const volumeName = volumeData.name || volumeData.title || "未命名卷";
+
     const volume = {
       id: volumeId,
-      title: volumeData.title || "未命名卷",
+      name: volumeName,  // 使用 name 作为主要字段
+      title: volumeName, // 同时保留 title 兼容
       description: volumeData.description || "",
       order: 0, // 将在添加到列表时设置
       chapter_count: 0,
@@ -3660,9 +3664,17 @@ export class FileSystemStorage {
       }
 
       // 更新卷配置
+      // 如果更新了 name 或 title，同时更新另一个字段
+      const syncUpdates = { ...updates };
+      if (updates.name) {
+        syncUpdates.title = updates.name;
+      } else if (updates.title) {
+        syncUpdates.name = updates.title;
+      }
+      
       const updatedVolume = {
         ...volumeConfig,
-        ...updates,
+        ...syncUpdates,
         updated_at: new Date().toISOString(),
       };
 

@@ -18,6 +18,8 @@
 
       <!-- 内容插槽 -->
       <view class="modal-body">
+        <!-- 额外内容插槽（在输入框之前） -->
+        <slot name="extra"></slot>
         <slot>
           <!-- 默认输入框 -->
           <view v-if="editable" class="input-wrapper">
