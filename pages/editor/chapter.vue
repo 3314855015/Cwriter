@@ -188,13 +188,14 @@
     >
       <!-- B状态：基础工具栏 - 7槽位布局 -->
       <view v-if="currentState === 'B'" class="bottom-bar-content">
-        <!-- H槽位：适应手机 -->
-        <view class="tool-slot" @tap="handleToolTap('adapt')">
+        <!-- H槽位：适应手机（现改为上一章）-->
+
+        <!-- <view class="tool-slot" @tap="handleToolTap('adapt')">
           <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'adapt' }">
             <image class="tool-icon" src="/static/icons/adapt.png" mode="aspectFit" />
           </view>
           <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'adapt' }">适应手机</text>
-        </view>
+        </view> -->
 
         <!-- I槽位：留白 -->
         <view class="tool-slot tool-spacer"></view>
@@ -210,24 +211,33 @@
         <!-- K槽位：留白 -->
         <view class="tool-slot tool-spacer"></view>
 
-        <!-- L槽位：导出文档 -->
-        <view class="tool-slot" @tap="handleToolTap('export')">
-          <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'export' }">
-            <image class="tool-icon" src="/static/icons/export.png" mode="aspectFit" />
-          </view>
-          <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'export' }">导出文档</text>
-        </view>
-
-        <!-- M槽位：留白 -->
-        <view class="tool-slot tool-spacer"></view>
-
-        <!-- N槽位：主题切换 -->
+        <!-- L槽位：导出文档（现改为主题切换） -->
         <view class="tool-slot" @tap="handleToolTap('theme')">
           <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'theme' }">
             <image class="tool-icon" :src="localDarkMode ? '/static/icons/light.png' : '/static/icons/dark.png'" mode="aspectFit" />
           </view>
           <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'theme' }">{{ localDarkMode ? '浅色模式' : '深色模式' }}</text>
         </view>
+        <!-- <view class="tool-slot" @tap="handleToolTap('export')">
+          <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'export' }">
+            <image class="tool-icon" src="/static/icons/export.png" mode="aspectFit" />
+          </view>
+          <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'export' }">导出文档</text>
+        </view> -->
+
+
+        <!-- M槽位：留白 -->
+        <view class="tool-slot tool-spacer"></view>
+
+        <!-- N槽位：主题切换（现改为下一章） -->
+
+        <!-- <view class="tool-slot" @tap="handleToolTap('theme')">
+          <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'theme' }">
+            <image class="tool-icon" :src="localDarkMode ? '/static/icons/light.png' : '/static/icons/dark.png'" mode="aspectFit" />
+          </view>
+          <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'theme' }">{{ localDarkMode ? '浅色模式' : '深色模式' }}</text>
+        </view> -->
+
       </view>
 
       <!-- C状态：扩展工具栏 -->
@@ -235,13 +245,20 @@
         <text class="word-count">{{ wordCount }} 字</text>
         <view class="tool-icons">
           <view class="icon-tool" @tap="handleToolTap('indent')">
-            <text class="icon-text">⇥</text>
+            <text class="icon-text">→</text>
           </view>
-          <view class="icon-tool" @tap="handleToolTap('writing-board')">
-            <text class="icon-text">+</text>
+          <view class="icon-tool" @tap="handleToolTap('text-style')">
+            <text class="icon-text">T</text>
           </view>
         </view>
       </view>
+
+      <!-- 文字样式调整面板 -->
+      <TextStylePanel 
+        :is-visible="currentState === 'C' && showTextStylePanel"
+        v-model:font-size="fontSize"
+        v-model:line-height="lineHeight"
+      />
     </view>
 
     <!-- Snackbar 提示 -->
@@ -305,6 +322,7 @@ import NestedListPanel from '@/components/chapter/NestedListPanel.vue';
 import GlossaryPanel from '@/components/chapter/GlossaryPanel.vue';
 import ForeshadowingPanel from '@/components/chapter/ForeshadowingPanel.vue';
 import ForeshadowingBottomSheet from '@/components/chapter/ForeshadowingBottomSheet.vue';
+import TextStylePanel from '@/components/chaptersimple/TextStylePanel.vue';
 
 const fileStorage = FileSystemStorage;
 
@@ -313,6 +331,9 @@ const fileStorage = FileSystemStorage;
 const fontSize = ref(16); // 默认四号字约19px
 // 行距配置（倍数）
 const lineHeight = ref(1.8); // 默认1.5倍行距
+
+// 文字样式面板显示状态
+const showTextStylePanel = ref(false);
 
 // 计算实际行高（用于样式绑定）
 const computedLineHeight = computed(() => {
@@ -1013,8 +1034,13 @@ const handleToolTap = (tool) => {
       // 自动缩进
       autoIndent();
       break;
-    case 'writing-board':
-      showSnackbarMessage('写作板开发中');
+    case 'text-style':
+      // 收回键盘，然后显示文字样式面板
+      uni.hideKeyboard();
+      // 等待键盘收起动画（约300ms）
+      setTimeout(() => {
+        showTextStylePanel.value = !showTextStylePanel.value;
+      }, 300);
       break;
   }
 };
