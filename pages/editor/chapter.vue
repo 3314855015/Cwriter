@@ -402,6 +402,7 @@ const pageTransition = ref(''); // 'prev' | 'next' | ''
 // 作品和章节信息
 const workId = ref('');
 const chapterId = ref('');
+const volumeId = ref(''); // 卷ID
 const userId = ref('');
 const workTitle = ref('加载中...');
 const chapterTitle = ref('');
@@ -1227,11 +1228,39 @@ const loadChapterData = async () => {
     }
 
     // 加载章节内容
-    const chapterData = await fileStorage.readFile(`${workPath}/chapters/${chapterId.value}.json`);
+    let chapterData = null;
+    
+    if (volumeId.value) {
+      // 分卷结构：从卷内加载章节
+      const chapterPath = `${workPath}/volumes/${volumeId.value}/chapters/${chapterId.value}.json`;
+      chapterData = await fileStorage.readFile(chapterPath);
+    } else {
+      // 兼容旧结构：尝试从旧的章节路径加载
+      const oldChapterPath = `${workPath}/chapters/${chapterId.value}.json`;
+      chapterData = await fileStorage.readFile(oldChapterPath);
+      
+      // 如果旧路径不存在，尝试查找卷结构中的章节
+      if (!chapterData) {
+        // 尝试从所有卷中查找章节
+        const volumes = await fileStorage.getVolumes(userId.value, workId.value);
+        for (const vol of volumes) {
+          const volChapterPath = `${workPath}/volumes/${vol.id}/chapters/${chapterId.value}.json`;
+          const data = await fileStorage.readFile(volChapterPath);
+          if (data) {
+            chapterData = data;
+            volumeId.value = vol.id; // 更新 volumeId
+            break;
+          }
+        }
+      }
+    }
+    
     if (chapterData) {
       chapterTitle.value = chapterData.title || '未命名章节';
       chapterContent.value = chapterData.content || '';
       wordCount.value = chapterData.word_count || calculateWordCount(chapterContent.value);
+    } else {
+      showSnackbarMessage('章节不存在');
     }
   } catch (error) {
     console.error('加载章节数据失败:', error);
@@ -1242,13 +1271,23 @@ const loadChapterData = async () => {
 const saveChapter = async () => {
   try {
     const workPath = fileStorage.getWorkPath(userId.value, workId.value);
-    const chapterPath = `${workPath}/chapters/${chapterId.value}.json`;
+    
+    // 确定保存路径
+    let chapterPath;
+    if (volumeId.value) {
+      // 分卷结构
+      chapterPath = `${workPath}/volumes/${volumeId.value}/chapters/${chapterId.value}.json`;
+    } else {
+      // 兼容旧结构
+      chapterPath = `${workPath}/chapters/${chapterId.value}.json`;
+    }
     
     const updatedChapter = {
       id: chapterId.value,
       title: chapterTitle.value,
       content: editContent.value,
       word_count: wordCount.value,
+      volume_id: volumeId.value || null,
       updated_at: new Date().toISOString()
     };
     
@@ -1345,6 +1384,7 @@ onLoad((options) => {
 
   workId.value = options.workId;
   chapterId.value = options.chapterId;
+  volumeId.value = options.volumeId || ''; // 接收 volumeId 参数
   userId.value = options.userId || 'default_user';
 
   // 加载数据

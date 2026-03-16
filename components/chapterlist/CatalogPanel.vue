@@ -14,6 +14,9 @@
     :class="{ 'show': isVisible }"
     @tap.stop
   >
+    <!-- 状态栏占位 -->
+    <view class="status-bar-placeholder" :style="{ height: statusBarHeight + 'px' }"></view>
+    
     <!-- 标题栏 -->
     <view class="catalog-header">
       <text class="catalog-title">目录</text>
@@ -68,7 +71,7 @@
             v-for="(chapter, cIndex) in volume.chapters" 
             :key="chapter.id"
             class="chapter-item"
-            @tap="openChapter(chapter)"
+            @tap="openChapter(chapter, volume.id)"
           >
             <text class="chapter-title-text">第{{ getChapterNumber(volume, cIndex) }}章 {{ chapter.title || '未命名章节' }}</text>
             <view class="chapter-meta">
@@ -115,6 +118,9 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits(['close', 'open-chapter']);
+
+// 状态栏高度
+const statusBarHeight = ref(0);
 
 // 当前激活的卷ID
 const activeVolumeId = ref(null);
@@ -191,8 +197,9 @@ const scrollToVolume = (volumeId) => {
 };
 
 // 打开章节
-const openChapter = (chapter) => {
-  emit('open-chapter', chapter);
+const openChapter = (chapter, volumeId) => {
+  // 添加 volume_id 到章节数据
+  emit('open-chapter', { ...chapter, volume_id: volumeId });
   closePanel();
 };
 
@@ -210,6 +217,14 @@ watch(() => props.isVisible, (newVal) => {
 
 // 组件挂载时加载数据
 onMounted(() => {
+  // 获取状态栏高度
+  try {
+    const systemInfo = uni.getSystemInfoSync();
+    statusBarHeight.value = systemInfo.statusBarHeight || 0;
+  } catch (error) {
+    console.warn('获取状态栏高度失败:', error);
+  }
+  
   if (props.workId && props.userId) {
     loadVolumesData();
   }
@@ -257,9 +272,27 @@ onMounted(() => {
   transform: translateX(0);
 }
 
+/* 状态栏占位 */
+.status-bar-placeholder {
+  background: rgba(45, 45, 45, 0.9);
+  flex-shrink: 0;
+}
+
+.light-theme .status-bar-placeholder {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.light-theme .catalog-panel {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.catalog-panel.show {
+  transform: translateX(0);
+}
+
 /* 标题栏 */
 .catalog-header {
-  padding: 20px 16px;
+  padding: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(45, 45, 45, 0.9);
 }

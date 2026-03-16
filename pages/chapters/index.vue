@@ -59,17 +59,17 @@
               @tap="toggleVolumeExpand(volume.id)"
               @longpress="showVolumeActions(volume)"
             >
-              <view class="volume-expand-icon" :class="{ expanded: expandedVolumes.includes(volume.id) }">
+              <view class="volume-expand-icon" :class="{ expanded: expandedVolumeId === volume.id }">
                 <text class="expand-arrow">›</text>
               </view>
               <text class="volume-title">{{ volume.name || volume.title || '未命名卷' }}</text>
               <text class="volume-count">{{ getVolumeChapterCount(volume.id) }}章</text>
             </view>
 
-            <!-- 卷内章节（可展开） -->
+            <!-- 卷内章节（可展开 - 懒加载） -->
             <view 
               class="volume-chapters" 
-              v-if="expandedVolumes.includes(volume.id)"
+              v-if="expandedVolumeId === volume.id && loadedVolumeIds.has(volume.id)"
             >
               <view 
                 v-for="(chapter, cIndex) in getVolumeChapters(volume.id)" 
@@ -92,6 +92,14 @@
                   </view>
                 </view>
               </view>
+            </view>
+            
+            <!-- 加载中提示 -->
+            <view 
+              class="volume-loading" 
+              v-if="expandedVolumeId === volume.id && !loadedVolumeIds.has(volume.id)"
+            >
+              <text class="loading-text">加载中...</text>
             </view>
           </view>
         </view>
@@ -281,8 +289,11 @@ const showCatalog = ref(false);
 // 排序相关
 const sortOrder = ref('asc'); // 'asc' 正序, 'desc' 倒序
 
-// 卷展开状态
-const expandedVolumes = ref([]);
+// 卷展开状态（互斥锁：只允许一个卷展开）
+const expandedVolumeId = ref(null); // 当前展开的卷ID
+
+// 已加载的卷ID集合（懒加载）
+const loadedVolumeIds = ref(new Set());
 
 // 模态框状态
 const showCreateChapterModal = ref(false);
@@ -425,18 +436,14 @@ const loadVolumesAndChapters = async () => {
     const volumeList = await fileStorage.getVolumes(userId.value, workId.value);
     volumes.value = volumeList;
 
-    // 加载每个卷的章节
-    const chaptersMap = {};
-    for (const volume of volumeList) {
-      const chapters = await fileStorage.getChaptersByVolume(userId.value, workId.value, volume.id);
-      chaptersMap[volume.id] = chapters || [];
-    }
-    chaptersByVolume.value = chaptersMap;
-
-    // 默认展开第一个卷
+    // 懒加载：初始只加载第一个卷的章节数据
     if (volumeList.length > 0) {
-      expandedVolumes.value = [volumeList[0].id];
-      selectedVolumeId.value = volumeList[0].id;
+      const firstVolumeId = volumeList[0].id;
+      await loadVolumeChapters(firstVolumeId);
+      
+      // 默认展开第一个卷
+      expandedVolumeId.value = firstVolumeId;
+      selectedVolumeId.value = firstVolumeId;
     }
   } catch (error) {
     console.error("❌ 加载卷章节失败:", error);
@@ -484,13 +491,42 @@ const toggleSortOrder = () => {
   sortOrder.value = sortOrder.value === 'asc' ? 'desc' : 'asc';
 };
 
-// 切换卷展开
-const toggleVolumeExpand = (volumeId) => {
-  const index = expandedVolumes.value.indexOf(volumeId);
-  if (index > -1) {
-    expandedVolumes.value.splice(index, 1);
-  } else {
-    expandedVolumes.value.push(volumeId);
+// 切换卷展开（互斥锁 + 懒加载）
+const toggleVolumeExpand = async (volumeId) => {
+  // 如果点击的是当前展开的卷，则收起
+  if (expandedVolumeId.value === volumeId) {
+    expandedVolumeId.value = null;
+    return;
+  }
+  
+  // 否则展开新卷（自动关闭之前的卷）
+  expandedVolumeId.value = volumeId;
+  
+  // 懒加载：如果该卷还未加载章节数据，则加载
+  if (!loadedVolumeIds.value.has(volumeId)) {
+    await loadVolumeChapters(volumeId);
+  }
+};
+
+// 加载单个卷的章节数据
+const loadVolumeChapters = async (volumeId) => {
+  try {
+    const chapters = await fileStorage.getChaptersByVolume(userId.value, workId.value, volumeId);
+    
+    // 为每个章节添加 volume_id
+    const chaptersWithVolumeId = (chapters || []).map(chapter => ({
+      ...chapter,
+      volume_id: volumeId
+    }));
+    
+    // 更新章节数据
+    chaptersByVolume.value[volumeId] = chaptersWithVolumeId;
+    
+    // 标记为已加载
+    loadedVolumeIds.value.add(volumeId);
+  } catch (error) {
+    console.error(`加载卷 ${volumeId} 的章节失败:`, error);
+    chaptersByVolume.value[volumeId] = [];
   }
 };
 
@@ -568,7 +604,19 @@ const deleteVolumeWithChapters = async () => {
     // 更新本地数据
     volumes.value = volumes.value.filter(v => v.id !== volumeId);
     delete chaptersByVolume.value[volumeId];
-    expandedVolumes.value = expandedVolumes.value.filter(id => id !== volumeId);
+    
+    // 更新加载状态
+    loadedVolumeIds.value.delete(volumeId);
+    
+    // 如果删除的是当前展开的卷，清空展开状态
+    if (expandedVolumeId.value === volumeId) {
+      expandedVolumeId.value = null;
+    }
+    
+    // 如果删除的是选中的卷，重置选中状态
+    if (selectedVolumeId.value === volumeId) {
+      selectedVolumeId.value = volumes.value.length > 0 ? volumes.value[0].id : '';
+    }
     
     uni.showToast({ title: '删除成功', icon: 'success' });
   } catch (error) {
@@ -594,6 +642,12 @@ const handleVolumeModalConfirm = async (res) => {
       // 更新本地数据
       volumes.value.push(newVolume);
       chaptersByVolume.value[newVolume.id] = [];
+      
+      // 标记新卷为已加载（空章节）
+      loadedVolumeIds.value.add(newVolume.id);
+      
+      // 自动展开新卷（关闭其他卷）
+      expandedVolumeId.value = newVolume.id;
       
       // 自动选中新卷
       selectedVolumeId.value = newVolume.id;
@@ -669,12 +723,17 @@ const confirmCreateChapter = async () => {
     if (!chaptersByVolume.value[selectedVolumeId.value]) {
       chaptersByVolume.value[selectedVolumeId.value] = [];
     }
-    chaptersByVolume.value[selectedVolumeId.value].push(newChapter);
+    // 添加 volume_id 到新章节
+    chaptersByVolume.value[selectedVolumeId.value].push({
+      ...newChapter,
+      volume_id: selectedVolumeId.value
+    });
     
-    // 自动展开该卷
-    if (!expandedVolumes.value.includes(selectedVolumeId.value)) {
-      expandedVolumes.value.push(selectedVolumeId.value);
-    }
+    // 标记为已加载
+    loadedVolumeIds.value.add(selectedVolumeId.value);
+    
+    // 自动展开目标卷（关闭其他卷）
+    expandedVolumeId.value = selectedVolumeId.value;
     
     // 重置输入
     newChapterTitle.value = '';
@@ -1182,6 +1241,21 @@ const handleNavSwitch = (navType) => {
 
 .chapter-status.completed {
   background: #4ecdc4;
+}
+
+/* 加载中提示 */
+.volume-loading {
+  padding: 20px;
+  text-align: center;
+}
+
+.loading-text {
+  font-size: 14px;
+  color: #888888;
+}
+
+.light-theme .loading-text {
+  color: #999999;
 }
 
 /* 创建章节模态框 */
