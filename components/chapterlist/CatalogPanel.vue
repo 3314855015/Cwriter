@@ -49,11 +49,6 @@
         :scroll-into-view="scrollIntoView"
         scroll-with-animation
       >
-        <!-- 书名 -->
-        <view class="content-section book-section">
-          <text class="book-title-text">{{ workTitle }}</text>
-        </view>
-
         <!-- 卷和章节列表 -->
         <view 
           v-for="volume in volumes" 
@@ -74,15 +69,6 @@
             @tap="openChapter(chapter, volume.id)"
           >
             <text class="chapter-title-text">第{{ getChapterNumber(volume, cIndex) }}章 {{ chapter.title || '未命名章节' }}</text>
-            <view class="chapter-meta">
-              <text class="chapter-words">{{ chapter.word_count || 0 }}字</text>
-              <view 
-                class="chapter-status"
-                :class="{ 'completed': chapter.is_completed }"
-              >
-                <text>{{ chapter.is_completed ? '已完成' : '写作中' }}</text>
-              </view>
-            </view>
           </view>
         </view>
       </scroll-view>
@@ -254,9 +240,9 @@ onMounted(() => {
   position: fixed;
   top: 0;
   left: 0;
-  width: 66.67%; /* 屏幕的2/3 */
+  width: 75%; /* 屏幕的3/4 */
   height: 100vh;
-  background: rgba(30, 30, 30, 0.98);
+  background: #1e1e1e;
   z-index: 999;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
@@ -265,7 +251,7 @@ onMounted(() => {
 }
 
 .light-theme .catalog-panel {
-  background: rgba(255, 255, 255, 0.98);
+  background: #ffffff;
 }
 
 .catalog-panel.show {
@@ -274,31 +260,23 @@ onMounted(() => {
 
 /* 状态栏占位 */
 .status-bar-placeholder {
-  background: rgba(45, 45, 45, 0.9);
+  background: #2d2d2d;
   flex-shrink: 0;
 }
 
 .light-theme .status-bar-placeholder {
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.light-theme .catalog-panel {
-  background: rgba(255, 255, 255, 0.98);
-}
-
-.catalog-panel.show {
-  transform: translateX(0);
+  background: #ffffff;
 }
 
 /* 标题栏 */
 .catalog-header {
   padding: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(45, 45, 45, 0.9);
+  background: #2d2d2d;
 }
 
 .light-theme .catalog-header {
-  background: rgba(255, 255, 255, 0.9);
+  background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
@@ -325,10 +303,12 @@ onMounted(() => {
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
+  background: #252525;
 }
 
 .light-theme .index-column {
   border-right: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fafafa;
 }
 
 .index-scroll {
@@ -347,7 +327,7 @@ onMounted(() => {
 }
 
 .index-item.active {
-  background: rgba(255, 107, 53, 0.1);
+  background: rgba(255, 107, 53, 0.15);
   border-left: 3px solid #ff6b35;
 }
 
@@ -388,43 +368,26 @@ onMounted(() => {
   width: 66.67%; /* 目录滑块的2/3 */
   flex: 1;
   overflow-y: auto;
+  background: #1e1e1e;
 }
 
-/* 书名区域 */
-.book-section {
-  padding: 20px 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.light-theme .content-column {
+  background: #ffffff;
 }
 
-.light-theme .book-section {
-  background: rgba(0, 0, 0, 0.05);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.book-title-text {
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
-}
-
-.light-theme .book-title-text {
-  color: #333333;
-}
-
-/* 卷区域 */
+/* 卷区域 - 去掉底部空白 */
 .volume-section {
-  border-bottom: 8px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .light-theme .volume-section {
-  border-bottom: 8px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-/* 卷名 */
+/* 卷名 - 固定时不透明 */
 .volume-header {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 14px 16px;
+  background: #2d2d2d;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: sticky;
   top: 0;
@@ -432,12 +395,12 @@ onMounted(() => {
 }
 
 .light-theme .volume-header {
-  background: rgba(0, 0, 0, 0.03);
+  background: #f5f5f5;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .volume-title-text {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: #ff6b35;
 }
@@ -446,64 +409,28 @@ onMounted(() => {
   color: #ff6b35;
 }
 
-/* 章节项 */
+/* 章节项 - 简洁样式 */
 .chapter-item {
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   transition: background 0.2s ease;
 }
 
 .light-theme .chapter-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 .chapter-item:active {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.light-theme .chapter-item:active {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 107, 53, 0.1);
 }
 
 .chapter-title-text {
   font-size: 14px;
-  color: #ffffff;
+  color: #e0e0e0;
   display: block;
-  margin-bottom: 6px;
 }
 
 .light-theme .chapter-title-text {
   color: #333333;
-}
-
-.chapter-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.chapter-words {
-  font-size: 12px;
-  color: #b3b3b3;
-}
-
-.light-theme .chapter-words {
-  color: #666666;
-}
-
-.chapter-status {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  background: #ff6b35;
-  color: white;
-}
-
-.chapter-status.completed {
-  background: #4ecdc4;
-}
-
-.chapter-status text {
-  font-size: 10px;
 }
 </style>
