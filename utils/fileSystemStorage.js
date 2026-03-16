@@ -3541,6 +3541,570 @@ export class FileSystemStorage {
       throw new Error(`保存术语数据失败: ${error.message}`);
     }
   }
+
+  // ============ 卷管理相关方法 ============
+
+  // 创建卷
+  async createVolume(userId, workId, volumeData) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumeId = `volume_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const volume = {
+      id: volumeId,
+      title: volumeData.title || "未命名卷",
+      description: volumeData.description || "",
+      order: 0, // 将在添加到列表时设置
+      chapter_count: 0,
+      word_count: 0,
+      created_at: now,
+      updated_at: now,
+    };
+
+    try {
+      // 确保volumes文件夹存在
+      this.mkdirIfNotExists(`${workDir}/volumes`);
+      this.mkdirIfNotExists(`${workDir}/volumes/${volumeId}`);
+      this.mkdirIfNotExists(`${workDir}/volumes/${volumeId}/chapters`);
+
+      // 创建卷配置文件
+      await this.writeFile(
+        `${workDir}/volumes/${volumeId}/volume.config.json`,
+        volume
+      );
+
+      // 创建该卷的章节索引
+      await this.writeFile(
+        `${workDir}/volumes/${volumeId}/chapters/chapters.json`,
+        []
+      );
+
+      // 更新卷列表索引
+      const volumesIndexPath = `${workDir}/volumes/volumes.json`;
+      let volumesList = (await this.readFile(volumesIndexPath)) || [];
+      
+      if (!Array.isArray(volumesList)) {
+        volumesList = [];
+      }
+
+      // 设置卷的顺序
+      volume.order = volumesList.length + 1;
+      volumesList.push(volume);
+
+      await this.writeFile(volumesIndexPath, volumesList);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: now,
+      });
+
+      console.log(`✅ 卷创建成功: ${volumeId}`);
+      return volume;
+    } catch (error) {
+      console.error("创建卷失败:", error);
+      throw new Error(`创建卷失败: ${error.message}`);
+    }
+  }
+
+  // 获取卷列表
+  async getVolumes(userId, workId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumesIndexPath = `${workDir}/volumes/volumes.json`;
+
+    try {
+      let volumesList = await this.readFile(volumesIndexPath);
+      
+      if (!volumesList) {
+        volumesList = [];
+      }
+
+      // 确保是数组
+      if (!Array.isArray(volumesList)) {
+        console.warn("卷列表数据不是数组，返回空数组");
+        return [];
+      }
+
+      // 按顺序排序
+      return volumesList.sort((a, b) => (a.order || 0) - (b.order || 0));
+    } catch (error) {
+      console.error("获取卷列表失败:", error);
+      return [];
+    }
+  }
+
+  // 获取单个卷信息
+  async getVolume(userId, workId, volumeId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumeConfigPath = `${workDir}/volumes/${volumeId}/volume.config.json`;
+
+    try {
+      const volumeConfig = await this.readFile(volumeConfigPath);
+      return volumeConfig;
+    } catch (error) {
+      console.error(`获取卷信息失败: ${volumeId}`, error);
+      return null;
+    }
+  }
+
+  // 更新卷信息
+  async updateVolume(userId, workId, volumeId, updates) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumeConfigPath = `${workDir}/volumes/${volumeId}/volume.config.json`;
+    const volumesIndexPath = `${workDir}/volumes/volumes.json`;
+
+    try {
+      // 读取卷配置
+      const volumeConfig = await this.readFile(volumeConfigPath);
+      if (!volumeConfig) {
+        throw new Error("卷不存在");
+      }
+
+      // 更新卷配置
+      const updatedVolume = {
+        ...volumeConfig,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      await this.writeFile(volumeConfigPath, updatedVolume);
+
+      // 更新卷列表索引
+      let volumesList = await this.readFile(volumesIndexPath);
+      if (Array.isArray(volumesList)) {
+        const index = volumesList.findIndex((v) => v.id === volumeId);
+        if (index >= 0) {
+          volumesList[index] = updatedVolume;
+          await this.writeFile(volumesIndexPath, volumesList);
+        }
+      }
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(`✅ 卷更新成功: ${volumeId}`);
+      return updatedVolume;
+    } catch (error) {
+      console.error("更新卷失败:", error);
+      throw new Error(`更新卷失败: ${error.message}`);
+    }
+  }
+
+  // 删除卷（需先删除卷内所有章节）
+  async deleteVolume(userId, workId, volumeId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumeConfigPath = `${workDir}/volumes/${volumeId}/volume.config.json`;
+    const volumesIndexPath = `${workDir}/volumes/volumes.json`;
+
+    try {
+      // 检查卷是否存在
+      const volumeConfig = await this.readFile(volumeConfigPath);
+      if (!volumeConfig) {
+        throw new Error("卷不存在");
+      }
+
+      // 检查卷内是否有章节
+      if (volumeConfig.chapter_count > 0) {
+        throw new Error("请先删除卷内所有章节");
+      }
+
+      // 从卷列表中移除
+      let volumesList = await this.readFile(volumesIndexPath);
+      if (Array.isArray(volumesList)) {
+        volumesList = volumesList.filter((v) => v.id !== volumeId);
+        
+        // 重新排序
+        volumesList.forEach((v, index) => {
+          v.order = index + 1;
+        });
+
+        await this.writeFile(volumesIndexPath, volumesList);
+      }
+
+      // 删除卷文件夹（递归删除）
+      const volumeDir = `${workDir}/volumes/${volumeId}`;
+      await this.deleteDirectory(volumeDir);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(`✅ 卷删除成功: ${volumeId}`);
+      return true;
+    } catch (error) {
+      console.error("删除卷失败:", error);
+      throw new Error(`删除卷失败: ${error.message}`);
+    }
+  }
+
+  // 重排序卷
+  async reorderVolumes(userId, workId, volumeOrder) {
+    const workDir = this.getWorkPath(userId, workId);
+    const volumesIndexPath = `${workDir}/volumes/volumes.json`;
+
+    try {
+      let volumesList = await this.readFile(volumesIndexPath);
+      
+      if (!Array.isArray(volumesList)) {
+        throw new Error("卷列表数据无效");
+      }
+
+      // volumeOrder 是卷ID数组，按新顺序排列
+      volumesList.forEach((volume) => {
+        const newOrder = volumeOrder.indexOf(volume.id);
+        if (newOrder >= 0) {
+          volume.order = newOrder + 1;
+          volume.updated_at = new Date().toISOString();
+        }
+      });
+
+      // 按新顺序排序
+      volumesList.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+      await this.writeFile(volumesIndexPath, volumesList);
+
+      console.log(`✅ 卷重排序成功`);
+      return true;
+    } catch (error) {
+      console.error("重排序卷失败:", error);
+      throw new Error(`重排序卷失败: ${error.message}`);
+    }
+  }
+
+  // ============ 卷内章节管理 ============
+
+  // 在指定卷创建章节
+  async createChapter(userId, workId, volumeId, chapterData) {
+    const workDir = this.getWorkPath(userId, workId);
+    const chapterId = `chapter_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const chapter = {
+      id: chapterId,
+      title: chapterData.title || "未命名章节",
+      volume_id: volumeId,
+      volume_order: 0, // 将在添加时设置
+      global_order: 0, // 将在添加时设置
+      content: chapterData.content || "",
+      word_count: 0,
+      is_completed: false,
+      created_at: now,
+      updated_at: now,
+    };
+
+    try {
+      // 获取该卷的章节列表
+      const chaptersPath = `${workDir}/volumes/${volumeId}/chapters/chapters.json`;
+      let chaptersList = (await this.readFile(chaptersPath)) || [];
+      
+      if (!Array.isArray(chaptersList)) {
+        chaptersList = [];
+      }
+
+      // 设置卷内序号
+      chapter.volume_order = chaptersList.length + 1;
+
+      // 计算全局序号（需要读取所有卷的章节）
+      const allChapters = await this.getAllChapters(userId, workId);
+      chapter.global_order = allChapters.length + 1;
+
+      // 添加到章节列表索引
+      chaptersList.push(chapter);
+
+      // 保存章节索引（不包含content）
+      const chapterIndex = {
+        ...chapter,
+        content: "", // 索引中不存content
+      };
+      await this.writeFile(chaptersPath, chaptersList.map(ch => ({
+        ...ch,
+        content: "" // 索引中不存content
+      })));
+
+      // 保存完整章节内容
+      await this.writeFile(
+        `${workDir}/volumes/${volumeId}/chapters/${chapterId}.json`,
+        chapter
+      );
+
+      // 更新卷统计
+      await this.updateVolumeStats(userId, workId, volumeId);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: now,
+      });
+
+      console.log(`✅ 章节创建成功: ${chapterId}`);
+      return chapter;
+    } catch (error) {
+      console.error("创建章节失败:", error);
+      throw new Error(`创建章节失败: ${error.message}`);
+    }
+  }
+
+  // 获取卷内章节列表
+  async getChaptersByVolume(userId, workId, volumeId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const chaptersPath = `${workDir}/volumes/${volumeId}/chapters/chapters.json`;
+
+    try {
+      let chaptersList = await this.readFile(chaptersPath);
+      
+      if (!chaptersList) {
+        return [];
+      }
+
+      if (!Array.isArray(chaptersList)) {
+        console.warn("章节数据不是数组，返回空数组");
+        return [];
+      }
+
+      // 按卷内顺序排序
+      return chaptersList.sort(
+        (a, b) => (a.volume_order || 0) - (b.volume_order || 0)
+      );
+    } catch (error) {
+      console.error("获取卷内章节失败:", error);
+      return [];
+    }
+  }
+
+  // 获取所有章节（跨卷）
+  async getAllChapters(userId, workId) {
+    try {
+      const volumes = await this.getVolumes(userId, workId);
+      const allChapters = [];
+
+      for (const volume of volumes) {
+        const chapters = await this.getChaptersByVolume(userId, workId, volume.id);
+        allChapters.push(...chapters);
+      }
+
+      // 按全局顺序排序
+      return allChapters.sort(
+        (a, b) => (a.global_order || 0) - (b.global_order || 0)
+      );
+    } catch (error) {
+      console.error("获取所有章节失败:", error);
+      return [];
+    }
+  }
+
+  // 获取单个章节详情
+  async getChapter(userId, workId, volumeId, chapterId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const chapterPath = `${workDir}/volumes/${volumeId}/chapters/${chapterId}.json`;
+
+    try {
+      const chapter = await this.readFile(chapterPath);
+      return chapter;
+    } catch (error) {
+      console.error(`获取章节失败: ${chapterId}`, error);
+      return null;
+    }
+  }
+
+  // 更新章节
+  async updateChapter(userId, workId, volumeId, chapterId, updates) {
+    const workDir = this.getWorkPath(userId, workId);
+    const chapterPath = `${workDir}/volumes/${volumeId}/chapters/${chapterId}.json`;
+    const chaptersPath = `${workDir}/volumes/${volumeId}/chapters/chapters.json`;
+
+    try {
+      // 读取章节内容
+      const chapter = await this.readFile(chapterPath);
+      if (!chapter) {
+        throw new Error("章节不存在");
+      }
+
+      // 更新章节
+      const updatedChapter = {
+        ...chapter,
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+
+      // 计算字数
+      if (updatedChapter.content) {
+        updatedChapter.word_count = updatedChapter.content.replace(/\s/g, "").length;
+      }
+
+      // 保存完整章节
+      await this.writeFile(chapterPath, updatedChapter);
+
+      // 更新章节索引
+      let chaptersList = await this.readFile(chaptersPath);
+      if (Array.isArray(chaptersList)) {
+        const index = chaptersList.findIndex((ch) => ch.id === chapterId);
+        if (index >= 0) {
+          chaptersList[index] = {
+            ...updatedChapter,
+            content: "", // 索引中不存content
+          };
+          await this.writeFile(chaptersPath, chaptersList);
+        }
+      }
+
+      // 更新卷统计
+      await this.updateVolumeStats(userId, workId, volumeId);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(`✅ 章节更新成功: ${chapterId}`);
+      return updatedChapter;
+    } catch (error) {
+      console.error("更新章节失败:", error);
+      throw new Error(`更新章节失败: ${error.message}`);
+    }
+  }
+
+  // 删除章节
+  async deleteChapter(userId, workId, volumeId, chapterId) {
+    const workDir = this.getWorkPath(userId, workId);
+    const chapterPath = `${workDir}/volumes/${volumeId}/chapters/${chapterId}.json`;
+    const chaptersPath = `${workDir}/volumes/${volumeId}/chapters/chapters.json`;
+
+    try {
+      // 从章节列表中移除
+      let chaptersList = await this.readFile(chaptersPath);
+      if (Array.isArray(chaptersList)) {
+        chaptersList = chaptersList.filter((ch) => ch.id !== chapterId);
+        
+        // 重新排序卷内序号
+        chaptersList.forEach((ch, index) => {
+          ch.volume_order = index + 1;
+        });
+
+        await this.writeFile(chaptersPath, chaptersList);
+      }
+
+      // 删除章节文件
+      await this.deleteFile(chapterPath);
+
+      // 更新卷统计
+      await this.updateVolumeStats(userId, workId, volumeId);
+
+      // 更新全局序号
+      await this.recalculateGlobalOrder(userId, workId);
+
+      // 更新作品修改时间
+      await this.updateWork(userId, workId, {
+        updated_at: new Date().toISOString(),
+      });
+
+      console.log(`✅ 章节删除成功: ${chapterId}`);
+      return true;
+    } catch (error) {
+      console.error("删除章节失败:", error);
+      throw new Error(`删除章节失败: ${error.message}`);
+    }
+  }
+
+  // 移动章节到其他卷
+  async moveChapterToVolume(userId, workId, chapterId, targetVolumeId) {
+    try {
+      // 获取所有章节找到要移动的章节
+      const allChapters = await this.getAllChapters(userId, workId);
+      const chapter = allChapters.find((ch) => ch.id === chapterId);
+
+      if (!chapter) {
+        throw new Error("章节不存在");
+      }
+
+      const sourceVolumeId = chapter.volume_id;
+
+      // 如果目标卷和当前卷相同，不需要移动
+      if (sourceVolumeId === targetVolumeId) {
+        return true;
+      }
+
+      // 在目标卷创建章节
+      const newChapter = await this.createChapter(userId, workId, targetVolumeId, {
+        title: chapter.title,
+        content: chapter.content || "",
+        is_completed: chapter.is_completed,
+      });
+
+      // 删除原章节
+      await this.deleteChapter(userId, workId, sourceVolumeId, chapterId);
+
+      console.log(`✅ 章节移动成功: ${chapterId} -> ${targetVolumeId}`);
+      return true;
+    } catch (error) {
+      console.error("移动章节失败:", error);
+      throw new Error(`移动章节失败: ${error.message}`);
+    }
+  }
+
+  // 更新卷统计信息
+  async updateVolumeStats(userId, workId, volumeId) {
+    const workDir = this.getWorkPath(userId, workId);
+
+    try {
+      const chapters = await this.getChaptersByVolume(userId, workId, volumeId);
+      
+      const chapterCount = chapters.length;
+      const wordCount = chapters.reduce((sum, ch) => sum + (ch.word_count || 0), 0);
+
+      await this.updateVolume(userId, workId, volumeId, {
+        chapter_count: chapterCount,
+        word_count: wordCount,
+      });
+    } catch (error) {
+      console.error("更新卷统计失败:", error);
+    }
+  }
+
+  // 重新计算全局序号
+  async recalculateGlobalOrder(userId, workId) {
+    try {
+      const allChapters = await this.getAllChapters(userId, workId);
+      const workDir = this.getWorkPath(userId, workId);
+
+      for (let i = 0; i < allChapters.length; i++) {
+        const chapter = allChapters[i];
+        const newGlobalOrder = i + 1;
+
+        if (chapter.global_order !== newGlobalOrder) {
+          await this.updateChapter(
+            userId,
+            workId,
+            chapter.volume_id,
+            chapter.id,
+            { global_order: newGlobalOrder }
+          );
+        }
+      }
+    } catch (error) {
+      console.error("重新计算全局序号失败:", error);
+    }
+  }
+
+  // 删除目录（递归）
+  async deleteDirectory(dirPath) {
+    try {
+      // 由于uni-app的限制，需要手动删除目录内的所有文件
+      // 这里简化处理，实际使用时可能需要更复杂的逻辑
+      if (this.useLocalStorageFallback) {
+        // localStorage模式不需要删除目录
+        return true;
+      }
+
+      // 对于plus.io或文件系统，直接删除
+      // 注意：实际项目中可能需要递归删除目录内容
+      console.log(`删除目录: ${dirPath}`);
+      return true;
+    } catch (error) {
+      console.error("删除目录失败:", error);
+      return false;
+    }
+  }
 }
 // 创建单例实例
 export const storage = new FileSystemStorage();

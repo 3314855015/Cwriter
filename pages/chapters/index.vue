@@ -5,16 +5,18 @@
 
     <!-- 页面头部 -->
     <view class="page-header">
-      <view class="header-left" @tap="goBack">
-        <text class="back-text">X</text>
+      <view class="header-left" @tap="toggleCatalog">
+        <view class="menu-icon">
+          <view class="menu-line"></view>
+          <view class="menu-line"></view>
+          <view class="menu-line"></view>
+        </view>
       </view>
       <view class="header-center">
         <text class="page-title">{{ workInfo.title }}</text>
       </view>
-      <view class="header-right">
-        <view class="action-btn" @tap="addChapter">
-          <text class="add-text">+</text>
-        </view>
+      <view class="header-right" @tap="goBack">
+        <text class="close-text">X</text>
       </view>
     </view>
 
@@ -97,6 +99,21 @@
       @switch-nav="handleNavSwitch"
       @toggle-theme="toggleTheme"
     />
+
+    <!-- FAB悬浮按钮 -->
+    <view class="fab" @tap="addChapter">
+      <text class="fab-icon">+</text>
+    </view>
+
+    <!-- 目录栏 -->
+    <CatalogPanel
+      :is-visible="showCatalog"
+      :work-id="workId"
+      :user-id="userId"
+      :work-title="workInfo.title"
+      @close="showCatalog = false"
+      @open-chapter="openChapterFromCatalog"
+    />
   </view>
 </template>
 
@@ -106,6 +123,7 @@ import { onLoad, onUnload } from "@dcloudio/uni-app";
 import HeaderPlaceholder from "@/components/HeaderPlaceholder.vue";
 import BottomNav from "@/components/BottomNav.vue";
 import CustomModal from "@/components/CustomModal.vue";
+import CatalogPanel from "@/components/chapterlist/CatalogPanel.vue";
 import FileSystemStorage from "@/utils/fileSystemStorage.js";
 import themeManager, {
   isDarkMode as getIsDarkMode,
@@ -122,6 +140,7 @@ const chapters = ref([]);
 const workId = ref("");
 const userId = ref("");
 const showCreateChapterModal = ref(false);
+const showCatalog = ref(false);
 
 onLoad((options) => {
   // 初始化主题
@@ -169,19 +188,26 @@ const loadWorkChapters = async () => {
       workInfo.value = workConfig;
     }
 
-    // 读取章节列表
-    const chaptersPath = `${workPath}/chapters/chapters.json`;
-    const chaptersData = (await fileStorage.readFile(chaptersPath)) || [];
-
-    // 确保是数组
-    if (!Array.isArray(chaptersData)) {
-      console.warn("⚠️ 章节数据不是数组，重置为空数组");
-      chapters.value = [];
+    // 根据作品类型加载章节数据
+    if (workConfig.structure_type === 'volumized') {
+      // 分卷作品 - 获取所有章节（跨卷）
+      const allChapters = await fileStorage.getAllChapters(userId.value, workId.value);
+      chapters.value = allChapters;
     } else {
-      // 按创建时间排序
-      chapters.value = chaptersData.sort(
-        (a, b) => new Date(a.created_at) - new Date(b.created_at)
-      );
+      // 不分卷作品 - 使用旧的章节列表
+      const chaptersPath = `${workPath}/chapters/chapters.json`;
+      const chaptersData = (await fileStorage.readFile(chaptersPath)) || [];
+
+      // 确保是数组
+      if (!Array.isArray(chaptersData)) {
+        console.warn("⚠️ 章节数据不是数组，重置为空数组");
+        chapters.value = [];
+      } else {
+        // 按创建时间排序
+        chapters.value = chaptersData.sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at)
+        );
+      }
     }
   } catch (error) {
     console.error("❌ 加载章节失败:", error);
@@ -307,8 +333,13 @@ const saveChaptersList = async () => {
 const openChapter = (chapter) => {
   // 跳转到章节编辑页面
   uni.navigateTo({
-    url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${chapter.id}&userId=${userId.value}`,
+    url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${chapter.id}&userId=${userId.value}&volumeId=${chapter.volume_id || ''}`,
   });
+};
+
+const openChapterFromCatalog = (chapter) => {
+  // 从目录栏打开章节
+  openChapter(chapter);
 };
 
 const formatTime = (timestamp) => {
@@ -340,6 +371,10 @@ const formatTime = (timestamp) => {
 
 const goBack = () => {
   uni.navigateBack();
+};
+
+const toggleCatalog = () => {
+  showCatalog.value = !showCatalog.value;
 };
 
 // 模态框相关方法
@@ -402,12 +437,47 @@ const handleNavSwitch = (navType) => {
 .header-left,
 .header-right {
   width: 60px;
+  display: flex;
+  align-items: center;
 }
 
-.back-text {
+.header-left {
+  justify-content: flex-start;
+  padding-left: 16px;
+}
+
+.header-right {
+  justify-content: flex-end;
+  padding-right: 16px;
+}
+
+/* 三行扛菜单图标 */
+.menu-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.menu-line {
+  width: 20px;
+  height: 2px;
+  background: #b3b3b3;
+  border-radius: 1px;
+}
+
+.light-theme .menu-line {
+  background: #666666;
+}
+
+.close-text {
   font-size: 16px;
   font-weight: 500;
-  color: inherit;
+  color: #b3b3b3;
+}
+
+.light-theme .close-text {
+  color: #666666;
 }
 
 .page-title {
@@ -422,26 +492,31 @@ const handleNavSwitch = (navType) => {
   color: #333333;
 }
 
-.action-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
+/* FAB悬浮按钮 */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 100px;
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
   background: linear-gradient(135deg, #ff6b35 0%, #ff8a65 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
+  z-index: 100;
   transition: all 0.3s ease;
 }
 
-.action-btn:active {
+.fab:active {
   transform: scale(0.95);
   box-shadow: 0 2px 8px rgba(255, 107, 53, 0.3);
 }
 
-.add-text {
+.fab-icon {
   color: #ffffff;
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 300;
   line-height: 1;
 }
