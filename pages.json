@@ -36,28 +36,6 @@
       }
     },
     {
-      "path": "pages/create/index",
-      "style": {
-        "navigationBarTitleText": "辅助创建",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/create/character",
-      "style": {
-        "navigationBarTitleText": "新增人物",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/create/setting",
-      "style": {
-        "navigationBarTitleText": "新增设定",
-        "navigationStyle": "custom"
-      }
-    },
-
-    {
       "path": "pages/auth/login",
       "style": {
         "navigationBarTitleText": "登录",
@@ -75,20 +53,6 @@
       "path": "pages/import/index",
       "style": {
         "navigationBarTitleText": "导入作品",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/manage/tag-picker",
-      "style": {
-        "navigationBarTitleText": "选择标签",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/manage/relation-picker",
-      "style": {
-        "navigationBarTitleText": "选择关系",
         "navigationStyle": "custom"
       }
     }
