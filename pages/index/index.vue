@@ -754,22 +754,11 @@ const openWork = (workId) => {
   }
 };
 
-const creationRouteMap = {
-  character: "/pages/create/character",
-  setting: "/pages/create/setting"
-};
-
+// 创建页面已移除，该功能待重新规划
 const openCreationPage = (type) => {
-  const userId = currentUser.value?.id || "default_user";
-  const basePath = type && creationRouteMap[type] ? creationRouteMap[type] : "/pages/create/index";
-  const query = [`userId=${userId}`];
-
-  if (type && !creationRouteMap[type]) {
-    query.push(`type=${type}`);
-  }
-
-  uni.navigateTo({
-    url: `${basePath}?${query.join("&")}`,
+  uni.showToast({
+    title: '功能开发中',
+    icon: 'none'
   });
 };
 
