@@ -158,7 +158,7 @@
     </view>
 
     <!-- 卷选择菜单 -->
-    <view class="action-menu-overlay" v-if="showVolumeSelectMenu" @tap="showVolumeSelectMenu = false">
+    <view class="action-menu-overlay volume-select-overlay" v-if="showVolumeSelectMenu" @tap="showVolumeSelectMenu = false">
       <view class="volume-select-menu" @tap.stop>
         <view class="menu-header">
           <text class="menu-header-text">选择目标卷</text>
@@ -1526,6 +1526,11 @@ const handleNavSwitch = (navType) => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+}
+
+/* 卷选择菜单 - 层级高于模态框 */
+.volume-select-overlay {
+  z-index: 400;
 }
 
 .action-menu {
