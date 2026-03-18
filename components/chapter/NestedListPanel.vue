@@ -34,15 +34,24 @@
         <!-- 滚动栏 -->
         <scroll-view class="scroll-list" scroll-y>
           <view
-            v-for="item in currentLevelItems"
+            v-for="(item, index) in currentLevelItems"
             :key="item.id"
             class="list-item"
-            :class="{ active: item.id === selectedItem?.id }"
+            :class="{ 
+              active: item.id === selectedItem?.id,
+              'dragging': isDragging && dragItem?.id === item.id,
+              'drag-over': dragOverItem?.id === item.id
+            }"
+            :style="getDragItemStyle(item)"
             @tap="handleParentItemClick(item)"
+            @touchstart="handleParentTouchStart(item, $event)"
+            @touchend="handleParentTouchEnd(item, $event)"
+            @touchmove="handleParentTouchMove(item, $event)"
           >
             <text class="item-text" :class="{ active: item.id === selectedItem?.id }">
               {{ truncateText(item.content) }}
             </text>
+            <text v-if="isEditMode" class="edit-icon">⋮⋮</text>
           </view>
         </scroll-view>
       </view>
@@ -76,16 +85,26 @@
         <!-- 滚动栏 -->
         <scroll-view class="scroll-list" scroll-y>
           <view
-            v-for="item in childItems"
+            v-for="(item, index) in childItems"
             :key="item.id"
             class="list-item child-item"
+            :class="{ 
+              'dragging': isDragging && dragItem?.id === item.id,
+              'drag-over': dragOverItem?.id === item.id
+            }"
+            :style="getDragItemStyle(item)"
             @tap="handleChildItemClick(item)"
+            @touchstart="handleChildTouchStart(item, $event)"
+            @touchend="handleChildTouchEnd(item, $event)"
+            @touchmove="handleChildTouchMove(item, $event)"
+            @longpress="!isEditMode ? handleChildItemLongPress(item) : null"
           >
             <text class="item-text">{{ truncateText(item.content) }}</text>
             <!-- 子项数量标记 -->
             <view v-if="item.children?.length > 0" class="child-count">
               <text class="count-text">{{ item.children.length }}</text>
             </view>
+            <text v-if="isEditMode" class="edit-icon">⋮⋮</text>
           </view>
           
           <!-- 空状态 -->
@@ -93,6 +112,15 @@
             <text class="empty-text">暂无子项，点击上方新增</text>
           </view>
         </scroll-view>
+        
+        <!-- 模式切换FAB按钮 -->
+        <view class="fab-button" @tap="toggleEditMode">
+          <image 
+            class="fab-icon" 
+            :src="isEditMode ? '/static/icons/viewa.png' : '/static/icons/edit.png'" 
+            mode="aspectFit" 
+          />
+        </view>
       </view>
     </view>
     
@@ -120,14 +148,36 @@
       </view>
     </view>
     
-    <!-- 确认对话框 -->
-    <view v-if="showConfirmDialog" class="modal-overlay" @tap="closeConfirmDialog">
+    <!-- 确认进入子层级对话框（查看模式下点击子项） -->
+    <view v-if="showConfirmDialog && !isEditMode" class="modal-overlay" @tap="closeConfirmDialog">
       <view class="modal-content confirm-content" @tap.stop>
         <text class="modal-title">进入子层级</text>
         <text class="confirm-message">确定要将「{{ confirmItem?.content }}」作为新的父级显示吗？</text>
         <view class="modal-actions">
           <text class="modal-btn cancel" @tap="closeConfirmDialog">取消</text>
           <text class="modal-btn confirm" @tap="confirmEnterChildLevel">确定</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 删除确认对话框 -->
+    <view v-if="showDeleteDialog" class="modal-overlay" @tap="closeDeleteDialog">
+      <view class="modal-content" @tap.stop>
+        <text class="modal-title">{{ deleteDialogTitle }}</text>
+        <text class="confirm-message">{{ deleteDialogMessage }}</text>
+        <view class="modal-actions">
+          <text class="modal-btn cancel" @tap="closeDeleteDialog">取消</text>
+          <text class="modal-btn confirm delete" @tap="confirmDelete">删除</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 详情对话框（长按显示完整内容） -->
+    <view v-if="showDetailDialog" class="modal-overlay" @tap="closeDetailDialog">
+      <view class="modal-content detail-content" @tap.stop>
+        <text class="detail-title">{{ detailItem?.content }}</text>
+        <view class="modal-actions">
+          <text class="modal-btn confirm" @tap="closeDetailDialog">关闭</text>
         </view>
       </view>
     </view>
@@ -159,6 +209,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+// ============ 常量 ============
+const LONG_PRESS_DURATION = 500; // 长按时间阈值 1秒
+
 // ============ 响应式数据 ============
 const isAnimating = ref(false);
 const rootItems = ref([]); // 根级数据
@@ -176,6 +229,31 @@ const duplicateMessage = ref('');
 // 确认对话框
 const showConfirmDialog = ref(false);
 const confirmItem = ref(null);
+
+// 删除对话框
+const showDeleteDialog = ref(false);
+const deleteDialogTitle = ref('');
+const deleteDialogMessage = ref('');
+const itemToDelete = ref(null);
+const isDeletingParent = ref(false);
+
+// 详情对话框
+const showDetailDialog = ref(false);
+const detailItem = ref(null);
+
+// 编辑/查看模式
+const isEditMode = ref(false);
+
+// 触摸状态
+const touchTimer = ref(null);
+const touchStartTime = ref(0);
+const isLongPressTriggered = ref(false);
+const isDragging = ref(false);
+const dragItem = ref(null);
+const dragOverItem = ref(null);
+const dragStartY = ref(0);
+const dragCurrentY = ref(0);
+const dragItemType = ref(''); // 'parent' 或 'child'
 
 // 存储键名
 const getStorageKey = () => `nested_list_${props.workId}`;
@@ -238,6 +316,21 @@ const saveData = () => {
   }
 };
 
+// 深拷贝NestedItem
+const deepCloneItem = (item) => {
+  if (!item) return null;
+  return {
+    id: item.id,
+    content: item.content,
+    children: (item.children || []).map(child => deepCloneItem(child))
+  };
+};
+
+// 切换编辑/查看模式
+const toggleEditMode = () => {
+  isEditMode.value = !isEditMode.value;
+};
+
 // 处理返回点击
 const handleBackClick = () => {
   if (isAtTopLevel.value) return;
@@ -257,6 +350,317 @@ const handleBackClick = () => {
     selectedItem.value = parentLevel.selectedItem;
     childItems.value = parentLevel.selectedItem?.children || [];
   }
+};
+
+// 父项点击处理
+const handleParentItemClick = (item) => {
+  if (isEditMode.value) {
+    // 编辑模式：弹出删除确认
+    showDeleteParentConfirm(item);
+  } else {
+    // 查看模式：切换选择
+    selectedItem.value = item;
+    childItems.value = item.children || [];
+  }
+};
+
+// 子项点击处理
+const handleChildItemClick = (item) => {
+  if (isEditMode.value) {
+    // 编辑模式：弹出删除确认
+    showDeleteChildConfirm(item);
+  } else {
+    // 查看模式：弹出进入子层级确认
+    confirmItem.value = item;
+    showConfirmDialog.value = true;
+  }
+};
+
+// 父项触摸开始
+const handleParentTouchStart = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  touchStartTime.value = Date.now();
+  isLongPressTriggered.value = false;
+  
+  // 启动1秒延时检测
+  touchTimer.value = setTimeout(() => {
+    // 1秒后触发长按 - 开始拖拽
+    isLongPressTriggered.value = true;
+    startDrag(item, 'parent', event);
+  }, LONG_PRESS_DURATION);
+};
+
+// 父项触摸结束
+const handleParentTouchEnd = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  const touchDuration = Date.now() - touchStartTime.value;
+  
+  clearTimeout(touchTimer.value);
+  
+  if (isDragging.value) {
+    // 正在拖拽，结束拖拽
+    endDrag();
+    return;
+  }
+  
+  if (!isLongPressTriggered.value && touchDuration < LONG_PRESS_DURATION) {
+    // 短按且未触发长按 - 执行点击（删除确认）
+    handleParentItemClick(item);
+  }
+};
+
+// 父项触摸移动
+const handleParentTouchMove = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  if (isDragging.value) {
+    event.preventDefault();
+    updateDragPosition(event, 'parent');
+  } else {
+    // 如果移动距离过大，取消定时器
+    clearTimeout(touchTimer.value);
+  }
+};
+
+// 子项触摸开始
+const handleChildTouchStart = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  touchStartTime.value = Date.now();
+  isLongPressTriggered.value = false;
+  
+  // 启动1秒延时检测
+  touchTimer.value = setTimeout(() => {
+    // 1秒后触发长按 - 开始拖拽
+    isLongPressTriggered.value = true;
+    startDrag(item, 'child', event);
+  }, LONG_PRESS_DURATION);
+};
+
+// 子项触摸结束
+const handleChildTouchEnd = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  const touchDuration = Date.now() - touchStartTime.value;
+  
+  clearTimeout(touchTimer.value);
+  
+  if (isDragging.value) {
+    // 正在拖拽，结束拖拽
+    endDrag();
+    return;
+  }
+  
+  if (!isLongPressTriggered.value && touchDuration < LONG_PRESS_DURATION) {
+    // 短按且未触发长按 - 执行点击（删除确认）
+    handleChildItemClick(item);
+  }
+};
+
+// 子项触摸移动
+const handleChildTouchMove = (item, event) => {
+  if (!isEditMode.value) return;
+  
+  if (isDragging.value) {
+    event.preventDefault();
+    updateDragPosition(event, 'child');
+  } else {
+    // 如果移动距离过大，取消定时器
+    clearTimeout(touchTimer.value);
+  }
+};
+
+// 开始拖拽
+const startDrag = (item, type, event) => {
+  isDragging.value = true;
+  dragItem.value = item;
+  dragItemType.value = type;
+  
+  const touch = event.touches[0];
+  dragStartY.value = touch.clientY;
+  dragCurrentY.value = touch.clientY;
+};
+
+// 更新拖拽位置
+const updateDragPosition = (event, type) => {
+  if (!isDragging.value || dragItemType.value !== type) return;
+  
+  const touch = event.touches[0];
+  dragCurrentY.value = touch.clientY;
+  
+  // 检测拖拽目标位置
+  detectDragOverItem(type);
+};
+
+// 检测拖拽目标
+const detectDragOverItem = (type) => {
+  const items = type === 'parent' ? currentLevelItems.value : childItems.value;
+  
+  // 简单的位置检测
+  const itemHeight = 44; // 每个item的大致高度（rpx）
+  const dragOffset = dragCurrentY.value - dragStartY.value;
+  
+  // 找到拖拽目标
+  let targetIndex = -1;
+  if (type === 'parent') {
+    const currentIndex = currentLevelItems.value.findIndex(i => i.id === dragItem.value?.id);
+    const offsetItems = Math.round(dragOffset / itemHeight);
+    targetIndex = Math.max(0, Math.min(items.length - 1, currentIndex + offsetItems));
+  } else {
+    const currentIndex = childItems.value.findIndex(i => i.id === dragItem.value?.id);
+    const offsetItems = Math.round(dragOffset / itemHeight);
+    targetIndex = Math.max(0, Math.min(items.length - 1, currentIndex + offsetItems));
+  }
+  
+  if (targetIndex >= 0 && targetIndex < items.length) {
+    dragOverItem.value = items[targetIndex];
+  }
+};
+
+// 获取拖拽项样式
+const getDragItemStyle = (item) => {
+  if (!isDragging.value || dragItem.value?.id !== item.id) {
+    return {};
+  }
+  
+  const dragOffset = dragCurrentY.value - dragStartY.value;
+  return {
+    transform: `translateY(${dragOffset}px)`,
+    zIndex: 100,
+    opacity: 0.8
+  };
+};
+
+// 结束拖拽
+const endDrag = () => {
+  if (!isDragging.value) return;
+  
+  // 执行排序
+  if (dragOverItem.value && dragOverItem.value.id !== dragItem.value?.id) {
+    reorderItems();
+  }
+  
+  // 重置拖拽状态
+  isDragging.value = false;
+  dragItem.value = null;
+  dragOverItem.value = null;
+  dragItemType.value = '';
+  dragStartY.value = 0;
+  dragCurrentY.value = 0;
+};
+
+// 重新排序
+const reorderItems = () => {
+  if (!dragItem.value || !dragOverItem.value) return;
+  
+  if (dragItemType.value === 'parent') {
+    const list = currentLevelItems.value;
+    const fromIndex = list.findIndex(i => i.id === dragItem.value.id);
+    const toIndex = list.findIndex(i => i.id === dragOverItem.value.id);
+    
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const [movedItem] = list.splice(fromIndex, 1);
+      list.splice(toIndex, 0, movedItem);
+      
+      // 如果是顶层，同时更新rootItems
+      if (isAtTopLevel.value) {
+        rootItems.value = [...list];
+      }
+      
+      saveData();
+    }
+  } else {
+    const list = selectedItem.value?.children || [];
+    const fromIndex = list.findIndex(i => i.id === dragItem.value.id);
+    const toIndex = list.findIndex(i => i.id === dragOverItem.value.id);
+    
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const [movedItem] = list.splice(fromIndex, 1);
+      list.splice(toIndex, 0, movedItem);
+      saveData();
+      childItems.value = [...list];
+    }
+  }
+};
+
+// 显示删除父项确认
+const showDeleteParentConfirm = (item) => {
+  isDeletingParent.value = true;
+  itemToDelete.value = item;
+  
+  deleteDialogTitle.value = '删除父项';
+  deleteDialogMessage.value = `确定要删除「${item.content}」及其全部子项吗？此操作不可恢复。`;
+  
+  showDeleteDialog.value = true;
+};
+
+// 显示删除子项确认
+const showDeleteChildConfirm = (item) => {
+  isDeletingParent.value = false;
+  itemToDelete.value = item;
+  deleteDialogTitle.value = '删除子项';
+  deleteDialogMessage.value = `确定要删除「${item.content}」吗？此操作不可恢复。`;
+  showDeleteDialog.value = true;
+};
+
+// 关闭删除对话框
+const closeDeleteDialog = () => {
+  showDeleteDialog.value = false;
+  itemToDelete.value = null;
+  isDeletingParent.value = false;
+};
+
+// 确认删除
+const confirmDelete = () => {
+  if (!itemToDelete.value) {
+    closeDeleteDialog();
+    return;
+  }
+  
+  if (isDeletingParent.value) {
+    // 删除父项
+    const list = currentLevelItems.value;
+    const index = list.findIndex(i => i.id === itemToDelete.value.id);
+    if (index !== -1) {
+      list.splice(index, 1);
+      // 如果删除的是当前选中的项，重置选择
+      if (selectedItem.value?.id === itemToDelete.value.id) {
+        selectedItem.value = null;
+        childItems.value = [];
+      }
+    }
+    
+    // 如果是顶层，同时更新rootItems
+    if (isAtTopLevel.value) {
+      rootItems.value = [...list];
+    }
+  } else {
+    // 删除子项
+    const children = selectedItem.value?.children || [];
+    const index = children.findIndex(i => i.id === itemToDelete.value.id);
+    if (index !== -1) {
+      children.splice(index, 1);
+    }
+    childItems.value = [...children];
+  }
+  
+  saveData();
+  closeDeleteDialog();
+};
+
+// 处理子项长按（显示详情）- 仅在查看模式下有效
+const handleChildItemLongPress = (item) => {
+  if (isEditMode.value) return;
+  detailItem.value = item;
+  showDetailDialog.value = true;
+};
+
+// 关闭详情对话框
+const closeDetailDialog = () => {
+  showDetailDialog.value = false;
+  detailItem.value = null;
 };
 
 // 检查父栏是否重复
@@ -333,32 +737,10 @@ const confirmAddItem = () => {
   closeAddDialog();
 };
 
-// 处理父栏项点击
-const handleParentItemClick = (item) => {
-  selectedItem.value = item;
-  childItems.value = item.children || [];
-};
-
-// 处理子栏项点击
-const handleChildItemClick = (item) => {
-  confirmItem.value = item;
-  showConfirmDialog.value = true;
-};
-
 // 关闭确认对话框
 const closeConfirmDialog = () => {
   showConfirmDialog.value = false;
   confirmItem.value = null;
-};
-
-// 深拷贝NestedItem
-const deepCloneItem = (item) => {
-  if (!item) return null;
-  return {
-    id: item.id,
-    content: item.content,
-    children: (item.children || []).map(child => deepCloneItem(child))
-  };
 };
 
 // 确认进入子层级
@@ -389,6 +771,7 @@ const clearAll = () => {
   childItems.value = [];
   selectedItem.value = null;
   pathStack.value = [];
+  isEditMode.value = false;
   saveData();
 };
 
@@ -397,6 +780,8 @@ watch(() => props.isVisible, (newVal) => {
   isAnimating.value = true;
   if (newVal) {
     loadData();
+    // 每次打开都重置为查看模式
+    isEditMode.value = false;
   }
   setTimeout(() => {
     isAnimating.value = false;
@@ -409,15 +794,6 @@ defineExpose({
   loadData,
   saveData
 });
-
-// 获取当前层级数据引用（用于保存）
-const getCurrentLevelRoot = () => {
-  if (pathStack.value.length === 0) {
-    return rootItems;
-  }
-  // 从路径栈找到根
-  return rootItems;
-};
 </script>
 
 <style scoped>
@@ -468,8 +844,36 @@ const getCurrentLevelRoot = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
   /* 防止触摸事件穿透 */
   touch-action: pan-y;
+}
+
+/* ============ FAB按钮 ============ */
+.fab-button {
+  position: absolute;
+  right: 24rpx;
+  bottom: 24rpx;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  background: #007aff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4rpx 16rpx rgba(0, 122, 255, 0.4);
+  z-index: 10;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.fab-button:active {
+  transform: scale(0.95);
+  background: #0056cc;
+}
+
+.fab-icon {
+  width: 48rpx;
+  height: 48rpx;
 }
 
 /* ============ 列分隔线 ============ */
@@ -552,10 +956,25 @@ const getCurrentLevelRoot = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.list-item:active {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .list-item.active {
   background: rgba(0, 122, 255, 0.2);
+}
+
+.list-item.dragging {
+  background: rgba(0, 122, 255, 0.3);
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.3);
+}
+
+.list-item.drag-over {
+  border-top: 4rpx solid #007aff;
 }
 
 .item-text {
@@ -573,6 +992,13 @@ const getCurrentLevelRoot = () => {
 
 .child-item {
   padding-right: 16rpx;
+}
+
+.edit-icon {
+  font-size: 24rpx;
+  color: #666;
+  margin-left: 16rpx;
+  user-select: none;
 }
 
 .child-count {
@@ -624,11 +1050,32 @@ const getCurrentLevelRoot = () => {
   max-width: 560rpx;
 }
 
+.detail-content {
+  max-width: 560rpx;
+}
+
 .modal-title {
   font-size: 36rpx;
   color: #e0e0e0;
   margin-bottom: 32rpx;
   display: block;
+}
+
+.confirm-message {
+  font-size: 28rpx;
+  color: #b3b3b3;
+  margin-bottom: 32rpx;
+  display: block;
+  line-height: 1.6;
+}
+
+.detail-title {
+  font-size: 40rpx;
+  color: #e0e0e0;
+  margin-bottom: 32rpx;
+  display: block;
+  font-weight: 500;
+  line-height: 1.6;
 }
 
 /* ============ 重复提示 ============ */
@@ -642,14 +1089,6 @@ const getCurrentLevelRoot = () => {
 .duplicate-text {
   font-size: 28rpx;
   color: #fff;
-}
-
-.confirm-message {
-  font-size: 28rpx;
-  color: #b3b3b3;
-  margin-bottom: 32rpx;
-  display: block;
-  line-height: 1.6;
 }
 
 .modal-input {
@@ -686,5 +1125,9 @@ const getCurrentLevelRoot = () => {
 
 .modal-btn.confirm {
   color: #007aff;
+}
+
+.modal-btn.confirm.delete {
+  color: #ff3b30;
 }
 </style>
