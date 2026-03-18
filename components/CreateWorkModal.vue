@@ -136,7 +136,7 @@ const showStructureError = ref(false)
 // 结构类型选项
 const structureTypes = ref([
   { value: 'single', label: '整体作品' },
-  { value: 'chapterized', label: '分卷作品' }
+  { value: 'volumized', label: '分卷作品' }
 ])
 
 // 计算属性：表单验证

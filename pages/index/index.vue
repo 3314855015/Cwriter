@@ -736,18 +736,13 @@ const openWork = (workId) => {
   }
 
   // 根据作品类型跳转到不同页面
-  if (work.structure_type === "single") {
-    // 整体作品 - 跳转到文档编辑页面
-    uni.navigateTo({
-      url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`,
-    });
-  } else if (work.structure_type === "chapterized") {
+  if (work.structure_type === "volumized") {
     // 分卷作品 - 跳转到章节列表页面
     uni.navigateTo({
       url: `/pages/chapters/index?workId=${workId}&userId=${currentUser.value.id}`,
     });
   } else {
-    // 未知类型，默认跳转到文档编辑
+    // 整体作品(single)或未知类型，默认跳转到文档编辑
     uni.navigateTo({
       url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`,
     });

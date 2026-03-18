@@ -188,14 +188,13 @@
     >
       <!-- B状态：基础工具栏 - 7槽位布局 -->
       <view v-if="currentState === 'B'" class="bottom-bar-content">
-        <!-- H槽位：适应手机（现改为上一章）-->
-
-        <!-- <view class="tool-slot" @tap="handleToolTap('adapt')">
-          <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'adapt' }">
-            <image class="tool-icon" src="/static/icons/adapt.png" mode="aspectFit" />
+        <!-- H槽位：上一章 -->
+        <view class="tool-slot" @tap="handlePrevChapter">
+          <view class="tool-icon-wrapper">
+            <image class="tool-icon" src="/static/icons/last.png" mode="aspectFit" />
           </view>
-          <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'adapt' }">适应手机</text>
-        </view> -->
+          <text class="tool-label">上一章</text>
+        </view>
 
         <!-- I槽位：留白 -->
         <view class="tool-slot tool-spacer"></view>
@@ -229,14 +228,13 @@
         <!-- M槽位：留白 -->
         <view class="tool-slot tool-spacer"></view>
 
-        <!-- N槽位：主题切换（现改为下一章） -->
-
-        <!-- <view class="tool-slot" @tap="handleToolTap('theme')">
-          <view class="tool-icon-wrapper" :class="{ 'tool-active': activeTool === 'theme' }">
-            <image class="tool-icon" :src="localDarkMode ? '/static/icons/light.png' : '/static/icons/dark.png'" mode="aspectFit" />
+        <!-- N槽位：下一章 -->
+        <view class="tool-slot" @tap="handleNextChapter">
+          <view class="tool-icon-wrapper">
+            <image class="tool-icon" src="/static/icons/next.png" mode="aspectFit" />
           </view>
-          <text class="tool-label" :class="{ 'tool-active-text': activeTool === 'theme' }">{{ localDarkMode ? '浅色模式' : '深色模式' }}</text>
-        </view> -->
+          <text class="tool-label">下一章</text>
+        </view>
 
       </view>
 
@@ -310,6 +308,13 @@
       @unrecycle="handleUnrecycleForeshadowing"
       @delete="handleDeleteForeshadowing"
     />
+
+    <!-- 新建章节模态框 -->
+    <CreateChapterModal
+      :is-visible="showCreateChapterModal"
+      @close="showCreateChapterModal = false"
+      @confirm="handleCreateChapterConfirm"
+    />
   </view>
 </template>
 
@@ -323,6 +328,7 @@ import GlossaryPanel from '@/components/chapter/GlossaryPanel.vue';
 import ForeshadowingPanel from '@/components/chapter/ForeshadowingPanel.vue';
 import ForeshadowingBottomSheet from '@/components/chapter/ForeshadowingBottomSheet.vue';
 import TextStylePanel from '@/components/chaptersimple/TextStylePanel.vue';
+import CreateChapterModal from '@/components/chaptersimple/CreateChapterModal.vue';
 
 const fileStorage = FileSystemStorage;
 
@@ -366,6 +372,14 @@ const selectedParagraphIndex = ref(0);
 const foreshadowings = ref([]);
 const chapters = ref([]); // 章节列表（用于显示章名）
 const paragraphBounds = ref([]); // 段落位置信息
+
+// 新建章节模态框状态
+const showCreateChapterModal = ref(false);
+
+// 作品结构类型和卷列表
+const workStructureType = ref('single'); // 'single' 或 'volumized'
+const volumes = ref([]); // 卷列表
+const allChapters = ref([]); // 所有章节（用于导航）
 
 // NestedListPanel 组件引用
 const nestedListPanelRef = ref(null);
@@ -1225,6 +1239,7 @@ const loadChapterData = async () => {
     const workConfig = await fileStorage.readFile(`${workPath}/work.config.json`);
     if (workConfig) {
       workTitle.value = workConfig.title || '未知作品';
+      workStructureType.value = workConfig.structure_type || 'single';
     }
 
     // 加载章节内容
@@ -1242,8 +1257,8 @@ const loadChapterData = async () => {
       // 如果旧路径不存在，尝试查找卷结构中的章节
       if (!chapterData) {
         // 尝试从所有卷中查找章节
-        const volumes = await fileStorage.getVolumes(userId.value, workId.value);
-        for (const vol of volumes) {
+        const volList = await fileStorage.getVolumes(userId.value, workId.value);
+        for (const vol of volList) {
           const volChapterPath = `${workPath}/volumes/${vol.id}/chapters/${chapterId.value}.json`;
           const data = await fileStorage.readFile(volChapterPath);
           if (data) {
@@ -1259,12 +1274,174 @@ const loadChapterData = async () => {
       chapterTitle.value = chapterData.title || '未命名章节';
       chapterContent.value = chapterData.content || '';
       wordCount.value = chapterData.word_count || calculateWordCount(chapterContent.value);
+      
+      // 加载章节列表（用于导航）
+      await loadChapterList();
     } else {
       showSnackbarMessage('章节不存在');
     }
   } catch (error) {
     console.error('加载章节数据失败:', error);
     showSnackbarMessage('加载失败');
+  }
+};
+
+// 加载章节列表（用于上一章/下一章导航）
+const loadChapterList = async () => {
+  try {
+    if (workStructureType.value === 'volumized') {
+      // 分卷作品：加载所有卷的章节
+      const volList = await fileStorage.getVolumes(userId.value, workId.value);
+      volumes.value = volList;
+      
+      // 收集所有章节
+      const allChaptersList = [];
+      for (const vol of volList) {
+        const chapters = await fileStorage.getChaptersByVolume(userId.value, workId.value, vol.id);
+        chapters.forEach(ch => {
+          allChaptersList.push({
+            ...ch,
+            volume_id: vol.id
+          });
+        });
+      }
+      // 按全局顺序排序
+      allChapters.value = allChaptersList.sort((a, b) => (a.global_order || 0) - (b.global_order || 0));
+    } else {
+      // 整体作品：从chapters.json加载
+      const workPath = fileStorage.getWorkPath(userId.value, workId.value);
+      const chaptersPath = `${workPath}/chapters/chapters.json`;
+      const chaptersList = await fileStorage.readFile(chaptersPath);
+      allChapters.value = Array.isArray(chaptersList) ? chaptersList : [];
+    }
+  } catch (error) {
+    console.error('加载章节列表失败:', error);
+    allChapters.value = [];
+  }
+};
+
+// 获取当前章节的索引
+const getCurrentChapterIndex = () => {
+  return allChapters.value.findIndex(ch => ch.id === chapterId.value);
+};
+
+// 上一章
+const handlePrevChapter = async () => {
+  const currentIndex = getCurrentChapterIndex();
+  
+  if (currentIndex <= 0) {
+    showSnackbarMessage('没有上一章了');
+    return;
+  }
+  
+  const prevChapter = allChapters.value[currentIndex - 1];
+  if (prevChapter) {
+    navigateToChapter(prevChapter);
+  }
+};
+
+// 下一章
+const handleNextChapter = async () => {
+  const currentIndex = getCurrentChapterIndex();
+  
+  if (currentIndex === -1 || currentIndex >= allChapters.value.length - 1) {
+    // 没有下一章，弹出创建章节模态框
+    showCreateChapterModal.value = true;
+    return;
+  }
+  
+  const nextChapter = allChapters.value[currentIndex + 1];
+  if (nextChapter) {
+    navigateToChapter(nextChapter);
+  }
+};
+
+// 跳转到指定章节
+const navigateToChapter = (targetChapter) => {
+  // 关闭当前编辑（如果有修改，先保存）
+  if (currentState.value === 'C' && hasChanges.value) {
+    // 如果当前在编辑模式且有修改，提示用户
+    uni.showModal({
+      title: '提示',
+      content: '当前章节有未保存的修改，是否保存？',
+      confirmText: '保存',
+      cancelText: '不保存',
+      success: async (res) => {
+        if (res.confirm) {
+          await saveChapter();
+        }
+        // 跳转章节
+        doNavigateToChapter(targetChapter);
+      }
+    });
+  } else {
+    doNavigateToChapter(targetChapter);
+  }
+};
+
+// 执行章节跳转
+const doNavigateToChapter = (targetChapter) => {
+  // 使用 redirectTo 替换当前页面，避免返回时还在旧章节
+  uni.redirectTo({
+    url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${targetChapter.id}&userId=${userId.value}&volumeId=${targetChapter.volume_id || ''}`
+  });
+};
+
+// 创建章节确认
+const handleCreateChapterConfirm = async (title) => {
+  try {
+    let newChapter;
+    
+    if (workStructureType.value === 'volumized') {
+      // 分卷作品：在当前卷创建章节
+      const currentVolId = volumeId.value;
+      if (!currentVolId) {
+        // 如果没有volumeId，使用第一个卷
+        const volList = await fileStorage.getVolumes(userId.value, workId.value);
+        if (volList.length === 0) {
+          showSnackbarMessage('请先创建卷');
+          showCreateChapterModal.value = false;
+          return;
+        }
+        volumeId.value = volList[0].id;
+      }
+      
+      newChapter = await fileStorage.createChapter(
+        userId.value,
+        workId.value,
+        volumeId.value,
+        {
+          title: title,
+          content: '',
+          word_count: 0,
+          is_completed: false
+        }
+      );
+    } else {
+      // 整体作品：直接创建章节
+      newChapter = await fileStorage.createChapter(
+        userId.value,
+        workId.value,
+        {
+          title: title,
+          content: '',
+          word_count: 0
+        }
+      );
+    }
+    
+    showCreateChapterModal.value = false;
+    showSnackbarMessage('章节创建成功');
+    
+    // 跳转到新章节
+    setTimeout(() => {
+      uni.redirectTo({
+        url: `/pages/editor/chapter?workId=${workId.value}&chapterId=${newChapter.id}&userId=${userId.value}&volumeId=${newChapter.volume_id || ''}`
+      });
+    }, 500);
+  } catch (error) {
+    console.error('创建章节失败:', error);
+    showSnackbarMessage('创建章节失败');
   }
 };
 
