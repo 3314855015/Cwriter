@@ -115,6 +115,13 @@ import { ref, computed, watch, onMounted } from 'vue';
 import StyleSelector from './StyleSelector.vue';
 import FileSystemStorage from '@/utils/fileSystemStorage.js';
 import { OfflineAuthService } from '@/utils/offlineAuth.js';
+import {
+  exportToPDF,
+  exportToDOCX,
+  getDefaultExportPath,
+  getExportPreview,
+  isExportAvailable
+} from '@/utils/export_import/exportService.js';
 
 const fileStorage = FileSystemStorage;
 
@@ -253,55 +260,108 @@ const generatePreview = async () => {
   loadingText.value = '生成预览中...';
   
   try {
-    // TODO: 调用原生插件生成PDF预览图
-    // 模拟预览
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // 获取预览文本内容
+    const previewText = await getExportPreview(
+      currentUser.value.id,
+      selectedWork.value.id,
+      'text'
+    );
     
-    // 使用占位图
-    previewImage.value = '/static/images/pdf-preview-placeholder.png';
+    // 显示预览（简化版，直接显示文本预览）
+    previewImage.value = previewText.substring(0, 500);
     
     loadingText.value = '';
   } catch (error) {
     console.error('生成预览失败:', error);
+    previewImage.value = '';
   } finally {
     isLoading.value = false;
   }
 };
 
-// 执行导出
+// 执行导出 - 使用原生插件导出
 const handleExport = async () => {
   if (!canExport.value) return;
+  if (!currentUser.value?.id) {
+    uni.showToast({ title: '用户信息无效', icon: 'error' });
+    return;
+  }
+  
+  // 检查导出功能是否可用
+  if (!isExportAvailable()) {
+    uni.showModal({
+      title: '导出提示',
+      content: '当前平台不支持原生导出。\n\n如需PDF/DOCX导出功能，请确保原生插件已正确安装。',
+      showCancel: false
+    });
+    return;
+  }
   
   isExporting.value = true;
   loadingText.value = '导出中...';
   
   try {
-    // TODO: 调用原生插件导出
+    let result;
+    const format = styleConfig.value.format;
     
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 准备样式配置
+    const nativeStyleConfig = {
+      titleSize: styleConfig.value.bookTitle.size,
+      titleBold: styleConfig.value.bookTitle.bold,
+      headingSize: styleConfig.value.chapterTitle.size,
+      headingBold: styleConfig.value.chapterTitle.bold,
+      bodySize: styleConfig.value.content.size,
+      lineSpacing: 1.5
+    };
+    
+    // 调用导出服务
+    if (format === 'pdf') {
+      result = await exportToPDF(
+        currentUser.value.id,
+        selectedWork.value.id,
+        exportPath.value,
+        nativeStyleConfig
+      );
+    } else if (format === 'docx') {
+      result = await exportToDOCX(
+        currentUser.value.id,
+        selectedWork.value.id,
+        exportPath.value,
+        nativeStyleConfig
+      );
+    }
     
     uni.showToast({ title: '导出成功', icon: 'success' });
     emit('export-success', {
       workId: selectedWork.value.id,
-      path: exportPath.value,
-      format: styleConfig.value.format
+      path: result,
+      format: format
     });
     
     // 询问是否打开文件
     uni.showModal({
       title: '导出成功',
-      content: `文件已保存到：\n${exportPath.value}\n\n是否打开文件位置？`,
+      content: `文件已保存到：\n${result}\n\n是否打开文件位置？`,
       confirmText: '打开',
       cancelText: '关闭',
       success: (res) => {
         if (res.confirm) {
-          // TODO: 打开文件管理器
+          // 尝试打开文件管理器
+          // #ifdef APP-PLUS
+          try {
+            plus.runtime.openFile(result, {}, (e) => {
+              console.log('打开文件失败:', e);
+            });
+          } catch (e) {
+            console.log('打开文件管理器失败:', e);
+          }
+          // #endif
         }
       }
     });
   } catch (error) {
     console.error('导出失败:', error);
-    uni.showToast({ title: '导出失败', icon: 'error' });
+    uni.showToast({ title: error.message || '导出失败', icon: 'error', duration: 3000 });
     emit('export-error', error);
   } finally {
     isExporting.value = false;

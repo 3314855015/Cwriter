@@ -459,7 +459,7 @@ const loadUserData = async () => {
       let wordCount = 0;
       
       try {
-        // 所有作品都使用分章节字数获取逻辑
+        // 所有作品都使用分卷字数获取逻辑
         wordCount = await getChapterizedWorkWordCount(work.id);
       } catch (error) {
         console.warn(`获取作品 ${work.title} 字数失败:`, error);
@@ -594,7 +594,7 @@ const createAutoBackup = async () => {
   }
 };
 
-// 获取分章节作品的字数统计
+// 获取分卷作品的字数统计
 const getChapterizedWorkWordCount = async (workId) => {
   if (!currentUser.value || !workId) return 0;
   
@@ -637,7 +637,7 @@ const getChapterizedWorkWordCount = async (workId) => {
   }
 };
 
-// 获取分章节作品的章节数量
+// 获取分卷作品的章节数量
 const getChapterCount = async (workId) => {
   if (!currentUser.value || !workId) return "0章";
   
@@ -664,7 +664,7 @@ const createNewWork = () => {
 
 // 处理作品创建成功
 const handleWorkCreated = async (newWork) => {
-  // 所有作品都使用分章节字数获取逻辑
+  // 所有作品都使用分卷字数获取逻辑
   const wordCount = await getChapterizedWorkWordCount(newWork.id);
 
   // 添加到作品列表
@@ -742,7 +742,7 @@ const openWork = (workId) => {
       url: `/pages/editor/index?workId=${workId}&userId=${currentUser.value.id}`,
     });
   } else if (work.structure_type === "chapterized") {
-    // 分章节作品 - 跳转到章节列表页面
+    // 分卷作品 - 跳转到章节列表页面
     uni.navigateTo({
       url: `/pages/chapters/index?workId=${workId}&userId=${currentUser.value.id}`,
     });

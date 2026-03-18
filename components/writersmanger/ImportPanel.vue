@@ -75,6 +75,12 @@
 <script setup>
 import { ref, computed } from 'vue';
 import StyleSelector from './StyleSelector.vue';
+import {
+  getImportPreview,
+  performImport,
+  isImportAvailable,
+  parseDOCXFile
+} from '@/utils/export_import/importService.js';
 
 const props = defineProps({
   userId: {
@@ -182,59 +188,115 @@ const selectFileManually = () => {
   });
 };
 
-// 解析文件
+// 解析文件 - 使用原生插件解析
 const parseFile = async () => {
   if (!selectedFilePath.value) return;
+  
+  // 检查导入功能是否可用
+  if (!isImportAvailable()) {
+    uni.showToast({ title: '当前平台不支持导入', icon: 'none' });
+    return;
+  }
   
   isLoading.value = true;
   loadingText.value = '解析文件中...';
   
   try {
-    // TODO: 调用原生插件解析
-    // 模拟数据
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 准备样式配置（转换为原生插件需要的格式）
+    const nativeStyleConfig = styleConfig.value ? {
+      title: styleConfig.value.bookTitle,
+      descriptionTitle: { font: styleConfig.value.bookTitle.font, size: 16, bold: true },
+      descriptionContent: { font: styleConfig.value.content.font, size: styleConfig.value.content.size, bold: false },
+      chapterTitle: styleConfig.value.chapterTitle,
+      chapterContent: styleConfig.value.content
+    } : null;
     
-    previewData.value = {
-      title: '示例作品',
-      description: '这是一段简介...',
-      chapters: [
-        { title: '第一章 开端', content: '正文内容...' },
-        { title: '第二章 发展', content: '正文内容...' },
-        { title: '第三章 高潮', content: '正文内容...' }
-      ]
-    };
+    // 调用服务获取预览
+    const result = await getImportPreview(selectedFilePath.value, nativeStyleConfig);
     
-    loadingText.value = '';
+    if (result.success && result.data) {
+      previewData.value = result.data;
+      loadingText.value = '';
+    } else {
+      throw new Error(result.error || '解析失败');
+    }
   } catch (error) {
     console.error('解析失败:', error);
-    uni.showToast({ title: '解析失败', icon: 'error' });
+    uni.showToast({ title: error.message || '解析失败', icon: 'error', duration: 2000 });
+    previewData.value = null;
+    loadingText.value = '';
   } finally {
     isLoading.value = false;
   }
 };
 
-// 执行导入
+// 执行导入 - 使用原生插件导入
 const handleImport = async () => {
   if (!canImport.value) return;
+  if (!props.userId) {
+    uni.showToast({ title: '用户信息无效', icon: 'error' });
+    return;
+  }
   
   isImporting.value = true;
   loadingText.value = '导入中...';
   
   try {
-    // TODO: 调用原生插件导入
+    // 准备样式配置
+    const nativeStyleConfig = styleConfig.value ? {
+      title: styleConfig.value.bookTitle,
+      descriptionTitle: { font: styleConfig.value.bookTitle.font, size: 16, bold: true },
+      descriptionContent: { font: styleConfig.value.content.font, size: styleConfig.value.content.size, bold: false },
+      chapterTitle: styleConfig.value.chapterTitle,
+      chapterContent: styleConfig.value.content
+    } : null;
     
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 执行导入
+    const result = await performImport(
+      props.userId,
+      selectedFilePath.value,
+      nativeStyleConfig,
+      { allowOverwrite: true }
+    );
     
-    uni.showToast({ title: '导入成功', icon: 'success' });
-    emit('import-success', previewData.value);
-    
-    // 重置
-    selectedFileName.value = '';
-    selectedFilePath.value = '';
-    previewData.value = null;
+    if (result.success) {
+      uni.showToast({ title: '导入成功', icon: 'success', duration: 2000 });
+      emit('import-success', {
+        work: result.work,
+        chapters: result.chapters
+      });
+      
+      // 重置状态
+      selectedFileName.value = '';
+      selectedFilePath.value = '';
+      previewData.value = null;
+    } else if (result.isDuplicate) {
+      // 重复导入确认
+      uni.showModal({
+        title: '重复导入',
+        content: '检测到已存在同名作品，是否覆盖？',
+        success: async (res) => {
+          if (res.confirm) {
+            // 用户确认覆盖，重新执行导入
+            const retryResult = await performImport(
+              props.userId,
+              selectedFilePath.value,
+              nativeStyleConfig,
+              { allowOverwrite: true }
+            );
+            if (retryResult.success) {
+              uni.showToast({ title: '导入成功', icon: 'success' });
+              emit('import-success', retryResult);
+            }
+          }
+        }
+      });
+    } else {
+      throw new Error(result.error || '导入失败');
+    }
   } catch (error) {
     console.error('导入失败:', error);
-    uni.showToast({ title: '导入失败', icon: 'error' });
+    uni.showToast({ title: error.message || '导入失败', icon: 'error', duration: 3000 });
     emit('import-error', error);
   } finally {
     isImporting.value = false;
